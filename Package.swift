@@ -8,11 +8,15 @@ let version = "v1.0.0-alpha"
 let url = "https://github.com/matrix-org/matrix-rust-components-swift/releases/download/\(version)/MatrixSDKFFI.xcframework.zip"
 
 let package = Package(
-    name: "MatrixRustComponentsSwift",
+    name: "MatrixRustSDK",
+    platforms: [
+        .iOS(.v15),
+        .macOS(.v12)
+    ],
     products: [
         .library(
-            name: "MatrixRustComponentsSwift",
-            targets: ["MatrixRustComponentsSwift"]),
+            name: "MatrixRustSDK",
+            targets: ["MatrixRustSDK"]),
     ],
     targets: [
         .binaryTarget(
@@ -32,10 +36,10 @@ let package = Package(
             path: "MatrixSDKFFIWrapper"
         ),
         .target(
-            name: "MatrixRustComponentsSwift",
+            name: "MatrixRustSDK",
             dependencies: ["MatrixSDKFFIWrapper"]),
         .testTarget(
-            name: "MatrixRustComponentsSwiftTests",
-            dependencies: ["MatrixRustComponentsSwift"]),
+            name: "MatrixRustSDKTests",
+            dependencies: ["MatrixRustSDK"]),
     ]
 )

@@ -1,5 +1,5 @@
 import XCTest
-@testable import MatrixRustComponentsSwift
+@testable import MatrixRustSDK
 
 final class MatrixRustComponentsSwiftTests: XCTestCase {
     func testExample() throws {
