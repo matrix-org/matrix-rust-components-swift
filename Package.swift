@@ -3,8 +3,8 @@
 
 import PackageDescription
 
-let checksum = "051aa92b9fff0b18e54c6a82ea12231edf4cfa98b49889223870b3c63bf2829b"
-let version = "v1.0.0-alpha"
+let checksum = "10db0e90274ea87744494d85f01fc12c652cc06d0a7d7dd173f0d00251033820"
+let version = "v1.0.1-alpha"
 let url = "https://github.com/matrix-org/matrix-rust-components-swift/releases/download/\(version)/MatrixSDKFFI.xcframework.zip"
 
 let package = Package(
@@ -19,6 +19,9 @@ let package = Package(
             targets: ["MatrixRustSDK"]),
     ],
     targets: [
+//        .binaryTarget(
+//            name: "MatrixSDKFFI",
+//            path: "MatrixSDKFFI.xcframework"),
         .binaryTarget(
             name: "MatrixSDKFFI",
             url: url,
