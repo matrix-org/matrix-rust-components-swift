@@ -7,10 +7,10 @@ import MatrixSDKFFIWrapper
 // might be in a separate module, or it might be compiled inline into
 // this module. This is a bit of light hackery to work with both.
 #if canImport(sdkFFI)
-    import sdkFFI
+import sdkFFI
 #endif
 
-private extension RustBuffer {
+fileprivate extension RustBuffer {
     // Allocate a new buffer, copying the contents of a `UInt8` array.
     init(bytes: [UInt8]) {
         let rbuf = bytes.withUnsafeBufferPointer { ptr in
@@ -20,17 +20,17 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_sdk_a8d0_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_sdk_1c6b_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_sdk_a8d0_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_sdk_1c6b_rustbuffer_free(self, $0) }
     }
 }
 
-private extension ForeignBytes {
+fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
@@ -43,7 +43,7 @@ private extension ForeignBytes {
 // Helper classes/extensions that don't change.
 // Someday, this will be in a libray of its own.
 
-private extension Data {
+fileprivate extension Data {
     init(rustBuffer: RustBuffer) {
         // TODO: This copies the buffer. Can we read directly from a
         // Rust buffer?
@@ -52,20 +52,20 @@ private extension Data {
 }
 
 // A helper class to read values out of a byte buffer.
-private class Reader {
+fileprivate class Reader {
     let data: Data
     var offset: Data.Index
 
     init(data: Data) {
         self.data = data
-        offset = 0
+        self.offset = 0
     }
 
     // Reads an integer at the current offset, in big-endian order, and advances
     // the offset on success. Throws if reading the integer would move the
     // offset past the end of the buffer.
     func readInt<T: FixedWidthInteger>() throws -> T {
-        let range = offset ..< offset + MemoryLayout<T>.size
+        let range = offset..<offset + MemoryLayout<T>.size
         guard data.count >= range.upperBound else {
             throw UniffiInternalError.bufferOverflow
         }
@@ -75,22 +75,22 @@ private class Reader {
             return value as! T
         }
         var value: T = 0
-        let _ = withUnsafeMutableBytes(of: &value) { data.copyBytes(to: $0, from: range) }
+        let _ = withUnsafeMutableBytes(of: &value, { data.copyBytes(to: $0, from: range)})
         offset = range.upperBound
         return value.bigEndian
     }
 
     // Reads an arbitrary number of bytes, to be used to read
     // raw bytes, this is useful when lifting strings
-    func readBytes(count: Int) throws -> [UInt8] {
-        let range = offset ..< (offset + count)
+    func readBytes(count: Int) throws -> Array<UInt8> {
+        let range = offset..<(offset+count)
         guard data.count >= range.upperBound else {
             throw UniffiInternalError.bufferOverflow
         }
         var value = [UInt8](repeating: 0, count: count)
-        value.withUnsafeMutableBufferPointer { buffer in
+        value.withUnsafeMutableBufferPointer({ buffer in
             data.copyBytes(to: buffer, from: range)
-        }
+        })
         offset = range.upperBound
         return value
     }
@@ -115,13 +115,13 @@ private class Reader {
 }
 
 // A helper class to write values into a byte buffer.
-private class Writer {
+fileprivate class Writer {
     var bytes: [UInt8]
     var offset: Array<UInt8>.Index
 
     init() {
-        bytes = []
-        offset = 0
+        self.bytes = []
+        self.offset = 0
     }
 
     func writeBytes<S>(_ byteArr: S) where S: Sequence, S.Element == UInt8 {
@@ -148,62 +148,62 @@ private class Writer {
     }
 }
 
+
 // Types conforming to `Serializable` can be read and written in a bytebuffer.
-private protocol Serializable {
+fileprivate protocol Serializable {
     func write(into: Writer)
     static func read(from: Reader) throws -> Self
 }
 
 // Types confirming to `ViaFfi` can be transferred back-and-for over the FFI.
 // This is analogous to the Rust trait of the same name.
-private protocol ViaFfi: Serializable {
+fileprivate protocol ViaFfi: Serializable {
     associatedtype FfiType
     static func lift(_ v: FfiType) throws -> Self
     func lower() -> FfiType
 }
 
 // Types conforming to `Primitive` pass themselves directly over the FFI.
-private protocol Primitive {}
+fileprivate protocol Primitive {}
 
-private extension Primitive {
-    typealias FfiType = Self
+extension Primitive {
+    fileprivate typealias FfiType = Self
 
-    static func lift(_ v: Self) throws -> Self {
+    fileprivate static func lift(_ v: Self) throws -> Self {
         return v
     }
 
-    func lower() -> Self {
+    fileprivate func lower() -> Self {
         return self
     }
 }
 
 // Types conforming to `ViaFfiUsingByteBuffer` lift and lower into a bytebuffer.
 // Use this for complex types where it's hard to write a custom lift/lower.
-private protocol ViaFfiUsingByteBuffer: Serializable {}
+fileprivate protocol ViaFfiUsingByteBuffer: Serializable {}
 
-private extension ViaFfiUsingByteBuffer {
-    typealias FfiType = RustBuffer
+extension ViaFfiUsingByteBuffer {
+    fileprivate typealias FfiType = RustBuffer
 
-    static func lift(_ buf: FfiType) throws -> Self {
-        let reader = Reader(data: Data(rustBuffer: buf))
-        let value = try Self.read(from: reader)
-        if reader.hasRemaining() {
-            throw UniffiInternalError.incompleteData
-        }
-        buf.deallocate()
-        return value
+    fileprivate static func lift(_ buf: FfiType) throws -> Self {
+      let reader = Reader(data: Data(rustBuffer: buf))
+      let value = try Self.read(from: reader)
+      if reader.hasRemaining() {
+          throw UniffiInternalError.incompleteData
+      }
+      buf.deallocate()
+      return value
     }
 
-    func lower() -> FfiType {
-        let writer = Writer()
-        write(into: writer)
-        return RustBuffer(bytes: writer.bytes)
+    fileprivate func lower() -> FfiType {
+      let writer = Writer()
+      self.write(into: writer)
+      return RustBuffer(bytes: writer.bytes)
     }
 }
-
 // An error type for FFI errors. These errors occur at the UniFFI level, not
 // the library level.
-private enum UniffiInternalError: LocalizedError {
+fileprivate enum UniffiInternalError: LocalizedError {
     case bufferOverflow
     case incompleteData
     case unexpectedOptionalTag
@@ -229,15 +229,15 @@ private enum UniffiInternalError: LocalizedError {
     }
 }
 
-private let CALL_SUCCESS: Int8 = 0
-private let CALL_ERROR: Int8 = 1
-private let CALL_PANIC: Int8 = 2
+fileprivate let CALL_SUCCESS: Int8 = 0
+fileprivate let CALL_ERROR: Int8 = 1
+fileprivate let CALL_PANIC: Int8 = 2
 
-private extension RustCallStatus {
+fileprivate extension RustCallStatus {
     init() {
         self.init(
             code: CALL_SUCCESS,
-            errorBuf: RustBuffer(
+            errorBuf: RustBuffer.init(
                 capacity: 0,
                 len: 0,
                 data: nil
@@ -253,39 +253,38 @@ private func rustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T
     })
 }
 
-private func rustCallWithError<T, E: ViaFfiUsingByteBuffer & Error>(_: E.Type, _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
-    try makeRustCall(callback, errorHandler: { try E.lift($0) })
+private func rustCallWithError<T, E: ViaFfiUsingByteBuffer & Error>(_ errorClass: E.Type, _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
+    try makeRustCall(callback, errorHandler: { return try E.lift($0) })
 }
 
 private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T, errorHandler: (RustBuffer) throws -> Error) throws -> T {
-    var callStatus = RustCallStatus()
+    var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     switch callStatus.code {
-    case CALL_SUCCESS:
-        return returnedVal
+        case CALL_SUCCESS:
+            return returnedVal
 
-    case CALL_ERROR:
-        throw try errorHandler(callStatus.errorBuf)
+        case CALL_ERROR:
+            throw try errorHandler(callStatus.errorBuf)
 
-    case CALL_PANIC:
-        // When the rust code sees a panic, it tries to construct a RustBuffer
-        // with the message.  But if that code panics, then it just sends back
-        // an empty buffer.
-        if callStatus.errorBuf.len > 0 {
-            throw UniffiInternalError.rustPanic(try String.lift(callStatus.errorBuf))
-        } else {
-            callStatus.errorBuf.deallocate()
-            throw UniffiInternalError.rustPanic("Rust panic")
-        }
+        case CALL_PANIC:
+            // When the rust code sees a panic, it tries to construct a RustBuffer
+            // with the message.  But if that code panics, then it just sends back
+            // an empty buffer.
+            if callStatus.errorBuf.len > 0 {
+                throw UniffiInternalError.rustPanic(try String.lift(callStatus.errorBuf))
+            } else {
+                callStatus.errorBuf.deallocate()
+                throw UniffiInternalError.rustPanic("Rust panic")
+            }
 
-    default:
-        throw UniffiInternalError.unexpectedRustCallStatusCode
+        default:
+            throw UniffiInternalError.unexpectedRustCallStatusCode
     }
 }
-
 // Protocols for converters we'll implement in templates
 
-private protocol FfiConverter {
+fileprivate protocol FfiConverter {
     associatedtype SwiftType
     associatedtype FfiType
 
@@ -296,7 +295,7 @@ private protocol FfiConverter {
     static func write(_ value: SwiftType, into: Writer)
 }
 
-private protocol FfiConverterUsingByteBuffer: FfiConverter where FfiType == RustBuffer {
+fileprivate protocol FfiConverterUsingByteBuffer: FfiConverter where FfiType == RustBuffer {
     // Empty, because we want to declare some helper methods in the extension below.
 }
 
@@ -311,7 +310,7 @@ extension FfiConverterUsingByteBuffer {
         let reader = Reader(data: Data(rustBuffer: buf))
         let value = try Self.read(from: reader)
         if reader.hasRemaining() {
-            throw UniffiInternalError.incompleteData
+          throw UniffiInternalError.incompleteData
         }
         buf.deallocate()
         return value
@@ -320,7 +319,7 @@ extension FfiConverterUsingByteBuffer {
 
 // Helpers for structural types. Note that because of canonical_names, it /should/ be impossible
 // to make another `FfiConverterSequence` etc just using the UDL.
-private enum FfiConverterSequence {
+fileprivate enum FfiConverterSequence {
     static func write<T>(_ value: [T], into buf: Writer, writeItem: (T, Writer) -> Void) {
         let len = Int32(value.count)
         buf.writeInt(len)
@@ -340,7 +339,7 @@ private enum FfiConverterSequence {
     }
 }
 
-private enum FfiConverterOptional {
+fileprivate enum FfiConverterOptional {
     static func write<T>(_ value: T?, into buf: Writer, writeItem: (T, Writer) -> Void) {
         guard let value = value else {
             buf.writeInt(Int8(0))
@@ -359,7 +358,7 @@ private enum FfiConverterOptional {
     }
 }
 
-private enum FfiConverterDictionary {
+fileprivate enum FfiConverterDictionary {
     static func write<T>(_ value: [String: T], into buf: Writer, writeItem: (String, T, Writer) -> Void) {
         let len = Int32(value.count)
         buf.writeInt(len)
@@ -372,7 +371,7 @@ private enum FfiConverterDictionary {
         let len: Int32 = try buf.readInt()
         var dict = [String: T]()
         dict.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
+        for _ in 0..<len {
             let (key, value) = try readItem(buf)
             dict[key] = value
         }
@@ -382,19 +381,113 @@ private enum FfiConverterDictionary {
 
 // Public interface members begin here.
 
+
+fileprivate extension NSLock {
+    func withLock<T>(f: () throws -> T) rethrows -> T {
+        self.lock()
+        defer { self.unlock() }
+        return try f()
+    }
+}
+
+fileprivate typealias Handle = UInt64
+fileprivate class ConcurrentHandleMap<T> {
+    private var leftMap: [Handle: T] = [:]
+    private var counter: [Handle: UInt64] = [:]
+    private var rightMap: [ObjectIdentifier: Handle] = [:]
+
+    private let lock = NSLock()
+    private var currentHandle: Handle = 0
+    private let stride: Handle = 1
+
+    func insert(obj: T) -> Handle {
+        lock.withLock {
+            let id = ObjectIdentifier(obj as AnyObject)
+            let handle = rightMap[id] ?? {
+                currentHandle += stride
+                let handle = currentHandle
+                leftMap[handle] = obj
+                rightMap[id] = handle
+                return handle
+            }()
+            counter[handle] = (counter[handle] ?? 0) + 1
+            return handle
+        }
+    }
+
+    func get(handle: Handle) -> T? {
+        lock.withLock {
+            leftMap[handle]
+        }
+    }
+
+    func delete(handle: Handle) {
+        remove(handle: handle)
+    }
+
+    @discardableResult
+    func remove(handle: Handle) -> T? {
+        lock.withLock {
+            defer { counter[handle] = (counter[handle] ?? 1) - 1 }
+            guard counter[handle] == 1 else { return leftMap[handle] }
+            let obj = leftMap.removeValue(forKey: handle)
+            if let obj = obj {
+                rightMap.removeValue(forKey: ObjectIdentifier(obj as AnyObject))
+            }
+            return obj
+        }
+    }
+}
+
+// Magic number for the Rust proxy to call using the same mechanism as every other method,
+// to free the callback once it's dropped by Rust.
+private let IDX_CALLBACK_FREE: Int32 = 0
+
+fileprivate class FfiConverterCallbackInterface<CallbackInterface> {
+    fileprivate let handleMap = ConcurrentHandleMap<CallbackInterface>()
+
+    func drop(handle: Handle) {
+        handleMap.remove(handle: handle)
+    }
+
+    func lift(_ handle: Handle) throws -> CallbackInterface {
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    func read(from buf: Reader) throws -> CallbackInterface {
+        let handle: Handle = try buf.readInt()
+        return try lift(handle)
+    }
+
+    func lower(_ v: CallbackInterface) -> Handle {
+        let handle = handleMap.insert(obj: v)
+        return handle
+        // assert(handleMap.get(handle: obj) == v, "Handle map is not returning the object we just placed there. This is a bug in the HandleMap.")
+    }
+
+    func write(_ v: CallbackInterface, into buf: Writer) {
+        buf.writeInt(lower(v))
+    }
+}
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
 public enum ClientError {
-    case generic(msg: String)
+    
+    case generic(msg: String )
 }
 
 extension ClientError: ViaFfiUsingByteBuffer, ViaFfi {
     fileprivate static func read(from buf: Reader) throws -> ClientError {
         let variant: Int32 = try buf.readInt()
         switch variant {
+        
         case 1: return .generic(
-                msg: try String.read(from: buf)
+            msg: try String.read(from: buf)
             )
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -402,45 +495,165 @@ extension ClientError: ViaFfiUsingByteBuffer, ViaFfi {
 
     fileprivate func write(into buf: Writer) {
         switch self {
+        
+        
         case let .generic(msg):
             buf.writeInt(Int32(1))
             msg.write(into: buf)
+            
+        
         }
     }
 }
 
+
 extension ClientError: Equatable, Hashable {}
 
-public func loginNewClient(basePath: String, username: String, password: String) throws -> Client {
-    let _retval = try
 
-        rustCallWithError(ClientError.self) {
-            sdk_a8d0_login_new_client(basePath.lower(), username.lower(), password.lower(), $0)
-        }
+
+public func loginNewClient( basePath: String,  username: String,  password: String ) throws -> Client {
+    let _retval = try
+    
+    
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_login_new_client(basePath.lower(), username.lower(), password.lower() , $0)
+}
     return try Client.lift(_retval)
 }
 
-public func guestClient(basePath: String, homeserver: String) throws -> Client {
-    let _retval = try
 
-        rustCallWithError(ClientError.self) {
-            sdk_a8d0_guest_client(basePath.lower(), homeserver.lower(), $0)
-        }
+
+public func guestClient( basePath: String,  homeserver: String ) throws -> Client {
+    let _retval = try
+    
+    
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_guest_client(basePath.lower(), homeserver.lower() , $0)
+}
     return try Client.lift(_retval)
 }
 
-public func loginWithToken(basePath: String, restoreToken: String) throws -> Client {
-    let _retval = try
 
-        rustCallWithError(ClientError.self) {
-            sdk_a8d0_login_with_token(basePath.lower(), restoreToken.lower(), $0)
-        }
+
+public func loginWithToken( basePath: String,  restoreToken: String ) throws -> Client {
+    let _retval = try
+    
+    
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_login_with_token(basePath.lower(), restoreToken.lower() , $0)
+}
     return try Client.lift(_retval)
 }
+
+
+
+public protocol MessageProtocol {
+    func messageType()  -> String
+    func content()  -> String
+    func sender()  -> String
+    
+}
+
+public class Message: MessageProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `ViaFfi` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { ffi_sdk_1c6b_Message_object_free(pointer, $0) }
+    }
+
+    
+
+    
+    public func messageType()  -> String {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Message_message_type(self.pointer,  $0
+    )
+}
+        return try! String.lift(_retval)
+    }
+    public func content()  -> String {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Message_content(self.pointer,  $0
+    )
+}
+        return try! String.lift(_retval)
+    }
+    public func sender()  -> String {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Message_sender(self.pointer,  $0
+    )
+}
+        return try! String.lift(_retval)
+    }
+    
+}
+
+
+fileprivate extension Message {
+    typealias FfiType = UnsafeMutableRawPointer
+
+    static func read(from buf: Reader) throws -> Self {
+        let v: UInt64 = try buf.readInt()
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try self.lift(ptr!)
+    }
+
+    func write(into buf: Writer) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: self.lower()))))
+    }
+
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
+        return Self(unsafeFromRawPointer: pointer)
+    }
+
+    func lower() -> UnsafeMutableRawPointer {
+        return self.pointer
+    }
+}
+
+// Ideally this would be `fileprivate`, but Swift says:
+// """
+// 'private' modifier cannot be used with extensions that declare protocol conformances
+// """
+extension Message : ViaFfi, Serializable {}
+
 
 public protocol RoomProtocol {
+    func identifier()  -> String
     func displayName() throws -> String
     func avatar() throws -> [UInt8]
+    func avatarUrl()  -> String?
+    func isDirect()  -> Bool
+    func isPublic()  -> Bool
+    func isSpace()  -> Bool
+    func isEncrypted()  -> Bool
+    func name()  -> String?
+    func topic()  -> String?
+    func messages() throws -> [Message]
+    
 }
 
 public class Room: RoomProtocol {
@@ -454,27 +667,116 @@ public class Room: RoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_a8d0_Room_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_1c6b_Room_object_free(pointer, $0) }
     }
 
+    
+
+    
+    public func identifier()  -> String {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_identifier(self.pointer,  $0
+    )
+}
+        return try! String.lift(_retval)
+    }
     public func displayName() throws -> String {
         let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_a8d0_Room_display_name(self.pointer, $0)
-            }
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Room_display_name(self.pointer,  $0
+    )
+}
         return try String.lift(_retval)
     }
-
     public func avatar() throws -> [UInt8] {
         let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_a8d0_Room_avatar(self.pointer, $0)
-            }
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Room_avatar(self.pointer,  $0
+    )
+}
         return try FfiConverterSequenceUInt8.lift(_retval)
     }
+    public func avatarUrl()  -> String? {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_avatar_url(self.pointer,  $0
+    )
+}
+        return try! FfiConverterOptionString.lift(_retval)
+    }
+    public func isDirect()  -> Bool {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_is_direct(self.pointer,  $0
+    )
+}
+        return try! Bool.lift(_retval)
+    }
+    public func isPublic()  -> Bool {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_is_public(self.pointer,  $0
+    )
+}
+        return try! Bool.lift(_retval)
+    }
+    public func isSpace()  -> Bool {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_is_space(self.pointer,  $0
+    )
+}
+        return try! Bool.lift(_retval)
+    }
+    public func isEncrypted()  -> Bool {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_is_encrypted(self.pointer,  $0
+    )
+}
+        return try! Bool.lift(_retval)
+    }
+    public func name()  -> String? {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_name(self.pointer,  $0
+    )
+}
+        return try! FfiConverterOptionString.lift(_retval)
+    }
+    public func topic()  -> String? {
+        let _retval = try!
+    rustCall() {
+    
+    sdk_1c6b_Room_topic(self.pointer,  $0
+    )
+}
+        return try! FfiConverterOptionString.lift(_retval)
+    }
+    public func messages() throws -> [Message] {
+        let _retval = try
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Room_messages(self.pointer,  $0
+    )
+}
+        return try FfiConverterSequenceObjectMessage.lift(_retval)
+    }
+    
 }
 
-private extension Room {
+
+fileprivate extension Room {
     typealias FfiType = UnsafeMutableRawPointer
 
     static func read(from buf: Reader) throws -> Self {
@@ -482,16 +784,16 @@ private extension Room {
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
         let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if ptr == nil {
+        if (ptr == nil) {
             throw UniffiInternalError.unexpectedNullPointer
         }
-        return try lift(ptr!)
+        return try self.lift(ptr!)
     }
 
     func write(into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: self.lower()))))
     }
 
     static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
@@ -499,7 +801,7 @@ private extension Room {
     }
 
     func lower() -> UnsafeMutableRawPointer {
-        return pointer
+        return self.pointer
     }
 }
 
@@ -507,19 +809,21 @@ private extension Room {
 // """
 // 'private' modifier cannot be used with extensions that declare protocol conformances
 // """
-extension Room: ViaFfi, Serializable {}
+extension Room : ViaFfi, Serializable {}
+
 
 public protocol ClientProtocol {
-    func startSync()
+    func startSync( delegate: ClientDelegate ) 
     func restoreToken() throws -> String
-    func isGuest() -> Bool
-    func hasFirstSynced() -> Bool
-    func isSyncing() -> Bool
+    func isGuest()  -> Bool
+    func hasFirstSynced()  -> Bool
+    func isSyncing()  -> Bool
     func userId() throws -> String
     func displayName() throws -> String
     func deviceId() throws -> String
     func avatar() throws -> [UInt8]
-    func conversations() -> [Room]
+    func conversations()  -> [Room]
+    
 }
 
 public class Client: ClientProtocol {
@@ -533,90 +837,106 @@ public class Client: ClientProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_a8d0_Client_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_1c6b_Client_object_free(pointer, $0) }
     }
 
-    public func startSync() {
+    
+
+    
+    public func startSync( delegate: ClientDelegate )  {
         try!
-            rustCall {
-                sdk_a8d0_Client_start_sync(self.pointer, $0)
-            }
+    rustCall() {
+    
+    sdk_1c6b_Client_start_sync(self.pointer, ffiConverterCallbackInterfaceClientDelegate.lower(delegate) , $0
+    )
+}
     }
-
     public func restoreToken() throws -> String {
         let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_a8d0_Client_restore_token(self.pointer, $0)
-            }
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Client_restore_token(self.pointer,  $0
+    )
+}
         return try String.lift(_retval)
     }
-
-    public func isGuest() -> Bool {
+    public func isGuest()  -> Bool {
         let _retval = try!
-            rustCall {
-                sdk_a8d0_Client_is_guest(self.pointer, $0)
-            }
+    rustCall() {
+    
+    sdk_1c6b_Client_is_guest(self.pointer,  $0
+    )
+}
         return try! Bool.lift(_retval)
     }
-
-    public func hasFirstSynced() -> Bool {
+    public func hasFirstSynced()  -> Bool {
         let _retval = try!
-            rustCall {
-                sdk_a8d0_Client_has_first_synced(self.pointer, $0)
-            }
+    rustCall() {
+    
+    sdk_1c6b_Client_has_first_synced(self.pointer,  $0
+    )
+}
         return try! Bool.lift(_retval)
     }
-
-    public func isSyncing() -> Bool {
+    public func isSyncing()  -> Bool {
         let _retval = try!
-            rustCall {
-                sdk_a8d0_Client_is_syncing(self.pointer, $0)
-            }
+    rustCall() {
+    
+    sdk_1c6b_Client_is_syncing(self.pointer,  $0
+    )
+}
         return try! Bool.lift(_retval)
     }
-
     public func userId() throws -> String {
         let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_a8d0_Client_user_id(self.pointer, $0)
-            }
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Client_user_id(self.pointer,  $0
+    )
+}
         return try String.lift(_retval)
     }
-
     public func displayName() throws -> String {
         let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_a8d0_Client_display_name(self.pointer, $0)
-            }
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Client_display_name(self.pointer,  $0
+    )
+}
         return try String.lift(_retval)
     }
-
     public func deviceId() throws -> String {
         let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_a8d0_Client_device_id(self.pointer, $0)
-            }
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Client_device_id(self.pointer,  $0
+    )
+}
         return try String.lift(_retval)
     }
-
     public func avatar() throws -> [UInt8] {
         let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_a8d0_Client_avatar(self.pointer, $0)
-            }
+    rustCallWithError(ClientError.self) {
+    
+    sdk_1c6b_Client_avatar(self.pointer,  $0
+    )
+}
         return try FfiConverterSequenceUInt8.lift(_retval)
     }
-
-    public func conversations() -> [Room] {
+    public func conversations()  -> [Room] {
         let _retval = try!
-            rustCall {
-                sdk_a8d0_Client_conversations(self.pointer, $0)
-            }
+    rustCall() {
+    
+    sdk_1c6b_Client_conversations(self.pointer,  $0
+    )
+}
         return try! FfiConverterSequenceObjectRoom.lift(_retval)
     }
+    
 }
 
-private extension Client {
+
+fileprivate extension Client {
     typealias FfiType = UnsafeMutableRawPointer
 
     static func read(from buf: Reader) throws -> Self {
@@ -624,16 +944,16 @@ private extension Client {
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
         let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if ptr == nil {
+        if (ptr == nil) {
             throw UniffiInternalError.unexpectedNullPointer
         }
-        return try lift(ptr!)
+        return try self.lift(ptr!)
     }
 
     func write(into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: self.lower()))))
     }
 
     static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
@@ -641,7 +961,7 @@ private extension Client {
     }
 
     func lower() -> UnsafeMutableRawPointer {
-        return pointer
+        return self.pointer
     }
 }
 
@@ -649,26 +969,79 @@ private extension Client {
 // """
 // 'private' modifier cannot be used with extensions that declare protocol conformances
 // """
-extension Client: ViaFfi, Serializable {}
+extension Client : ViaFfi, Serializable {}
+
+
+// Declaration and FfiConverters for ClientDelegate Callback Interface
+
+public protocol ClientDelegate : AnyObject {
+    func didReceiveSyncUpdate() 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceClientDelegate : ForeignCallback =
+    { (handle: Handle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+        func invokeDidReceiveSyncUpdate(_ swiftCallbackInterface: ClientDelegate, _ args: RustBuffer) throws -> RustBuffer {
+        defer { args.deallocate() }
+            
+              swiftCallbackInterface.didReceiveSyncUpdate()
+            return RustBuffer()
+                // TODO catch errors and report them back to Rust.
+                // https://github.com/mozilla/uniffi-rs/issues/351
+
+    }
+    
+
+        let cb = try! ffiConverterCallbackInterfaceClientDelegate.lift(handle)
+        switch method {
+            case IDX_CALLBACK_FREE:
+                ffiConverterCallbackInterfaceClientDelegate.drop(handle: handle)
+                // No return value.
+                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+                return 0
+            case 1:
+                let buffer = try! invokeDidReceiveSyncUpdate(cb, args)
+                out_buf.pointee = buffer
+                // Value written to out buffer.
+                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+                return 1
+            
+            // This should never happen, because an out of bounds method index won't
+            // ever be used. Once we can catch errors, we should return an InternalError.
+            // https://github.com/mozilla/uniffi-rs/issues/351
+            default:
+                // An unexpected error happened.
+                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+                return -1
+        }
+    }
+
+// The ffiConverter which transforms the Callbacks in to Handles to pass to Rust.
+private let ffiConverterCallbackInterfaceClientDelegate: FfiConverterCallbackInterface<ClientDelegate> = {
+    try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            ffi_sdk_1c6b_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+    }
+    return FfiConverterCallbackInterface<ClientDelegate>()
+}()
 extension UInt8: Primitive, ViaFfi {
     fileprivate static func read(from buf: Reader) throws -> Self {
-        return try lift(buf.readInt())
+        return try self.lift(buf.readInt())
     }
 
     fileprivate func write(into buf: Writer) {
-        buf.writeInt(lower())
+        buf.writeInt(self.lower())
     }
 }
-
 extension Bool: ViaFfi {
     fileprivate typealias FfiType = Int8
 
     fileprivate static func read(from buf: Reader) throws -> Self {
-        return try lift(buf.readInt())
+        return try self.lift(buf.readInt())
     }
 
     fileprivate func write(into buf: Writer) {
-        buf.writeInt(lower())
+        buf.writeInt(self.lower())
     }
 
     fileprivate static func lift(_ v: FfiType) throws -> Self {
@@ -679,7 +1052,6 @@ extension Bool: ViaFfi {
         return self ? 1 : 0
     }
 }
-
 extension String: ViaFfi {
     fileprivate typealias FfiType = RustBuffer
 
@@ -695,7 +1067,7 @@ extension String: ViaFfi {
     }
 
     fileprivate func lower() -> FfiType {
-        return utf8CString.withUnsafeBufferPointer { ptr in
+        return self.utf8CString.withUnsafeBufferPointer { ptr in
             // The swift string gives us int8_t, we want uint8_t.
             ptr.withMemoryRebound(to: UInt8.self) { ptr in
                 // The swift string gives us a trailing null byte, we don't want it.
@@ -711,21 +1083,37 @@ extension String: ViaFfi {
     }
 
     fileprivate func write(into buf: Writer) {
-        let len = Int32(utf8.count)
+        let len = Int32(self.utf8.count)
         buf.writeInt(len)
-        buf.writeBytes(utf8)
+        buf.writeBytes(self.utf8)
     }
 }
-
 // Helper code for Client class is found in ObjectTemplate.swift
+// Helper code for Message class is found in ObjectTemplate.swift
 // Helper code for Room class is found in ObjectTemplate.swift
 // Helper code for ClientError enum is found in EnumTemplate.swift
 
-private enum FfiConverterSequenceUInt8: FfiConverterUsingByteBuffer {
+fileprivate enum FfiConverterOptionString: FfiConverterUsingByteBuffer {
+    typealias SwiftType = String?
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        FfiConverterOptional.write(value, into: buf) { item, buf in
+            item.write(into: buf)
+        }
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        try FfiConverterOptional.read(from: buf) { buf in
+            try String.read(from: buf)
+        }
+    }
+}
+
+fileprivate enum FfiConverterSequenceUInt8: FfiConverterUsingByteBuffer {
     typealias SwiftType = [UInt8]
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterSequence.write(value, into: buf) { item, buf in
+        FfiConverterSequence.write(value, into: buf) { (item, buf) in
             item.write(into: buf)
         }
     }
@@ -737,11 +1125,27 @@ private enum FfiConverterSequenceUInt8: FfiConverterUsingByteBuffer {
     }
 }
 
-private enum FfiConverterSequenceObjectRoom: FfiConverterUsingByteBuffer {
+fileprivate enum FfiConverterSequenceObjectMessage: FfiConverterUsingByteBuffer {
+    typealias SwiftType = [Message]
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        FfiConverterSequence.write(value, into: buf) { (item, buf) in
+            item.write(into: buf)
+        }
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        try FfiConverterSequence.read(from: buf) { buf in
+            try Message.read(from: buf)
+        }
+    }
+}
+
+fileprivate enum FfiConverterSequenceObjectRoom: FfiConverterUsingByteBuffer {
     typealias SwiftType = [Room]
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterSequence.write(value, into: buf) { item, buf in
+        FfiConverterSequence.write(value, into: buf) { (item, buf) in
             item.write(into: buf)
         }
     }
@@ -753,6 +1157,7 @@ private enum FfiConverterSequenceObjectRoom: FfiConverterUsingByteBuffer {
     }
 }
 
+
 /**
  * Top level initializers and tear down methods.
  *
@@ -763,6 +1168,8 @@ public enum SdkLifecycle {
      * Initialize the FFI and Rust library. This should be only called once per application.
      */
     func initialize() {
+        
         // No initialization code needed
+        
     }
 }
