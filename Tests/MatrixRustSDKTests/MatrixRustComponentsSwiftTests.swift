@@ -7,7 +7,7 @@ final class MatrixRustComponentsSwiftTests: XCTestCase {
             let client = try loginNewClient(basePath: "", username: "", password: "")
             let displayName = try client.displayName()
             print("Display name: \(displayName)")
-        } catch ClientError.generic(let msg) {
+        } catch ClientError.Generic(let msg) {
             print("Failed with message \(msg)")
         } catch {
             fatalError()
