@@ -20,13 +20,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_sdk_1bc6_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_sdk_6b93_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_sdk_1bc6_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_sdk_6b93_rustbuffer_free(self, $0) }
     }
 }
 
@@ -477,7 +477,7 @@ public func loginNewClient(basePath: String, username: String, password: String)
     let _retval = try
 
         rustCallWithError(ClientError.self) {
-            sdk_1bc6_login_new_client(basePath.lower(), username.lower(), password.lower(), $0)
+            sdk_6b93_login_new_client(basePath.lower(), username.lower(), password.lower(), $0)
         }
     return try Client.lift(_retval)
 }
@@ -486,7 +486,7 @@ public func guestClient(basePath: String, homeserver: String) throws -> Client {
     let _retval = try
 
         rustCallWithError(ClientError.self) {
-            sdk_1bc6_guest_client(basePath.lower(), homeserver.lower(), $0)
+            sdk_6b93_guest_client(basePath.lower(), homeserver.lower(), $0)
         }
     return try Client.lift(_retval)
 }
@@ -495,7 +495,7 @@ public func loginWithToken(basePath: String, restoreToken: String) throws -> Cli
     let _retval = try
 
         rustCallWithError(ClientError.self) {
-            sdk_1bc6_login_with_token(basePath.lower(), restoreToken.lower(), $0)
+            sdk_6b93_login_with_token(basePath.lower(), restoreToken.lower(), $0)
         }
     return try Client.lift(_retval)
 }
@@ -509,9 +509,9 @@ public protocol ClientProtocol {
     func isSyncing() -> Bool
     func userId() throws -> String
     func displayName() throws -> String
+    func avatarUrl() throws -> String
     func deviceId() throws -> String
-    func avatar() throws -> [UInt8]
-    func conversations() -> [Room]
+    func rooms() -> [Room]
     func loadImage(url: String) throws -> [UInt8]
 }
 
@@ -526,27 +526,27 @@ public class Client: ClientProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_1bc6_Client_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_6b93_Client_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: ClientDelegate?) {
         try!
             rustCall {
-                sdk_1bc6_Client_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
+                sdk_6b93_Client_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
             }
     }
 
     public func startSync() {
         try!
             rustCall {
-                sdk_1bc6_Client_start_sync(self.pointer, $0)
+                sdk_6b93_Client_start_sync(self.pointer, $0)
             }
     }
 
     public func restoreToken() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_1bc6_Client_restore_token(self.pointer, $0)
+                sdk_6b93_Client_restore_token(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -554,7 +554,7 @@ public class Client: ClientProtocol {
     public func isGuest() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Client_is_guest(self.pointer, $0)
+                sdk_6b93_Client_is_guest(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -562,7 +562,7 @@ public class Client: ClientProtocol {
     public func hasFirstSynced() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Client_has_first_synced(self.pointer, $0)
+                sdk_6b93_Client_has_first_synced(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -570,7 +570,7 @@ public class Client: ClientProtocol {
     public func isSyncing() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Client_is_syncing(self.pointer, $0)
+                sdk_6b93_Client_is_syncing(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -578,7 +578,7 @@ public class Client: ClientProtocol {
     public func userId() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_1bc6_Client_user_id(self.pointer, $0)
+                sdk_6b93_Client_user_id(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -586,7 +586,15 @@ public class Client: ClientProtocol {
     public func displayName() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_1bc6_Client_display_name(self.pointer, $0)
+                sdk_6b93_Client_display_name(self.pointer, $0)
+            }
+        return try String.lift(_retval)
+    }
+
+    public func avatarUrl() throws -> String {
+        let _retval = try
+            rustCallWithError(ClientError.self) {
+                sdk_6b93_Client_avatar_url(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -594,23 +602,15 @@ public class Client: ClientProtocol {
     public func deviceId() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_1bc6_Client_device_id(self.pointer, $0)
+                sdk_6b93_Client_device_id(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
 
-    public func avatar() throws -> [UInt8] {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_1bc6_Client_avatar(self.pointer, $0)
-            }
-        return try FfiConverterSequenceUInt8.lift(_retval)
-    }
-
-    public func conversations() -> [Room] {
+    public func rooms() -> [Room] {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Client_conversations(self.pointer, $0)
+                sdk_6b93_Client_rooms(self.pointer, $0)
             }
         return try! FfiConverterSequenceObjectRoom.lift(_retval)
     }
@@ -618,7 +618,7 @@ public class Client: ClientProtocol {
     public func loadImage(url: String) throws -> [UInt8] {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_1bc6_Client_load_image(self.pointer, url.lower(), $0)
+                sdk_6b93_Client_load_image(self.pointer, url.lower(), $0)
             }
         return try FfiConverterSequenceUInt8.lift(_retval)
     }
@@ -665,10 +665,12 @@ public protocol RoomProtocol {
     func displayName() throws -> String
     func avatarUrl() -> String?
     func memberAvatarUrl(userId: String) throws -> String?
+    func memberDisplayName(userId: String) throws -> String?
     func isDirect() -> Bool
     func isPublic() -> Bool
     func isSpace() -> Bool
     func isEncrypted() -> Bool
+    func isTombstoned() -> Bool
     func name() -> String?
     func topic() -> String?
     func startLiveEventListener() -> BackwardsStream?
@@ -686,20 +688,20 @@ public class Room: RoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_1bc6_Room_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_6b93_Room_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: RoomDelegate?) {
         try!
             rustCall {
-                sdk_1bc6_Room_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceRoomDelegate.lower(delegate), $0)
+                sdk_6b93_Room_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceRoomDelegate.lower(delegate), $0)
             }
     }
 
     public func id() -> String {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_id(self.pointer, $0)
+                sdk_6b93_Room_id(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
@@ -707,7 +709,7 @@ public class Room: RoomProtocol {
     public func displayName() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_1bc6_Room_display_name(self.pointer, $0)
+                sdk_6b93_Room_display_name(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -715,7 +717,7 @@ public class Room: RoomProtocol {
     public func avatarUrl() -> String? {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_avatar_url(self.pointer, $0)
+                sdk_6b93_Room_avatar_url(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -723,7 +725,15 @@ public class Room: RoomProtocol {
     public func memberAvatarUrl(userId: String) throws -> String? {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_1bc6_Room_member_avatar_url(self.pointer, userId.lower(), $0)
+                sdk_6b93_Room_member_avatar_url(self.pointer, userId.lower(), $0)
+            }
+        return try FfiConverterOptionString.lift(_retval)
+    }
+
+    public func memberDisplayName(userId: String) throws -> String? {
+        let _retval = try
+            rustCallWithError(ClientError.self) {
+                sdk_6b93_Room_member_display_name(self.pointer, userId.lower(), $0)
             }
         return try FfiConverterOptionString.lift(_retval)
     }
@@ -731,7 +741,7 @@ public class Room: RoomProtocol {
     public func isDirect() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_is_direct(self.pointer, $0)
+                sdk_6b93_Room_is_direct(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -739,7 +749,7 @@ public class Room: RoomProtocol {
     public func isPublic() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_is_public(self.pointer, $0)
+                sdk_6b93_Room_is_public(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -747,7 +757,7 @@ public class Room: RoomProtocol {
     public func isSpace() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_is_space(self.pointer, $0)
+                sdk_6b93_Room_is_space(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -755,7 +765,15 @@ public class Room: RoomProtocol {
     public func isEncrypted() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_is_encrypted(self.pointer, $0)
+                sdk_6b93_Room_is_encrypted(self.pointer, $0)
+            }
+        return try! Bool.lift(_retval)
+    }
+
+    public func isTombstoned() -> Bool {
+        let _retval = try!
+            rustCall {
+                sdk_6b93_Room_is_tombstoned(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -763,7 +781,7 @@ public class Room: RoomProtocol {
     public func name() -> String? {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_name(self.pointer, $0)
+                sdk_6b93_Room_name(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -771,7 +789,7 @@ public class Room: RoomProtocol {
     public func topic() -> String? {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_topic(self.pointer, $0)
+                sdk_6b93_Room_topic(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -779,7 +797,7 @@ public class Room: RoomProtocol {
     public func startLiveEventListener() -> BackwardsStream? {
         let _retval = try!
             rustCall {
-                sdk_1bc6_Room_start_live_event_listener(self.pointer, $0)
+                sdk_6b93_Room_start_live_event_listener(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectBackwardsStream.lift(_retval)
     }
@@ -787,7 +805,7 @@ public class Room: RoomProtocol {
     public func stopLiveEventListener() {
         try!
             rustCall {
-                sdk_1bc6_Room_stop_live_event_listener(self.pointer, $0)
+                sdk_6b93_Room_stop_live_event_listener(self.pointer, $0)
             }
     }
 }
@@ -842,13 +860,13 @@ public class BackwardsStream: BackwardsStreamProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_1bc6_BackwardsStream_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_6b93_BackwardsStream_object_free(pointer, $0) }
     }
 
     public func paginateBackwards(count: UInt64) -> [AnyMessage] {
         let _retval = try!
             rustCall {
-                sdk_1bc6_BackwardsStream_paginate_backwards(self.pointer, count.lower(), $0)
+                sdk_6b93_BackwardsStream_paginate_backwards(self.pointer, count.lower(), $0)
             }
         return try! FfiConverterSequenceObjectAnyMessage.lift(_retval)
     }
@@ -905,13 +923,13 @@ public class AnyMessage: AnyMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_1bc6_AnyMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_6b93_AnyMessage_object_free(pointer, $0) }
     }
 
     public func text() -> TextMessage? {
         let _retval = try!
             rustCall {
-                sdk_1bc6_AnyMessage_text(self.pointer, $0)
+                sdk_6b93_AnyMessage_text(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectTextMessage.lift(_retval)
     }
@@ -919,7 +937,7 @@ public class AnyMessage: AnyMessageProtocol {
     public func image() -> ImageMessage? {
         let _retval = try!
             rustCall {
-                sdk_1bc6_AnyMessage_image(self.pointer, $0)
+                sdk_6b93_AnyMessage_image(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectImageMessage.lift(_retval)
     }
@@ -962,7 +980,7 @@ extension AnyMessage: ViaFfi, Serializable {}
 
 public protocol BaseMessageProtocol {
     func id() -> String
-    func content() -> String
+    func body() -> String
     func sender() -> String
     func originServerTs() -> UInt64
 }
@@ -978,21 +996,21 @@ public class BaseMessage: BaseMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_1bc6_BaseMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_6b93_BaseMessage_object_free(pointer, $0) }
     }
 
     public func id() -> String {
         let _retval = try!
             rustCall {
-                sdk_1bc6_BaseMessage_id(self.pointer, $0)
+                sdk_6b93_BaseMessage_id(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
 
-    public func content() -> String {
+    public func body() -> String {
         let _retval = try!
             rustCall {
-                sdk_1bc6_BaseMessage_content(self.pointer, $0)
+                sdk_6b93_BaseMessage_body(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
@@ -1000,7 +1018,7 @@ public class BaseMessage: BaseMessageProtocol {
     public func sender() -> String {
         let _retval = try!
             rustCall {
-                sdk_1bc6_BaseMessage_sender(self.pointer, $0)
+                sdk_6b93_BaseMessage_sender(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
@@ -1008,7 +1026,7 @@ public class BaseMessage: BaseMessageProtocol {
     public func originServerTs() -> UInt64 {
         let _retval = try!
             rustCall {
-                sdk_1bc6_BaseMessage_origin_server_ts(self.pointer, $0)
+                sdk_6b93_BaseMessage_origin_server_ts(self.pointer, $0)
             }
         return try! UInt64.lift(_retval)
     }
@@ -1051,6 +1069,7 @@ extension BaseMessage: ViaFfi, Serializable {}
 
 public protocol TextMessageProtocol {
     func baseMessage() -> BaseMessage
+    func htmlBody() -> String?
 }
 
 public class TextMessage: TextMessageProtocol {
@@ -1064,15 +1083,23 @@ public class TextMessage: TextMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_1bc6_TextMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_6b93_TextMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         let _retval = try!
             rustCall {
-                sdk_1bc6_TextMessage_base_message(self.pointer, $0)
+                sdk_6b93_TextMessage_base_message(self.pointer, $0)
             }
         return try! BaseMessage.lift(_retval)
+    }
+
+    public func htmlBody() -> String? {
+        let _retval = try!
+            rustCall {
+                sdk_6b93_TextMessage_html_body(self.pointer, $0)
+            }
+        return try! FfiConverterOptionString.lift(_retval)
     }
 }
 
@@ -1127,13 +1154,13 @@ public class ImageMessage: ImageMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_1bc6_ImageMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_6b93_ImageMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         let _retval = try!
             rustCall {
-                sdk_1bc6_ImageMessage_base_message(self.pointer, $0)
+                sdk_6b93_ImageMessage_base_message(self.pointer, $0)
             }
         return try! BaseMessage.lift(_retval)
     }
@@ -1141,7 +1168,7 @@ public class ImageMessage: ImageMessageProtocol {
     public func url() -> String? {
         let _retval = try!
             rustCall {
-                sdk_1bc6_ImageMessage_url(self.pointer, $0)
+                sdk_6b93_ImageMessage_url(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -1256,7 +1283,7 @@ private let foreignCallbackCallbackInterfaceClientDelegate: ForeignCallback =
 // The ffiConverter which transforms the Callbacks in to Handles to pass to Rust.
 private let ffiConverterCallbackInterfaceClientDelegate: FfiConverterCallbackInterface<ClientDelegate> = {
     try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-        ffi_sdk_1bc6_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+        ffi_sdk_6b93_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
     }
     return FfiConverterCallbackInterface<ClientDelegate>()
 }()
@@ -1309,7 +1336,7 @@ private let foreignCallbackCallbackInterfaceRoomDelegate: ForeignCallback =
 // The ffiConverter which transforms the Callbacks in to Handles to pass to Rust.
 private let ffiConverterCallbackInterfaceRoomDelegate: FfiConverterCallbackInterface<RoomDelegate> = {
     try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-        ffi_sdk_1bc6_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
+        ffi_sdk_6b93_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
     }
     return FfiConverterCallbackInterface<RoomDelegate>()
 }()
