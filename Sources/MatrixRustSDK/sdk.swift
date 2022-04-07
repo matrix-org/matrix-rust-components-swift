@@ -20,13 +20,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_sdk_f686_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_sdk_2c68_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_sdk_f686_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_sdk_2c68_rustbuffer_free(self, $0) }
     }
 }
 
@@ -477,7 +477,7 @@ public func loginNewClient(basePath: String, username: String, password: String)
     let _retval = try
 
         rustCallWithError(ClientError.self) {
-            sdk_f686_login_new_client(basePath.lower(), username.lower(), password.lower(), $0)
+            sdk_2c68_login_new_client(basePath.lower(), username.lower(), password.lower(), $0)
         }
     return try Client.lift(_retval)
 }
@@ -486,7 +486,7 @@ public func guestClient(basePath: String, homeserver: String) throws -> Client {
     let _retval = try
 
         rustCallWithError(ClientError.self) {
-            sdk_f686_guest_client(basePath.lower(), homeserver.lower(), $0)
+            sdk_2c68_guest_client(basePath.lower(), homeserver.lower(), $0)
         }
     return try Client.lift(_retval)
 }
@@ -495,9 +495,18 @@ public func loginWithToken(basePath: String, restoreToken: String) throws -> Cli
     let _retval = try
 
         rustCallWithError(ClientError.self) {
-            sdk_f686_login_with_token(basePath.lower(), restoreToken.lower(), $0)
+            sdk_2c68_login_with_token(basePath.lower(), restoreToken.lower(), $0)
         }
     return try Client.lift(_retval)
+}
+
+public func mediaSourceFromUrl(url: String) -> MediaSource {
+    let _retval = try!
+
+        rustCall {
+            sdk_2c68_media_source_from_url(url.lower(), $0)
+        }
+    return try! MediaSource.lift(_retval)
 }
 
 public protocol ClientProtocol {
@@ -512,7 +521,7 @@ public protocol ClientProtocol {
     func avatarUrl() throws -> String
     func deviceId() throws -> String
     func rooms() -> [Room]
-    func loadImage(url: String) throws -> [UInt8]
+    func loadImage(source: MediaSource) throws -> [UInt8]
 }
 
 public class Client: ClientProtocol {
@@ -526,27 +535,27 @@ public class Client: ClientProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_Client_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_Client_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: ClientDelegate?) {
         try!
             rustCall {
-                sdk_f686_Client_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
+                sdk_2c68_Client_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
             }
     }
 
     public func startSync() {
         try!
             rustCall {
-                sdk_f686_Client_start_sync(self.pointer, $0)
+                sdk_2c68_Client_start_sync(self.pointer, $0)
             }
     }
 
     public func restoreToken() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Client_restore_token(self.pointer, $0)
+                sdk_2c68_Client_restore_token(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -554,7 +563,7 @@ public class Client: ClientProtocol {
     public func isGuest() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Client_is_guest(self.pointer, $0)
+                sdk_2c68_Client_is_guest(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -562,7 +571,7 @@ public class Client: ClientProtocol {
     public func hasFirstSynced() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Client_has_first_synced(self.pointer, $0)
+                sdk_2c68_Client_has_first_synced(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -570,7 +579,7 @@ public class Client: ClientProtocol {
     public func isSyncing() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Client_is_syncing(self.pointer, $0)
+                sdk_2c68_Client_is_syncing(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -578,7 +587,7 @@ public class Client: ClientProtocol {
     public func userId() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Client_user_id(self.pointer, $0)
+                sdk_2c68_Client_user_id(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -586,7 +595,7 @@ public class Client: ClientProtocol {
     public func displayName() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Client_display_name(self.pointer, $0)
+                sdk_2c68_Client_display_name(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -594,7 +603,7 @@ public class Client: ClientProtocol {
     public func avatarUrl() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Client_avatar_url(self.pointer, $0)
+                sdk_2c68_Client_avatar_url(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -602,7 +611,7 @@ public class Client: ClientProtocol {
     public func deviceId() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Client_device_id(self.pointer, $0)
+                sdk_2c68_Client_device_id(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -610,15 +619,15 @@ public class Client: ClientProtocol {
     public func rooms() -> [Room] {
         let _retval = try!
             rustCall {
-                sdk_f686_Client_rooms(self.pointer, $0)
+                sdk_2c68_Client_rooms(self.pointer, $0)
             }
         return try! FfiConverterSequenceObjectRoom.lift(_retval)
     }
 
-    public func loadImage(url: String) throws -> [UInt8] {
+    public func loadImage(source: MediaSource) throws -> [UInt8] {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Client_load_image(self.pointer, url.lower(), $0)
+                sdk_2c68_Client_load_image(self.pointer, source.lower(), $0)
             }
         return try FfiConverterSequenceUInt8.lift(_retval)
     }
@@ -688,20 +697,20 @@ public class Room: RoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_Room_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_Room_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: RoomDelegate?) {
         try!
             rustCall {
-                sdk_f686_Room_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceRoomDelegate.lower(delegate), $0)
+                sdk_2c68_Room_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceRoomDelegate.lower(delegate), $0)
             }
     }
 
     public func id() -> String {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_id(self.pointer, $0)
+                sdk_2c68_Room_id(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
@@ -709,7 +718,7 @@ public class Room: RoomProtocol {
     public func displayName() throws -> String {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Room_display_name(self.pointer, $0)
+                sdk_2c68_Room_display_name(self.pointer, $0)
             }
         return try String.lift(_retval)
     }
@@ -717,7 +726,7 @@ public class Room: RoomProtocol {
     public func avatarUrl() -> String? {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_avatar_url(self.pointer, $0)
+                sdk_2c68_Room_avatar_url(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -725,7 +734,7 @@ public class Room: RoomProtocol {
     public func memberAvatarUrl(userId: String) throws -> String? {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Room_member_avatar_url(self.pointer, userId.lower(), $0)
+                sdk_2c68_Room_member_avatar_url(self.pointer, userId.lower(), $0)
             }
         return try FfiConverterOptionString.lift(_retval)
     }
@@ -733,7 +742,7 @@ public class Room: RoomProtocol {
     public func memberDisplayName(userId: String) throws -> String? {
         let _retval = try
             rustCallWithError(ClientError.self) {
-                sdk_f686_Room_member_display_name(self.pointer, userId.lower(), $0)
+                sdk_2c68_Room_member_display_name(self.pointer, userId.lower(), $0)
             }
         return try FfiConverterOptionString.lift(_retval)
     }
@@ -741,7 +750,7 @@ public class Room: RoomProtocol {
     public func isDirect() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_is_direct(self.pointer, $0)
+                sdk_2c68_Room_is_direct(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -749,7 +758,7 @@ public class Room: RoomProtocol {
     public func isPublic() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_is_public(self.pointer, $0)
+                sdk_2c68_Room_is_public(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -757,7 +766,7 @@ public class Room: RoomProtocol {
     public func isSpace() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_is_space(self.pointer, $0)
+                sdk_2c68_Room_is_space(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -765,7 +774,7 @@ public class Room: RoomProtocol {
     public func isEncrypted() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_is_encrypted(self.pointer, $0)
+                sdk_2c68_Room_is_encrypted(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -773,7 +782,7 @@ public class Room: RoomProtocol {
     public func isTombstoned() -> Bool {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_is_tombstoned(self.pointer, $0)
+                sdk_2c68_Room_is_tombstoned(self.pointer, $0)
             }
         return try! Bool.lift(_retval)
     }
@@ -781,7 +790,7 @@ public class Room: RoomProtocol {
     public func name() -> String? {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_name(self.pointer, $0)
+                sdk_2c68_Room_name(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -789,7 +798,7 @@ public class Room: RoomProtocol {
     public func topic() -> String? {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_topic(self.pointer, $0)
+                sdk_2c68_Room_topic(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -797,7 +806,7 @@ public class Room: RoomProtocol {
     public func startLiveEventListener() -> BackwardsStream? {
         let _retval = try!
             rustCall {
-                sdk_f686_Room_start_live_event_listener(self.pointer, $0)
+                sdk_2c68_Room_start_live_event_listener(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectBackwardsStream.lift(_retval)
     }
@@ -805,7 +814,7 @@ public class Room: RoomProtocol {
     public func stopLiveEventListener() {
         try!
             rustCall {
-                sdk_f686_Room_stop_live_event_listener(self.pointer, $0)
+                sdk_2c68_Room_stop_live_event_listener(self.pointer, $0)
             }
     }
 }
@@ -860,13 +869,13 @@ public class BackwardsStream: BackwardsStreamProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_BackwardsStream_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_BackwardsStream_object_free(pointer, $0) }
     }
 
     public func paginateBackwards(count: UInt64) -> [AnyMessage] {
         let _retval = try!
             rustCall {
-                sdk_f686_BackwardsStream_paginate_backwards(self.pointer, count.lower(), $0)
+                sdk_2c68_BackwardsStream_paginate_backwards(self.pointer, count.lower(), $0)
             }
         return try! FfiConverterSequenceObjectAnyMessage.lift(_retval)
     }
@@ -925,13 +934,13 @@ public class AnyMessage: AnyMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_AnyMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_AnyMessage_object_free(pointer, $0) }
     }
 
     public func textMessage() -> TextMessage? {
         let _retval = try!
             rustCall {
-                sdk_f686_AnyMessage_text_message(self.pointer, $0)
+                sdk_2c68_AnyMessage_text_message(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectTextMessage.lift(_retval)
     }
@@ -939,7 +948,7 @@ public class AnyMessage: AnyMessageProtocol {
     public func imageMessage() -> ImageMessage? {
         let _retval = try!
             rustCall {
-                sdk_f686_AnyMessage_image_message(self.pointer, $0)
+                sdk_2c68_AnyMessage_image_message(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectImageMessage.lift(_retval)
     }
@@ -947,7 +956,7 @@ public class AnyMessage: AnyMessageProtocol {
     public func noticeMessage() -> NoticeMessage? {
         let _retval = try!
             rustCall {
-                sdk_f686_AnyMessage_notice_message(self.pointer, $0)
+                sdk_2c68_AnyMessage_notice_message(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectNoticeMessage.lift(_retval)
     }
@@ -955,7 +964,7 @@ public class AnyMessage: AnyMessageProtocol {
     public func emoteMessage() -> EmoteMessage? {
         let _retval = try!
             rustCall {
-                sdk_f686_AnyMessage_emote_message(self.pointer, $0)
+                sdk_2c68_AnyMessage_emote_message(self.pointer, $0)
             }
         return try! FfiConverterOptionObjectEmoteMessage.lift(_retval)
     }
@@ -1014,13 +1023,13 @@ public class BaseMessage: BaseMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_BaseMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_BaseMessage_object_free(pointer, $0) }
     }
 
     public func id() -> String {
         let _retval = try!
             rustCall {
-                sdk_f686_BaseMessage_id(self.pointer, $0)
+                sdk_2c68_BaseMessage_id(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
@@ -1028,7 +1037,7 @@ public class BaseMessage: BaseMessageProtocol {
     public func body() -> String {
         let _retval = try!
             rustCall {
-                sdk_f686_BaseMessage_body(self.pointer, $0)
+                sdk_2c68_BaseMessage_body(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
@@ -1036,7 +1045,7 @@ public class BaseMessage: BaseMessageProtocol {
     public func sender() -> String {
         let _retval = try!
             rustCall {
-                sdk_f686_BaseMessage_sender(self.pointer, $0)
+                sdk_2c68_BaseMessage_sender(self.pointer, $0)
             }
         return try! String.lift(_retval)
     }
@@ -1044,7 +1053,7 @@ public class BaseMessage: BaseMessageProtocol {
     public func originServerTs() -> UInt64 {
         let _retval = try!
             rustCall {
-                sdk_f686_BaseMessage_origin_server_ts(self.pointer, $0)
+                sdk_2c68_BaseMessage_origin_server_ts(self.pointer, $0)
             }
         return try! UInt64.lift(_retval)
     }
@@ -1101,13 +1110,13 @@ public class TextMessage: TextMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_TextMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_TextMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         let _retval = try!
             rustCall {
-                sdk_f686_TextMessage_base_message(self.pointer, $0)
+                sdk_2c68_TextMessage_base_message(self.pointer, $0)
             }
         return try! BaseMessage.lift(_retval)
     }
@@ -1115,7 +1124,7 @@ public class TextMessage: TextMessageProtocol {
     public func htmlBody() -> String? {
         let _retval = try!
             rustCall {
-                sdk_f686_TextMessage_html_body(self.pointer, $0)
+                sdk_2c68_TextMessage_html_body(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -1158,7 +1167,10 @@ extension TextMessage: ViaFfi, Serializable {}
 
 public protocol ImageMessageProtocol {
     func baseMessage() -> BaseMessage
-    func url() -> String?
+    func source() -> MediaSource
+    func width() -> UInt64?
+    func height() -> UInt64?
+    func blurhash() -> String?
 }
 
 public class ImageMessage: ImageMessageProtocol {
@@ -1172,21 +1184,45 @@ public class ImageMessage: ImageMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_ImageMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_ImageMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         let _retval = try!
             rustCall {
-                sdk_f686_ImageMessage_base_message(self.pointer, $0)
+                sdk_2c68_ImageMessage_base_message(self.pointer, $0)
             }
         return try! BaseMessage.lift(_retval)
     }
 
-    public func url() -> String? {
+    public func source() -> MediaSource {
         let _retval = try!
             rustCall {
-                sdk_f686_ImageMessage_url(self.pointer, $0)
+                sdk_2c68_ImageMessage_source(self.pointer, $0)
+            }
+        return try! MediaSource.lift(_retval)
+    }
+
+    public func width() -> UInt64? {
+        let _retval = try!
+            rustCall {
+                sdk_2c68_ImageMessage_width(self.pointer, $0)
+            }
+        return try! FfiConverterOptionUInt64.lift(_retval)
+    }
+
+    public func height() -> UInt64? {
+        let _retval = try!
+            rustCall {
+                sdk_2c68_ImageMessage_height(self.pointer, $0)
+            }
+        return try! FfiConverterOptionUInt64.lift(_retval)
+    }
+
+    public func blurhash() -> String? {
+        let _retval = try!
+            rustCall {
+                sdk_2c68_ImageMessage_blurhash(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -1243,13 +1279,13 @@ public class NoticeMessage: NoticeMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_NoticeMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_NoticeMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         let _retval = try!
             rustCall {
-                sdk_f686_NoticeMessage_base_message(self.pointer, $0)
+                sdk_2c68_NoticeMessage_base_message(self.pointer, $0)
             }
         return try! BaseMessage.lift(_retval)
     }
@@ -1257,7 +1293,7 @@ public class NoticeMessage: NoticeMessageProtocol {
     public func htmlBody() -> String? {
         let _retval = try!
             rustCall {
-                sdk_f686_NoticeMessage_html_body(self.pointer, $0)
+                sdk_2c68_NoticeMessage_html_body(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -1314,13 +1350,13 @@ public class EmoteMessage: EmoteMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_f686_EmoteMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_2c68_EmoteMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         let _retval = try!
             rustCall {
-                sdk_f686_EmoteMessage_base_message(self.pointer, $0)
+                sdk_2c68_EmoteMessage_base_message(self.pointer, $0)
             }
         return try! BaseMessage.lift(_retval)
     }
@@ -1328,7 +1364,7 @@ public class EmoteMessage: EmoteMessageProtocol {
     public func htmlBody() -> String? {
         let _retval = try!
             rustCall {
-                sdk_f686_EmoteMessage_html_body(self.pointer, $0)
+                sdk_2c68_EmoteMessage_html_body(self.pointer, $0)
             }
         return try! FfiConverterOptionString.lift(_retval)
     }
@@ -1368,6 +1404,68 @@ private extension EmoteMessage {
 // 'private' modifier cannot be used with extensions that declare protocol conformances
 // """
 extension EmoteMessage: ViaFfi, Serializable {}
+
+public protocol MediaSourceProtocol {
+    func url() -> String
+}
+
+public class MediaSource: MediaSourceProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `ViaFfi` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { ffi_sdk_2c68_MediaSource_object_free(pointer, $0) }
+    }
+
+    public func url() -> String {
+        let _retval = try!
+            rustCall {
+                sdk_2c68_MediaSource_url(self.pointer, $0)
+            }
+        return try! String.lift(_retval)
+    }
+}
+
+private extension MediaSource {
+    typealias FfiType = UnsafeMutableRawPointer
+
+    static func read(from buf: Reader) throws -> Self {
+        let v: UInt64 = try buf.readInt()
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if ptr == nil {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    func write(into buf: Writer) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+    }
+
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
+        return Self(unsafeFromRawPointer: pointer)
+    }
+
+    func lower() -> UnsafeMutableRawPointer {
+        return pointer
+    }
+}
+
+// Ideally this would be `fileprivate`, but Swift says:
+// """
+// 'private' modifier cannot be used with extensions that declare protocol conformances
+// """
+extension MediaSource: ViaFfi, Serializable {}
 
 public enum ClientError {
     case Generic(msg: String)
@@ -1443,7 +1541,7 @@ private let foreignCallbackCallbackInterfaceClientDelegate: ForeignCallback =
 // The ffiConverter which transforms the Callbacks in to Handles to pass to Rust.
 private let ffiConverterCallbackInterfaceClientDelegate: FfiConverterCallbackInterface<ClientDelegate> = {
     try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-        ffi_sdk_f686_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+        ffi_sdk_2c68_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
     }
     return FfiConverterCallbackInterface<ClientDelegate>()
 }()
@@ -1496,7 +1594,7 @@ private let foreignCallbackCallbackInterfaceRoomDelegate: ForeignCallback =
 // The ffiConverter which transforms the Callbacks in to Handles to pass to Rust.
 private let ffiConverterCallbackInterfaceRoomDelegate: FfiConverterCallbackInterface<RoomDelegate> = {
     try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-        ffi_sdk_f686_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
+        ffi_sdk_2c68_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
     }
     return FfiConverterCallbackInterface<RoomDelegate>()
 }()
@@ -1584,10 +1682,27 @@ extension String: ViaFfi {
 // Helper code for Client class is found in ObjectTemplate.swift
 // Helper code for EmoteMessage class is found in ObjectTemplate.swift
 // Helper code for ImageMessage class is found in ObjectTemplate.swift
+// Helper code for MediaSource class is found in ObjectTemplate.swift
 // Helper code for NoticeMessage class is found in ObjectTemplate.swift
 // Helper code for Room class is found in ObjectTemplate.swift
 // Helper code for TextMessage class is found in ObjectTemplate.swift
 // Helper code for ClientError error is found in ErrorTemplate.swift
+
+private enum FfiConverterOptionUInt64: FfiConverterUsingByteBuffer {
+    typealias SwiftType = UInt64?
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        FfiConverterOptional.write(value, into: buf) { item, buf in
+            item.write(into: buf)
+        }
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        try FfiConverterOptional.read(from: buf) { buf in
+            try UInt64.read(from: buf)
+        }
+    }
+}
 
 private enum FfiConverterOptionString: FfiConverterUsingByteBuffer {
     typealias SwiftType = String?
