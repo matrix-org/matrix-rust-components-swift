@@ -4,14 +4,27 @@ This repository is a Swift Package for distributing releases of the [Matrix Rust
 
 ## Releasing
 
-Whenever a new release of the underlying components is availble, we need to tag a new release in this repo to make them available to Swift components. 
+Whenever a new release of the underlying components is available, we need to tag a new release in this repo to make them available to Swift components. 
 To do so we need to:
 * running the `.xcframework` build script from `matrix-rust-sdk/apple`
 * copy the generated `.swift` files to this repository under `Sources/MatrixRustComponentsSwift`
-* create a new tag and upload the zipped version of the `.xcframework` to it's artifacts section
+* create a new tag and upload the zipped version of the `.xcframework` to it's artefacts section
 * update the tag version inside `Package.swift`
 
 ## Testing locally
 
-The package can be added to an Xcode project from a local checkout and the binary target can be configured with a local `path`. 
-It might be necessary to manually add the resulting library to your project's `General/Frameworks, Libraries, and Embedded Content` for it to work.
+The package can be added to an Xcode project from a local checkout and the binary target can be configured by toggling the `useLocalBinary` boolean. It might be necessary to manually add the resulting library to your project's `General/Frameworks, Libraries, and Embedded Content` for it to work.
+
+## Requirements
+
+To build the package you will need the following installed:
+1. cargo + rustup https://www.rust-lang.org/tools/install
+2. uniffi-bindgen `cargo install uniffi_bindgen --version x.x.x` where version needs to match the ones defined in the rust-sdk-ffi crate [Cargo.toml](https://github.com/matrix-org/matrix-rust-sdk/blob/main/crates/matrix-sdk-ffi/Cargo.toml).
+3. nightly toolchain and simulator targets for your desired platform. See the [release script](https://github.com/matrix-org/matrix-rust-sdk/blob/main/bindings/apple/build_xcframework.sh) for all possible options.
+```
+rustup toolchain install nightly
+rustup target add aarch64-apple-ios-sim --toolchain nightly
+rustup target add x86_64-apple-ios --toolchain nightly
+```
+4. matrix-rust-sdk cloned next to this repo `git clone https://github.com/matrix-org/matrix-rust-sdk`
+5. When running the `debug_build_xcframework.sh` script, enable the `useLocalBinary` flag in `Package.swift`.
