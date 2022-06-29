@@ -20,13 +20,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_sdk_7dae_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_sdk_70cd_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_sdk_7dae_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_sdk_70cd_rustbuffer_free(self, $0) }
     }
 }
 
@@ -148,45 +148,39 @@ private class Writer {
     }
 }
 
-// Types conforming to `Serializable` can be read and written in a bytebuffer.
-private protocol Serializable {
-    func write(into: Writer)
-    static func read(from: Reader) throws -> Self
-}
-
-// Types confirming to `ViaFfi` can be transferred back-and-for over the FFI.
-// This is analogous to the Rust trait of the same name.
-private protocol ViaFfi: Serializable {
+// Protocol for types that transfer other types across the FFI. This is
+// analogous go the Rust trait of the same name.
+private protocol FfiConverter {
     associatedtype FfiType
-    static func lift(_ v: FfiType) throws -> Self
-    func lower() -> FfiType
+    associatedtype SwiftType
+
+    static func lift(_ value: FfiType) throws -> SwiftType
+    static func lower(_ value: SwiftType) -> FfiType
+    static func read(from buf: Reader) throws -> SwiftType
+    static func write(_ value: SwiftType, into buf: Writer)
 }
 
 // Types conforming to `Primitive` pass themselves directly over the FFI.
-private protocol Primitive {}
+private protocol FfiConverterPrimitive: FfiConverter where FfiType == SwiftType {}
 
-private extension Primitive {
-    typealias FfiType = Self
-
-    static func lift(_ v: Self) throws -> Self {
-        return v
+extension FfiConverterPrimitive {
+    static func lift(_ value: FfiType) throws -> SwiftType {
+        return value
     }
 
-    func lower() -> Self {
-        return self
+    static func lower(_ value: SwiftType) -> FfiType {
+        return value
     }
 }
 
-// Types conforming to `ViaFfiUsingByteBuffer` lift and lower into a bytebuffer.
-// Use this for complex types where it's hard to write a custom lift/lower.
-private protocol ViaFfiUsingByteBuffer: Serializable {}
+// Types conforming to `FfiConverterRustBuffer` lift and lower into a `RustBuffer`.
+// Used for complex types where it's hard to write a custom lift/lower.
+private protocol FfiConverterRustBuffer: FfiConverter where FfiType == RustBuffer {}
 
-private extension ViaFfiUsingByteBuffer {
-    typealias FfiType = RustBuffer
-
-    static func lift(_ buf: FfiType) throws -> Self {
+extension FfiConverterRustBuffer {
+    static func lift(_ buf: RustBuffer) throws -> SwiftType {
         let reader = Reader(data: Data(rustBuffer: buf))
-        let value = try Self.read(from: reader)
+        let value = try read(from: reader)
         if reader.hasRemaining() {
             throw UniffiInternalError.incompleteData
         }
@@ -194,9 +188,9 @@ private extension ViaFfiUsingByteBuffer {
         return value
     }
 
-    func lower() -> FfiType {
+    static func lower(_ value: SwiftType) -> RustBuffer {
         let writer = Writer()
-        write(into: writer)
+        write(value, into: writer)
         return RustBuffer(bytes: writer.bytes)
     }
 }
@@ -253,8 +247,11 @@ private func rustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T
     })
 }
 
-private func rustCallWithError<T, E: ViaFfiUsingByteBuffer & Error>(_: E.Type, _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
-    try makeRustCall(callback, errorHandler: { try E.lift($0) })
+private func rustCallWithError<T, F: FfiConverter>
+(_ errorFfiConverter: F.Type, _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T
+    where F.SwiftType: Error, F.FfiType == RustBuffer
+{
+    try makeRustCall(callback, errorHandler: { try errorFfiConverter.lift($0) })
 }
 
 private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T, errorHandler: (RustBuffer) throws -> Error) throws -> T {
@@ -272,7 +269,7 @@ private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) 
         // with the message.  But if that code panics, then it just sends back
         // an empty buffer.
         if callStatus.errorBuf.len > 0 {
-            throw UniffiInternalError.rustPanic(try String.lift(callStatus.errorBuf))
+            throw UniffiInternalError.rustPanic(try FfiConverterString.lift(callStatus.errorBuf))
         } else {
             callStatus.errorBuf.deallocate()
             throw UniffiInternalError.rustPanic("Rust panic")
@@ -280,103 +277,6 @@ private func makeRustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) 
 
     default:
         throw UniffiInternalError.unexpectedRustCallStatusCode
-    }
-}
-
-// Protocols for converters we'll implement in templates
-
-private protocol FfiConverter {
-    associatedtype SwiftType
-    associatedtype FfiType
-
-    static func lift(_ ffiValue: FfiType) throws -> SwiftType
-    static func lower(_ value: SwiftType) -> FfiType
-
-    static func read(from: Reader) throws -> SwiftType
-    static func write(_ value: SwiftType, into: Writer)
-}
-
-private protocol FfiConverterUsingByteBuffer: FfiConverter where FfiType == RustBuffer {
-    // Empty, because we want to declare some helper methods in the extension below.
-}
-
-extension FfiConverterUsingByteBuffer {
-    static func lower(_ value: SwiftType) -> FfiType {
-        let writer = Writer()
-        Self.write(value, into: writer)
-        return RustBuffer(bytes: writer.bytes)
-    }
-
-    static func lift(_ buf: FfiType) throws -> SwiftType {
-        let reader = Reader(data: Data(rustBuffer: buf))
-        let value = try Self.read(from: reader)
-        if reader.hasRemaining() {
-            throw UniffiInternalError.incompleteData
-        }
-        buf.deallocate()
-        return value
-    }
-}
-
-// Helpers for structural types. Note that because of canonical_names, it /should/ be impossible
-// to make another `FfiConverterSequence` etc just using the UDL.
-private enum FfiConverterSequence {
-    static func write<T>(_ value: [T], into buf: Writer, writeItem: (T, Writer) -> Void) {
-        let len = Int32(value.count)
-        buf.writeInt(len)
-        for item in value {
-            writeItem(item, buf)
-        }
-    }
-
-    static func read<T>(from buf: Reader, readItem: (Reader) throws -> T) throws -> [T] {
-        let len: Int32 = try buf.readInt()
-        var seq = [T]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try readItem(buf))
-        }
-        return seq
-    }
-}
-
-private enum FfiConverterOptional {
-    static func write<T>(_ value: T?, into buf: Writer, writeItem: (T, Writer) -> Void) {
-        guard let value = value else {
-            buf.writeInt(Int8(0))
-            return
-        }
-        buf.writeInt(Int8(1))
-        writeItem(value, buf)
-    }
-
-    static func read<T>(from buf: Reader, readItem: (Reader) throws -> T) throws -> T? {
-        switch try buf.readInt() as Int8 {
-        case 0: return nil
-        case 1: return try readItem(buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
-private enum FfiConverterDictionary {
-    static func write<T>(_ value: [String: T], into buf: Writer, writeItem: (String, T, Writer) -> Void) {
-        let len = Int32(value.count)
-        buf.writeInt(len)
-        for (key, value) in value {
-            writeItem(key, value, buf)
-        }
-    }
-
-    static func read<T>(from buf: Reader, readItem: (Reader) throws -> (String, T)) throws -> [String: T] {
-        let len: Int32 = try buf.readInt()
-        var dict = [String: T]()
-        dict.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            let (key, value) = try readItem(buf)
-            dict[key] = value
-        }
-        return dict
     }
 }
 
@@ -443,92 +343,143 @@ private class ConcurrentHandleMap<T> {
 // to free the callback once it's dropped by Rust.
 private let IDX_CALLBACK_FREE: Int32 = 0
 
-private class FfiConverterCallbackInterface<CallbackInterface> {
-    fileprivate let handleMap = ConcurrentHandleMap<CallbackInterface>()
-
-    func drop(handle: Handle) {
-        handleMap.remove(handle: handle)
-    }
-
-    func lift(_ handle: Handle) throws -> CallbackInterface {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
-    }
-
-    func read(from buf: Reader) throws -> CallbackInterface {
-        let handle: Handle = try buf.readInt()
-        return try lift(handle)
-    }
-
-    func lower(_ v: CallbackInterface) -> Handle {
-        let handle = handleMap.insert(obj: v)
-        return handle
-        // assert(handleMap.get(handle: obj) == v, "Handle map is not returning the object we just placed there. This is a bug in the HandleMap.")
-    }
-
-    func write(_ v: CallbackInterface, into buf: Writer) {
-        buf.writeInt(lower(v))
-    }
-}
-
-public func loginNewClient(basePath: String, username: String, password: String) throws -> Client {
-    let _retval = try
-
-        rustCallWithError(ClientError.self) {
-            sdk_7dae_login_new_client(basePath.lower(), username.lower(), password.lower(), $0)
-        }
-    return try Client.lift(_retval)
-}
-
-public func guestClient(basePath: String, homeserver: String) throws -> Client {
-    let _retval = try
-
-        rustCallWithError(ClientError.self) {
-            sdk_7dae_guest_client(basePath.lower(), homeserver.lower(), $0)
-        }
-    return try Client.lift(_retval)
-}
-
-public func loginWithToken(basePath: String, restoreToken: String) throws -> Client {
-    let _retval = try
-
-        rustCallWithError(ClientError.self) {
-            sdk_7dae_login_with_token(basePath.lower(), restoreToken.lower(), $0)
-        }
-    return try Client.lift(_retval)
-}
-
 public func mediaSourceFromUrl(url: String) -> MediaSource {
-    let _retval = try!
+    return try! FfiConverterTypeMediaSource.lift(
+        try!
 
-        rustCall {
-            sdk_7dae_media_source_from_url(url.lower(), $0)
-        }
-    return try! MediaSource.lift(_retval)
+            rustCall {
+                sdk_70cd_media_source_from_url(
+                    FfiConverterString.lower(url), $0
+                )
+            }
+    )
 }
 
 public func messageEventContentFromMarkdown(md: String) -> MessageEventContent {
-    let _retval = try!
+    return try! FfiConverterTypeMessageEventContent.lift(
+        try!
 
-        rustCall {
-            sdk_7dae_message_event_content_from_markdown(md.lower(), $0)
-        }
-    return try! MessageEventContent.lift(_retval)
+            rustCall {
+                sdk_70cd_message_event_content_from_markdown(
+                    FfiConverterString.lower(md), $0
+                )
+            }
+    )
 }
 
 public func genTransactionId() -> String {
-    let _retval = try!
+    return try! FfiConverterString.lift(
+        try!
 
-        rustCall {
-            sdk_7dae_gen_transaction_id($0)
+            rustCall {
+                sdk_70cd_gen_transaction_id($0)
+            }
+    )
+}
+
+public protocol ClientBuilderProtocol {
+    func basePath(path: String) -> ClientBuilder
+    func username(username: String) -> ClientBuilder
+    func homeserverUrl(url: String) -> ClientBuilder
+    func build() throws -> Client
+}
+
+public class ClientBuilder: ClientBuilderProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    public convenience init() {
+        self.init(unsafeFromRawPointer: try!
+
+            rustCall {
+                sdk_70cd_ClientBuilder_new($0)
+            })
+    }
+
+    deinit {
+        try! rustCall { ffi_sdk_70cd_ClientBuilder_object_free(pointer, $0) }
+    }
+
+    public func basePath(path: String) -> ClientBuilder {
+        return try! FfiConverterTypeClientBuilder.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ClientBuilder_base_path(self.pointer,
+                                                     FfiConverterString.lower(path), $0)
+                }
+        )
+    }
+
+    public func username(username: String) -> ClientBuilder {
+        return try! FfiConverterTypeClientBuilder.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ClientBuilder_username(self.pointer,
+                                                    FfiConverterString.lower(username), $0)
+                }
+        )
+    }
+
+    public func homeserverUrl(url: String) -> ClientBuilder {
+        return try! FfiConverterTypeClientBuilder.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ClientBuilder_homeserver_url(self.pointer,
+                                                          FfiConverterString.lower(url), $0)
+                }
+        )
+    }
+
+    public func build() throws -> Client {
+        return try FfiConverterTypeClient.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_ClientBuilder_build(self.pointer, $0)
+                }
+        )
+    }
+}
+
+private struct FfiConverterTypeClientBuilder: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = ClientBuilder
+
+    static func read(from buf: Reader) throws -> ClientBuilder {
+        let v: UInt64 = try buf.readInt()
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if ptr == nil {
+            throw UniffiInternalError.unexpectedNullPointer
         }
-    return try! String.lift(_retval)
+        return try lift(ptr!)
+    }
+
+    static func write(_ value: ClientBuilder, into buf: Writer) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ClientBuilder {
+        return ClientBuilder(unsafeFromRawPointer: pointer)
+    }
+
+    static func lower(_ value: ClientBuilder) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
 }
 
 public protocol ClientProtocol {
     func setDelegate(delegate: ClientDelegate?)
+    func login(username: String, password: String) throws
+    func restoreLogin(restoreToken: String) throws
     func startSync()
     func restoreToken() throws -> String
     func isGuest() -> Bool
@@ -540,121 +491,161 @@ public protocol ClientProtocol {
     func deviceId() throws -> String
     func rooms() -> [Room]
     func getMediaContent(source: MediaSource) throws -> [UInt8]
+    func getSessionVerificationController() throws -> SessionVerificationController
 }
 
 public class Client: ClientProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_Client_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_Client_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: ClientDelegate?) {
         try!
             rustCall {
-                sdk_7dae_Client_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
+                sdk_70cd_Client_set_delegate(self.pointer,
+                                             FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
+            }
+    }
+
+    public func login(username: String, password: String) throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                sdk_70cd_Client_login(self.pointer,
+                                      FfiConverterString.lower(username),
+                                      FfiConverterString.lower(password), $0)
+            }
+    }
+
+    public func restoreLogin(restoreToken: String) throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                sdk_70cd_Client_restore_login(self.pointer,
+                                              FfiConverterString.lower(restoreToken), $0)
             }
     }
 
     public func startSync() {
         try!
             rustCall {
-                sdk_7dae_Client_start_sync(self.pointer, $0)
+                sdk_70cd_Client_start_sync(self.pointer, $0)
             }
     }
 
     public func restoreToken() throws -> String {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Client_restore_token(self.pointer, $0)
-            }
-        return try String.lift(_retval)
+        return try FfiConverterString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Client_restore_token(self.pointer, $0)
+                }
+        )
     }
 
     public func isGuest() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Client_is_guest(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Client_is_guest(self.pointer, $0)
+                }
+        )
     }
 
     public func hasFirstSynced() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Client_has_first_synced(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Client_has_first_synced(self.pointer, $0)
+                }
+        )
     }
 
     public func isSyncing() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Client_is_syncing(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Client_is_syncing(self.pointer, $0)
+                }
+        )
     }
 
     public func userId() throws -> String {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Client_user_id(self.pointer, $0)
-            }
-        return try String.lift(_retval)
+        return try FfiConverterString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Client_user_id(self.pointer, $0)
+                }
+        )
     }
 
     public func displayName() throws -> String {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Client_display_name(self.pointer, $0)
-            }
-        return try String.lift(_retval)
+        return try FfiConverterString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Client_display_name(self.pointer, $0)
+                }
+        )
     }
 
     public func avatarUrl() throws -> String {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Client_avatar_url(self.pointer, $0)
-            }
-        return try String.lift(_retval)
+        return try FfiConverterString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Client_avatar_url(self.pointer, $0)
+                }
+        )
     }
 
     public func deviceId() throws -> String {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Client_device_id(self.pointer, $0)
-            }
-        return try String.lift(_retval)
+        return try FfiConverterString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Client_device_id(self.pointer, $0)
+                }
+        )
     }
 
     public func rooms() -> [Room] {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Client_rooms(self.pointer, $0)
-            }
-        return try! FfiConverterSequenceObjectRoom.lift(_retval)
+        return try! FfiConverterSequenceTypeRoom.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Client_rooms(self.pointer, $0)
+                }
+        )
     }
 
     public func getMediaContent(source: MediaSource) throws -> [UInt8] {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Client_get_media_content(self.pointer, source.lower(), $0)
-            }
-        return try FfiConverterSequenceUInt8.lift(_retval)
+        return try FfiConverterSequenceUInt8.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Client_get_media_content(self.pointer,
+                                                      FfiConverterTypeMediaSource.lower(source), $0)
+                }
+        )
+    }
+
+    public func getSessionVerificationController() throws -> SessionVerificationController {
+        return try FfiConverterTypeSessionVerificationController.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Client_get_session_verification_controller(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension Client {
+private struct FfiConverterTypeClient: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = Client
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> Client {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -665,26 +656,20 @@ private extension Client {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: Client, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Client {
+        return Client(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: Client) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension Client: ViaFfi, Serializable {}
 
 public protocol RoomProtocol {
     func setDelegate(delegate: RoomDelegate?)
@@ -709,146 +694,165 @@ public class Room: RoomProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_Room_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_Room_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: RoomDelegate?) {
         try!
             rustCall {
-                sdk_7dae_Room_set_delegate(self.pointer, FfiConverterOptionCallbackInterfaceRoomDelegate.lower(delegate), $0)
+                sdk_70cd_Room_set_delegate(self.pointer,
+                                           FfiConverterOptionCallbackInterfaceRoomDelegate.lower(delegate), $0)
             }
     }
 
     public func id() -> String {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_id(self.pointer, $0)
-            }
-        return try! String.lift(_retval)
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_id(self.pointer, $0)
+                }
+        )
     }
 
     public func name() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_name(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_name(self.pointer, $0)
+                }
+        )
     }
 
     public func topic() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_topic(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_topic(self.pointer, $0)
+                }
+        )
     }
 
     public func avatarUrl() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_avatar_url(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_avatar_url(self.pointer, $0)
+                }
+        )
     }
 
     public func isDirect() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_is_direct(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_is_direct(self.pointer, $0)
+                }
+        )
     }
 
     public func isPublic() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_is_public(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_is_public(self.pointer, $0)
+                }
+        )
     }
 
     public func isSpace() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_is_space(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_is_space(self.pointer, $0)
+                }
+        )
     }
 
     public func isEncrypted() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_is_encrypted(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_is_encrypted(self.pointer, $0)
+                }
+        )
     }
 
     public func isTombstoned() -> Bool {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_is_tombstoned(self.pointer, $0)
-            }
-        return try! Bool.lift(_retval)
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_is_tombstoned(self.pointer, $0)
+                }
+        )
     }
 
     public func displayName() throws -> String {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Room_display_name(self.pointer, $0)
-            }
-        return try String.lift(_retval)
+        return try FfiConverterString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Room_display_name(self.pointer, $0)
+                }
+        )
     }
 
     public func memberAvatarUrl(userId: String) throws -> String? {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Room_member_avatar_url(self.pointer, userId.lower(), $0)
-            }
-        return try FfiConverterOptionString.lift(_retval)
+        return try FfiConverterOptionString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Room_member_avatar_url(self.pointer,
+                                                    FfiConverterString.lower(userId), $0)
+                }
+        )
     }
 
     public func memberDisplayName(userId: String) throws -> String? {
-        let _retval = try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Room_member_display_name(self.pointer, userId.lower(), $0)
-            }
-        return try FfiConverterOptionString.lift(_retval)
+        return try FfiConverterOptionString.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    sdk_70cd_Room_member_display_name(self.pointer,
+                                                      FfiConverterString.lower(userId), $0)
+                }
+        )
     }
 
     public func startLiveEventListener() -> BackwardsStream? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_Room_start_live_event_listener(self.pointer, $0)
-            }
-        return try! FfiConverterOptionObjectBackwardsStream.lift(_retval)
+        return try! FfiConverterOptionTypeBackwardsStream.lift(
+            try!
+                rustCall {
+                    sdk_70cd_Room_start_live_event_listener(self.pointer, $0)
+                }
+        )
     }
 
     public func stopLiveEventListener() {
         try!
             rustCall {
-                sdk_7dae_Room_stop_live_event_listener(self.pointer, $0)
+                sdk_70cd_Room_stop_live_event_listener(self.pointer, $0)
             }
     }
 
     public func send(msg: MessageEventContent, txnId: String?) throws {
         try
-            rustCallWithError(ClientError.self) {
-                sdk_7dae_Room_send(self.pointer, msg.lower(), FfiConverterOptionString.lower(txnId), $0)
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                sdk_70cd_Room_send(self.pointer,
+                                   FfiConverterTypeMessageEventContent.lower(msg),
+                                   FfiConverterOptionString.lower(txnId), $0)
             }
     }
 }
 
-private extension Room {
+private struct FfiConverterTypeRoom: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = Room
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> Room {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -859,26 +863,20 @@ private extension Room {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: Room, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Room {
+        return Room(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: Room) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension Room: ViaFfi, Serializable {}
 
 public protocol BackwardsStreamProtocol {
     func paginateBackwards(count: UInt64) -> [AnyMessage]
@@ -888,29 +886,32 @@ public class BackwardsStream: BackwardsStreamProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_BackwardsStream_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_BackwardsStream_object_free(pointer, $0) }
     }
 
     public func paginateBackwards(count: UInt64) -> [AnyMessage] {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_BackwardsStream_paginate_backwards(self.pointer, count.lower(), $0)
-            }
-        return try! FfiConverterSequenceObjectAnyMessage.lift(_retval)
+        return try! FfiConverterSequenceTypeAnyMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_BackwardsStream_paginate_backwards(self.pointer,
+                                                                FfiConverterUInt64.lower(count), $0)
+                }
+        )
     }
 }
 
-private extension BackwardsStream {
+private struct FfiConverterTypeBackwardsStream: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = BackwardsStream
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> BackwardsStream {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -921,26 +922,20 @@ private extension BackwardsStream {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: BackwardsStream, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> BackwardsStream {
+        return BackwardsStream(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: BackwardsStream) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension BackwardsStream: ViaFfi, Serializable {}
 
 public protocol MessageEventContentProtocol {}
 
@@ -948,21 +943,22 @@ public class MessageEventContent: MessageEventContentProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_MessageEventContent_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_MessageEventContent_object_free(pointer, $0) }
     }
 }
 
-private extension MessageEventContent {
+private struct FfiConverterTypeMessageEventContent: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = MessageEventContent
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> MessageEventContent {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -973,26 +969,20 @@ private extension MessageEventContent {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: MessageEventContent, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> MessageEventContent {
+        return MessageEventContent(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: MessageEventContent) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension MessageEventContent: ViaFfi, Serializable {}
 
 public protocol AnyMessageProtocol {
     func textMessage() -> TextMessage?
@@ -1005,53 +995,58 @@ public class AnyMessage: AnyMessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_AnyMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_AnyMessage_object_free(pointer, $0) }
     }
 
     public func textMessage() -> TextMessage? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_AnyMessage_text_message(self.pointer, $0)
-            }
-        return try! FfiConverterOptionObjectTextMessage.lift(_retval)
+        return try! FfiConverterOptionTypeTextMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_AnyMessage_text_message(self.pointer, $0)
+                }
+        )
     }
 
     public func imageMessage() -> ImageMessage? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_AnyMessage_image_message(self.pointer, $0)
-            }
-        return try! FfiConverterOptionObjectImageMessage.lift(_retval)
+        return try! FfiConverterOptionTypeImageMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_AnyMessage_image_message(self.pointer, $0)
+                }
+        )
     }
 
     public func noticeMessage() -> NoticeMessage? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_AnyMessage_notice_message(self.pointer, $0)
-            }
-        return try! FfiConverterOptionObjectNoticeMessage.lift(_retval)
+        return try! FfiConverterOptionTypeNoticeMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_AnyMessage_notice_message(self.pointer, $0)
+                }
+        )
     }
 
     public func emoteMessage() -> EmoteMessage? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_AnyMessage_emote_message(self.pointer, $0)
-            }
-        return try! FfiConverterOptionObjectEmoteMessage.lift(_retval)
+        return try! FfiConverterOptionTypeEmoteMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_AnyMessage_emote_message(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension AnyMessage {
+private struct FfiConverterTypeAnyMessage: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = AnyMessage
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> AnyMessage {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -1062,26 +1057,20 @@ private extension AnyMessage {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: AnyMessage, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> AnyMessage {
+        return AnyMessage(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: AnyMessage) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension AnyMessage: ViaFfi, Serializable {}
 
 public protocol BaseMessageProtocol {
     func id() -> String
@@ -1095,61 +1084,67 @@ public class BaseMessage: BaseMessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_BaseMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_BaseMessage_object_free(pointer, $0) }
     }
 
     public func id() -> String {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_BaseMessage_id(self.pointer, $0)
-            }
-        return try! String.lift(_retval)
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_BaseMessage_id(self.pointer, $0)
+                }
+        )
     }
 
     public func body() -> String {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_BaseMessage_body(self.pointer, $0)
-            }
-        return try! String.lift(_retval)
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_BaseMessage_body(self.pointer, $0)
+                }
+        )
     }
 
     public func sender() -> String {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_BaseMessage_sender(self.pointer, $0)
-            }
-        return try! String.lift(_retval)
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_BaseMessage_sender(self.pointer, $0)
+                }
+        )
     }
 
     public func originServerTs() -> UInt64 {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_BaseMessage_origin_server_ts(self.pointer, $0)
-            }
-        return try! UInt64.lift(_retval)
+        return try! FfiConverterUInt64.lift(
+            try!
+                rustCall {
+                    sdk_70cd_BaseMessage_origin_server_ts(self.pointer, $0)
+                }
+        )
     }
 
     public func transactionId() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_BaseMessage_transaction_id(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_BaseMessage_transaction_id(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension BaseMessage {
+private struct FfiConverterTypeBaseMessage: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = BaseMessage
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> BaseMessage {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -1160,26 +1155,20 @@ private extension BaseMessage {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: BaseMessage, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> BaseMessage {
+        return BaseMessage(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: BaseMessage) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension BaseMessage: ViaFfi, Serializable {}
 
 public protocol TextMessageProtocol {
     func baseMessage() -> BaseMessage
@@ -1190,37 +1179,40 @@ public class TextMessage: TextMessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_TextMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_TextMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_TextMessage_base_message(self.pointer, $0)
-            }
-        return try! BaseMessage.lift(_retval)
+        return try! FfiConverterTypeBaseMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_TextMessage_base_message(self.pointer, $0)
+                }
+        )
     }
 
     public func htmlBody() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_TextMessage_html_body(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_TextMessage_html_body(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension TextMessage {
+private struct FfiConverterTypeTextMessage: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = TextMessage
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> TextMessage {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -1231,26 +1223,20 @@ private extension TextMessage {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: TextMessage, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> TextMessage {
+        return TextMessage(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: TextMessage) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension TextMessage: ViaFfi, Serializable {}
 
 public protocol ImageMessageProtocol {
     func baseMessage() -> BaseMessage
@@ -1264,61 +1250,67 @@ public class ImageMessage: ImageMessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_ImageMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_ImageMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_ImageMessage_base_message(self.pointer, $0)
-            }
-        return try! BaseMessage.lift(_retval)
+        return try! FfiConverterTypeBaseMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ImageMessage_base_message(self.pointer, $0)
+                }
+        )
     }
 
     public func source() -> MediaSource {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_ImageMessage_source(self.pointer, $0)
-            }
-        return try! MediaSource.lift(_retval)
+        return try! FfiConverterTypeMediaSource.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ImageMessage_source(self.pointer, $0)
+                }
+        )
     }
 
     public func width() -> UInt64? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_ImageMessage_width(self.pointer, $0)
-            }
-        return try! FfiConverterOptionUInt64.lift(_retval)
+        return try! FfiConverterOptionUInt64.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ImageMessage_width(self.pointer, $0)
+                }
+        )
     }
 
     public func height() -> UInt64? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_ImageMessage_height(self.pointer, $0)
-            }
-        return try! FfiConverterOptionUInt64.lift(_retval)
+        return try! FfiConverterOptionUInt64.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ImageMessage_height(self.pointer, $0)
+                }
+        )
     }
 
     public func blurhash() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_ImageMessage_blurhash(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_ImageMessage_blurhash(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension ImageMessage {
+private struct FfiConverterTypeImageMessage: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = ImageMessage
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> ImageMessage {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -1329,26 +1321,20 @@ private extension ImageMessage {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: ImageMessage, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> ImageMessage {
+        return ImageMessage(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: ImageMessage) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension ImageMessage: ViaFfi, Serializable {}
 
 public protocol NoticeMessageProtocol {
     func baseMessage() -> BaseMessage
@@ -1359,37 +1345,40 @@ public class NoticeMessage: NoticeMessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_NoticeMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_NoticeMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_NoticeMessage_base_message(self.pointer, $0)
-            }
-        return try! BaseMessage.lift(_retval)
+        return try! FfiConverterTypeBaseMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_NoticeMessage_base_message(self.pointer, $0)
+                }
+        )
     }
 
     public func htmlBody() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_NoticeMessage_html_body(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_NoticeMessage_html_body(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension NoticeMessage {
+private struct FfiConverterTypeNoticeMessage: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = NoticeMessage
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> NoticeMessage {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -1400,26 +1389,20 @@ private extension NoticeMessage {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: NoticeMessage, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NoticeMessage {
+        return NoticeMessage(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: NoticeMessage) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension NoticeMessage: ViaFfi, Serializable {}
 
 public protocol EmoteMessageProtocol {
     func baseMessage() -> BaseMessage
@@ -1430,37 +1413,40 @@ public class EmoteMessage: EmoteMessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_EmoteMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_EmoteMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_EmoteMessage_base_message(self.pointer, $0)
-            }
-        return try! BaseMessage.lift(_retval)
+        return try! FfiConverterTypeBaseMessage.lift(
+            try!
+                rustCall {
+                    sdk_70cd_EmoteMessage_base_message(self.pointer, $0)
+                }
+        )
     }
 
     public func htmlBody() -> String? {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_EmoteMessage_html_body(self.pointer, $0)
-            }
-        return try! FfiConverterOptionString.lift(_retval)
+        return try! FfiConverterOptionString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_EmoteMessage_html_body(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension EmoteMessage {
+private struct FfiConverterTypeEmoteMessage: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = EmoteMessage
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> EmoteMessage {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -1471,26 +1457,20 @@ private extension EmoteMessage {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: EmoteMessage, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> EmoteMessage {
+        return EmoteMessage(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: EmoteMessage) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
-
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension EmoteMessage: ViaFfi, Serializable {}
 
 public protocol MediaSourceProtocol {
     func url() -> String
@@ -1500,29 +1480,31 @@ public class MediaSource: MediaSourceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `ViaFfi` without making this `required` and we can't
+    // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
 
     deinit {
-        try! rustCall { ffi_sdk_7dae_MediaSource_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_70cd_MediaSource_object_free(pointer, $0) }
     }
 
     public func url() -> String {
-        let _retval = try!
-            rustCall {
-                sdk_7dae_MediaSource_url(self.pointer, $0)
-            }
-        return try! String.lift(_retval)
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_MediaSource_url(self.pointer, $0)
+                }
+        )
     }
 }
 
-private extension MediaSource {
+private struct FfiConverterTypeMediaSource: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = MediaSource
 
-    static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> MediaSource {
         let v: UInt64 = try buf.readInt()
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -1533,48 +1515,211 @@ private extension MediaSource {
         return try lift(ptr!)
     }
 
-    func write(into buf: Writer) {
+    static func write(_ value: MediaSource, into buf: Writer) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower()))))
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Self {
-        return Self(unsafeFromRawPointer: pointer)
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> MediaSource {
+        return MediaSource(unsafeFromRawPointer: pointer)
     }
 
-    func lower() -> UnsafeMutableRawPointer {
-        return pointer
+    static func lower(_ value: MediaSource) -> UnsafeMutableRawPointer {
+        return value.pointer
     }
 }
 
-// Ideally this would be `fileprivate`, but Swift says:
-// """
-// 'private' modifier cannot be used with extensions that declare protocol conformances
-// """
-extension MediaSource: ViaFfi, Serializable {}
+public protocol SessionVerificationEmojiProtocol {
+    func symbol() -> String
+    func description() -> String
+}
+
+public class SessionVerificationEmoji: SessionVerificationEmojiProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { ffi_sdk_70cd_SessionVerificationEmoji_object_free(pointer, $0) }
+    }
+
+    public func symbol() -> String {
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_SessionVerificationEmoji_symbol(self.pointer, $0)
+                }
+        )
+    }
+
+    public func description() -> String {
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    sdk_70cd_SessionVerificationEmoji_description(self.pointer, $0)
+                }
+        )
+    }
+}
+
+private struct FfiConverterTypeSessionVerificationEmoji: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = SessionVerificationEmoji
+
+    static func read(from buf: Reader) throws -> SessionVerificationEmoji {
+        let v: UInt64 = try buf.readInt()
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if ptr == nil {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    static func write(_ value: SessionVerificationEmoji, into buf: Writer) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> SessionVerificationEmoji {
+        return SessionVerificationEmoji(unsafeFromRawPointer: pointer)
+    }
+
+    static func lower(_ value: SessionVerificationEmoji) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+public protocol SessionVerificationControllerProtocol {
+    func setDelegate(delegate: SessionVerificationControllerDelegate?)
+    func isVerified() -> Bool
+    func requestVerification() throws
+    func approveVerification() throws
+    func declineVerification() throws
+    func cancelVerification() throws
+}
+
+public class SessionVerificationController: SessionVerificationControllerProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { ffi_sdk_70cd_SessionVerificationController_object_free(pointer, $0) }
+    }
+
+    public func setDelegate(delegate: SessionVerificationControllerDelegate?) {
+        try!
+            rustCall {
+                sdk_70cd_SessionVerificationController_set_delegate(self.pointer,
+                                                                    FfiConverterOptionCallbackInterfaceSessionVerificationControllerDelegate.lower(delegate), $0)
+            }
+    }
+
+    public func isVerified() -> Bool {
+        return try! FfiConverterBool.lift(
+            try!
+                rustCall {
+                    sdk_70cd_SessionVerificationController_is_verified(self.pointer, $0)
+                }
+        )
+    }
+
+    public func requestVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                sdk_70cd_SessionVerificationController_request_verification(self.pointer, $0)
+            }
+    }
+
+    public func approveVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                sdk_70cd_SessionVerificationController_approve_verification(self.pointer, $0)
+            }
+    }
+
+    public func declineVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                sdk_70cd_SessionVerificationController_decline_verification(self.pointer, $0)
+            }
+    }
+
+    public func cancelVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                sdk_70cd_SessionVerificationController_cancel_verification(self.pointer, $0)
+            }
+    }
+}
+
+private struct FfiConverterTypeSessionVerificationController: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = SessionVerificationController
+
+    static func read(from buf: Reader) throws -> SessionVerificationController {
+        let v: UInt64 = try buf.readInt()
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if ptr == nil {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    static func write(_ value: SessionVerificationController, into buf: Writer) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> SessionVerificationController {
+        return SessionVerificationController(unsafeFromRawPointer: pointer)
+    }
+
+    static func lower(_ value: SessionVerificationController) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
 
 public enum ClientError {
     case Generic(msg: String)
 }
 
-extension ClientError: ViaFfiUsingByteBuffer, ViaFfi {
-    fileprivate static func read(from buf: Reader) throws -> ClientError {
+private struct FfiConverterTypeClientError: FfiConverterRustBuffer {
+    typealias SwiftType = ClientError
+
+    static func read(from buf: Reader) throws -> ClientError {
         let variant: Int32 = try buf.readInt()
         switch variant {
         case 1: return .Generic(
-                msg: try String.read(from: buf)
+                msg: try FfiConverterString.read(from: buf)
             )
 
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
-    fileprivate func write(into buf: Writer) {
-        switch self {
+    static func write(_ value: ClientError, into buf: Writer) {
+        switch value {
         case let .Generic(msg):
             buf.writeInt(Int32(1))
-            msg.write(into: buf)
+            FfiConverterString.write(msg, into: buf)
         }
     }
 }
@@ -1594,17 +1739,16 @@ private let foreignCallbackCallbackInterfaceClientDelegate: ForeignCallback =
     { (handle: Handle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
         func invokeDidReceiveSyncUpdate(_ swiftCallbackInterface: ClientDelegate, _ args: RustBuffer) throws -> RustBuffer {
             defer { args.deallocate() }
-
             swiftCallbackInterface.didReceiveSyncUpdate()
             return RustBuffer()
             // TODO: catch errors and report them back to Rust.
             // https://github.com/mozilla/uniffi-rs/issues/351
         }
 
-        let cb = try! ffiConverterCallbackInterfaceClientDelegate.lift(handle)
+        let cb = try! FfiConverterCallbackInterfaceClientDelegate.lift(handle)
         switch method {
         case IDX_CALLBACK_FREE:
-            ffiConverterCallbackInterfaceClientDelegate.drop(handle: handle)
+            FfiConverterCallbackInterfaceClientDelegate.drop(handle: handle)
             // No return value.
             // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
             return 0
@@ -1625,13 +1769,59 @@ private let foreignCallbackCallbackInterfaceClientDelegate: ForeignCallback =
         }
     }
 
-// The ffiConverter which transforms the Callbacks in to Handles to pass to Rust.
-private let ffiConverterCallbackInterfaceClientDelegate: FfiConverterCallbackInterface<ClientDelegate> = {
-    try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-        ffi_sdk_7dae_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+// FFIConverter protocol for callback interfaces
+private enum FfiConverterCallbackInterfaceClientDelegate {
+    // Initialize our callback method with the scaffolding code
+    private static var callbackInitialized = false
+    private static func initCallback() {
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            ffi_sdk_70cd_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+        }
     }
-    return FfiConverterCallbackInterface<ClientDelegate>()
-}()
+
+    private static func ensureCallbackinitialized() {
+        if !callbackInitialized {
+            initCallback()
+            callbackInitialized = true
+        }
+    }
+
+    static func drop(handle: Handle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = ConcurrentHandleMap<ClientDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceClientDelegate: FfiConverter {
+    typealias SwiftType = ClientDelegate
+    // We can use Handle as the FFIType because it's a typealias to UInt64
+    typealias FfiType = Handle
+
+    static func lift(_ handle: Handle) throws -> SwiftType {
+        ensureCallbackinitialized()
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        ensureCallbackinitialized()
+        let handle: Handle = try buf.readInt()
+        return try lift(handle)
+    }
+
+    static func lower(_ v: SwiftType) -> Handle {
+        ensureCallbackinitialized()
+        return handleMap.insert(obj: v)
+    }
+
+    static func write(_ v: SwiftType, into buf: Writer) {
+        ensureCallbackinitialized()
+        buf.writeInt(lower(v))
+    }
+}
 
 // Declaration and FfiConverters for RoomDelegate Callback Interface
 
@@ -1647,17 +1837,17 @@ private let foreignCallbackCallbackInterfaceRoomDelegate: ForeignCallback =
 
             let reader = Reader(data: Data(rustBuffer: args))
             swiftCallbackInterface.didReceiveMessage(
-                message: try AnyMessage.read(from: reader)
+                message: try FfiConverterTypeAnyMessage.read(from: reader)
             )
             return RustBuffer()
             // TODO: catch errors and report them back to Rust.
             // https://github.com/mozilla/uniffi-rs/issues/351
         }
 
-        let cb = try! ffiConverterCallbackInterfaceRoomDelegate.lift(handle)
+        let cb = try! FfiConverterCallbackInterfaceRoomDelegate.lift(handle)
         switch method {
         case IDX_CALLBACK_FREE:
-            ffiConverterCallbackInterfaceRoomDelegate.drop(handle: handle)
+            FfiConverterCallbackInterfaceRoomDelegate.drop(handle: handle)
             // No return value.
             // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
             return 0
@@ -1678,70 +1868,265 @@ private let foreignCallbackCallbackInterfaceRoomDelegate: ForeignCallback =
         }
     }
 
-// The ffiConverter which transforms the Callbacks in to Handles to pass to Rust.
-private let ffiConverterCallbackInterfaceRoomDelegate: FfiConverterCallbackInterface<RoomDelegate> = {
-    try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-        ffi_sdk_7dae_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
-    }
-    return FfiConverterCallbackInterface<RoomDelegate>()
-}()
-
-extension UInt8: Primitive, ViaFfi {
-    fileprivate static func read(from buf: Reader) throws -> Self {
-        return try lift(buf.readInt())
-    }
-
-    fileprivate func write(into buf: Writer) {
-        buf.writeInt(lower())
-    }
-}
-
-extension UInt64: Primitive, ViaFfi {
-    fileprivate static func read(from buf: Reader) throws -> Self {
-        return try lift(buf.readInt())
-    }
-
-    fileprivate func write(into buf: Writer) {
-        buf.writeInt(lower())
-    }
-}
-
-extension Bool: ViaFfi {
-    fileprivate typealias FfiType = Int8
-
-    fileprivate static func read(from buf: Reader) throws -> Self {
-        return try lift(buf.readInt())
-    }
-
-    fileprivate func write(into buf: Writer) {
-        buf.writeInt(lower())
-    }
-
-    fileprivate static func lift(_ v: FfiType) throws -> Self {
-        return v != 0
-    }
-
-    fileprivate func lower() -> FfiType {
-        return self ? 1 : 0
-    }
-}
-
-extension String: ViaFfi {
-    fileprivate typealias FfiType = RustBuffer
-
-    fileprivate static func lift(_ v: FfiType) throws -> Self {
-        defer {
-            v.deallocate()
+// FFIConverter protocol for callback interfaces
+private enum FfiConverterCallbackInterfaceRoomDelegate {
+    // Initialize our callback method with the scaffolding code
+    private static var callbackInitialized = false
+    private static func initCallback() {
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            ffi_sdk_70cd_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
         }
-        if v.data == nil {
+    }
+
+    private static func ensureCallbackinitialized() {
+        if !callbackInitialized {
+            initCallback()
+            callbackInitialized = true
+        }
+    }
+
+    static func drop(handle: Handle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = ConcurrentHandleMap<RoomDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceRoomDelegate: FfiConverter {
+    typealias SwiftType = RoomDelegate
+    // We can use Handle as the FFIType because it's a typealias to UInt64
+    typealias FfiType = Handle
+
+    static func lift(_ handle: Handle) throws -> SwiftType {
+        ensureCallbackinitialized()
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        ensureCallbackinitialized()
+        let handle: Handle = try buf.readInt()
+        return try lift(handle)
+    }
+
+    static func lower(_ v: SwiftType) -> Handle {
+        ensureCallbackinitialized()
+        return handleMap.insert(obj: v)
+    }
+
+    static func write(_ v: SwiftType, into buf: Writer) {
+        ensureCallbackinitialized()
+        buf.writeInt(lower(v))
+    }
+}
+
+// Declaration and FfiConverters for SessionVerificationControllerDelegate Callback Interface
+
+public protocol SessionVerificationControllerDelegate: AnyObject {
+    func didReceiveVerificationData(data: [SessionVerificationEmoji])
+    func didFail()
+    func didCancel()
+    func didFinish()
+}
+
+// The ForeignCallback that is passed to Rust.
+private let foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate: ForeignCallback =
+    { (handle: Handle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+        func invokeDidReceiveVerificationData(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
+            defer { args.deallocate() }
+
+            let reader = Reader(data: Data(rustBuffer: args))
+            swiftCallbackInterface.didReceiveVerificationData(
+                data: try FfiConverterSequenceTypeSessionVerificationEmoji.read(from: reader)
+            )
+            return RustBuffer()
+            // TODO: catch errors and report them back to Rust.
+            // https://github.com/mozilla/uniffi-rs/issues/351
+        }
+        func invokeDidFail(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
+            defer { args.deallocate() }
+            swiftCallbackInterface.didFail()
+            return RustBuffer()
+            // TODO: catch errors and report them back to Rust.
+            // https://github.com/mozilla/uniffi-rs/issues/351
+        }
+        func invokeDidCancel(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
+            defer { args.deallocate() }
+            swiftCallbackInterface.didCancel()
+            return RustBuffer()
+            // TODO: catch errors and report them back to Rust.
+            // https://github.com/mozilla/uniffi-rs/issues/351
+        }
+        func invokeDidFinish(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
+            defer { args.deallocate() }
+            swiftCallbackInterface.didFinish()
+            return RustBuffer()
+            // TODO: catch errors and report them back to Rust.
+            // https://github.com/mozilla/uniffi-rs/issues/351
+        }
+
+        let cb = try! FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
+        switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.drop(handle: handle)
+            // No return value.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return 0
+        case 1:
+            let buffer = try! invokeDidReceiveVerificationData(cb, args)
+            out_buf.pointee = buffer
+            // Value written to out buffer.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return 1
+        case 2:
+            let buffer = try! invokeDidFail(cb, args)
+            out_buf.pointee = buffer
+            // Value written to out buffer.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return 1
+        case 3:
+            let buffer = try! invokeDidCancel(cb, args)
+            out_buf.pointee = buffer
+            // Value written to out buffer.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return 1
+        case 4:
+            let buffer = try! invokeDidFinish(cb, args)
+            out_buf.pointee = buffer
+            // Value written to out buffer.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return 1
+
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
+            return -1
+        }
+    }
+
+// FFIConverter protocol for callback interfaces
+private enum FfiConverterCallbackInterfaceSessionVerificationControllerDelegate {
+    // Initialize our callback method with the scaffolding code
+    private static var callbackInitialized = false
+    private static func initCallback() {
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            ffi_sdk_70cd_SessionVerificationControllerDelegate_init_callback(foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate, err)
+        }
+    }
+
+    private static func ensureCallbackinitialized() {
+        if !callbackInitialized {
+            initCallback()
+            callbackInitialized = true
+        }
+    }
+
+    static func drop(handle: Handle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = ConcurrentHandleMap<SessionVerificationControllerDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceSessionVerificationControllerDelegate: FfiConverter {
+    typealias SwiftType = SessionVerificationControllerDelegate
+    // We can use Handle as the FFIType because it's a typealias to UInt64
+    typealias FfiType = Handle
+
+    static func lift(_ handle: Handle) throws -> SwiftType {
+        ensureCallbackinitialized()
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        ensureCallbackinitialized()
+        let handle: Handle = try buf.readInt()
+        return try lift(handle)
+    }
+
+    static func lower(_ v: SwiftType) -> Handle {
+        ensureCallbackinitialized()
+        return handleMap.insert(obj: v)
+    }
+
+    static func write(_ v: SwiftType, into buf: Writer) {
+        ensureCallbackinitialized()
+        buf.writeInt(lower(v))
+    }
+}
+
+private struct FfiConverterUInt8: FfiConverterPrimitive {
+    typealias FfiType = UInt8
+    typealias SwiftType = UInt8
+
+    static func read(from buf: Reader) throws -> UInt8 {
+        return try lift(buf.readInt())
+    }
+
+    static func write(_ value: UInt8, into buf: Writer) {
+        buf.writeInt(lower(value))
+    }
+}
+
+private struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    static func read(from buf: Reader) throws -> UInt64 {
+        return try lift(buf.readInt())
+    }
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        buf.writeInt(lower(value))
+    }
+}
+
+private struct FfiConverterBool: FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    static func read(from buf: Reader) throws -> Bool {
+        return try lift(buf.readInt())
+    }
+
+    static func write(_ value: Bool, into buf: Writer) {
+        buf.writeInt(lower(value))
+    }
+}
+
+private struct FfiConverterString: FfiConverter {
+    typealias SwiftType = String
+    typealias FfiType = RustBuffer
+
+    static func lift(_ value: RustBuffer) throws -> String {
+        defer {
+            value.deallocate()
+        }
+        if value.data == nil {
             return String()
         }
-        let bytes = UnsafeBufferPointer<UInt8>(start: v.data!, count: Int(v.len))
+        let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
         return String(bytes: bytes, encoding: String.Encoding.utf8)!
     }
 
-    fileprivate func lower() -> FfiType {
-        return utf8CString.withUnsafeBufferPointer { ptr in
+    static func lower(_ value: String) -> RustBuffer {
+        return value.utf8CString.withUnsafeBufferPointer { ptr in
             // The swift string gives us int8_t, we want uint8_t.
             ptr.withMemoryRebound(to: UInt8.self) { ptr in
                 // The swift string gives us a trailing null byte, we don't want it.
@@ -1751,15 +2136,15 @@ extension String: ViaFfi {
         }
     }
 
-    fileprivate static func read(from buf: Reader) throws -> Self {
+    static func read(from buf: Reader) throws -> String {
         let len: Int32 = try buf.readInt()
         return String(bytes: try buf.readBytes(count: Int(len)), encoding: String.Encoding.utf8)!
     }
 
-    fileprivate func write(into buf: Writer) {
-        let len = Int32(utf8.count)
+    static func write(_ value: String, into buf: Writer) {
+        let len = Int32(value.utf8.count)
         buf.writeInt(len)
-        buf.writeBytes(utf8)
+        buf.writeBytes(value.utf8)
     }
 }
 
@@ -1767,204 +2152,313 @@ extension String: ViaFfi {
 // Helper code for BackwardsStream class is found in ObjectTemplate.swift
 // Helper code for BaseMessage class is found in ObjectTemplate.swift
 // Helper code for Client class is found in ObjectTemplate.swift
+// Helper code for ClientBuilder class is found in ObjectTemplate.swift
 // Helper code for EmoteMessage class is found in ObjectTemplate.swift
 // Helper code for ImageMessage class is found in ObjectTemplate.swift
 // Helper code for MediaSource class is found in ObjectTemplate.swift
 // Helper code for MessageEventContent class is found in ObjectTemplate.swift
 // Helper code for NoticeMessage class is found in ObjectTemplate.swift
 // Helper code for Room class is found in ObjectTemplate.swift
+// Helper code for SessionVerificationController class is found in ObjectTemplate.swift
+// Helper code for SessionVerificationEmoji class is found in ObjectTemplate.swift
 // Helper code for TextMessage class is found in ObjectTemplate.swift
 // Helper code for ClientError error is found in ErrorTemplate.swift
 
-private enum FfiConverterOptionUInt64: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
     typealias SwiftType = UInt64?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterUInt64.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try UInt64.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt64.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionString: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterString.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try String.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterString.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionObjectBackwardsStream: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionTypeBackwardsStream: FfiConverterRustBuffer {
     typealias SwiftType = BackwardsStream?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterTypeBackwardsStream.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try BackwardsStream.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeBackwardsStream.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionObjectEmoteMessage: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionTypeEmoteMessage: FfiConverterRustBuffer {
     typealias SwiftType = EmoteMessage?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterTypeEmoteMessage.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try EmoteMessage.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEmoteMessage.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionObjectImageMessage: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionTypeImageMessage: FfiConverterRustBuffer {
     typealias SwiftType = ImageMessage?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterTypeImageMessage.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try ImageMessage.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeImageMessage.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionObjectNoticeMessage: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionTypeNoticeMessage: FfiConverterRustBuffer {
     typealias SwiftType = NoticeMessage?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterTypeNoticeMessage.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try NoticeMessage.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeNoticeMessage.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionObjectTextMessage: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionTypeTextMessage: FfiConverterRustBuffer {
     typealias SwiftType = TextMessage?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterTypeTextMessage.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try TextMessage.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeTextMessage.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionCallbackInterfaceClientDelegate: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionCallbackInterfaceClientDelegate: FfiConverterRustBuffer {
     typealias SwiftType = ClientDelegate?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            ffiConverterCallbackInterfaceClientDelegate.write(item, into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterCallbackInterfaceClientDelegate.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try ffiConverterCallbackInterfaceClientDelegate.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceClientDelegate.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterOptionCallbackInterfaceRoomDelegate: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionCallbackInterfaceRoomDelegate: FfiConverterRustBuffer {
     typealias SwiftType = RoomDelegate?
 
     static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterOptional.write(value, into: buf) { item, buf in
-            ffiConverterCallbackInterfaceRoomDelegate.write(item, into: buf)
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
         }
+        buf.writeInt(Int8(1))
+        FfiConverterCallbackInterfaceRoomDelegate.write(value, into: buf)
     }
 
     static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterOptional.read(from: buf) { buf in
-            try ffiConverterCallbackInterfaceRoomDelegate.read(from: buf)
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceRoomDelegate.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
 }
 
-private enum FfiConverterSequenceUInt8: FfiConverterUsingByteBuffer {
+private struct FfiConverterOptionCallbackInterfaceSessionVerificationControllerDelegate: FfiConverterRustBuffer {
+    typealias SwiftType = SessionVerificationControllerDelegate?
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
+        }
+        buf.writeInt(Int8(1))
+        FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.write(value, into: buf)
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+private struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
     typealias SwiftType = [UInt8]
 
-    static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterSequence.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+    static func write(_ value: [UInt8], into buf: Writer) {
+        let len = Int32(value.count)
+        buf.writeInt(len)
+        for item in value {
+            FfiConverterUInt8.write(item, into: buf)
         }
     }
 
-    static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterSequence.read(from: buf) { buf in
-            try UInt8.read(from: buf)
+    static func read(from buf: Reader) throws -> [UInt8] {
+        let len: Int32 = try buf.readInt()
+        var seq = [UInt8]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterUInt8.read(from: buf))
         }
+        return seq
     }
 }
 
-private enum FfiConverterSequenceObjectAnyMessage: FfiConverterUsingByteBuffer {
+private struct FfiConverterSequenceTypeAnyMessage: FfiConverterRustBuffer {
     typealias SwiftType = [AnyMessage]
 
-    static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterSequence.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+    static func write(_ value: [AnyMessage], into buf: Writer) {
+        let len = Int32(value.count)
+        buf.writeInt(len)
+        for item in value {
+            FfiConverterTypeAnyMessage.write(item, into: buf)
         }
     }
 
-    static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterSequence.read(from: buf) { buf in
-            try AnyMessage.read(from: buf)
+    static func read(from buf: Reader) throws -> [AnyMessage] {
+        let len: Int32 = try buf.readInt()
+        var seq = [AnyMessage]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAnyMessage.read(from: buf))
         }
+        return seq
     }
 }
 
-private enum FfiConverterSequenceObjectRoom: FfiConverterUsingByteBuffer {
+private struct FfiConverterSequenceTypeRoom: FfiConverterRustBuffer {
     typealias SwiftType = [Room]
 
-    static func write(_ value: SwiftType, into buf: Writer) {
-        FfiConverterSequence.write(value, into: buf) { item, buf in
-            item.write(into: buf)
+    static func write(_ value: [Room], into buf: Writer) {
+        let len = Int32(value.count)
+        buf.writeInt(len)
+        for item in value {
+            FfiConverterTypeRoom.write(item, into: buf)
         }
     }
 
-    static func read(from buf: Reader) throws -> SwiftType {
-        try FfiConverterSequence.read(from: buf) { buf in
-            try Room.read(from: buf)
+    static func read(from buf: Reader) throws -> [Room] {
+        let len: Int32 = try buf.readInt()
+        var seq = [Room]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRoom.read(from: buf))
         }
+        return seq
+    }
+}
+
+private struct FfiConverterSequenceTypeSessionVerificationEmoji: FfiConverterRustBuffer {
+    typealias SwiftType = [SessionVerificationEmoji]
+
+    static func write(_ value: [SessionVerificationEmoji], into buf: Writer) {
+        let len = Int32(value.count)
+        buf.writeInt(len)
+        for item in value {
+            FfiConverterTypeSessionVerificationEmoji.write(item, into: buf)
+        }
+    }
+
+    static func read(from buf: Reader) throws -> [SessionVerificationEmoji] {
+        let len: Int32 = try buf.readInt()
+        var seq = [SessionVerificationEmoji]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeSessionVerificationEmoji.read(from: buf))
+        }
+        return seq
     }
 }
 
