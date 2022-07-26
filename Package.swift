@@ -3,8 +3,8 @@
 
 import PackageDescription
 
-let checksum = "db656d516fdd6cc1da523241a554606cebeea38a11c25c7c414f00366c8a99c9"
-let version = "v1.0.11-alpha"
+let checksum = "058dd2c6f0fc7b667e2f2d9470f6db79bbd2388c0a1c17e7e6a42c40ef4d2ca4"
+let version = "v1.0.12-alpha"
 let url = "https://github.com/matrix-org/matrix-rust-components-swift/releases/download/\(version)/MatrixSDKFFI.xcframework.zip"
 
 let useLocalBinary = false
@@ -30,15 +30,11 @@ let package = Package(
          * A bit hacky but necessary for now https://github.com/mozilla/application-services/issues/4422
          */
         .target(
-            name: "MatrixSDKFFIWrapper",
+            name: "MatrixRustSDK",
             dependencies: [
                 .target(name: "MatrixSDKFFI")
-            ],
-            path: "MatrixSDKFFIWrapper"
+            ]
         ),
-        .target(
-            name: "MatrixRustSDK",
-            dependencies: ["MatrixSDKFFIWrapper"]),
         .testTarget(
             name: "MatrixRustSDKTests",
             dependencies: ["MatrixRustSDK"]),
