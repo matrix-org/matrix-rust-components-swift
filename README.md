@@ -8,8 +8,8 @@ Whenever a new release of the underlying components is available, we need to tag
 To do so we need to:
 * running the `.xcframework` build script from `matrix-rust-sdk/apple`
 * copy the generated `.swift` files to this repository under `Sources/MatrixRustComponentsSwift`
+* update the tag version and checksum inside `Package.swift`
 * create a new tag and upload the zipped version of the `.xcframework` to it's artefacts section
-* update the tag version inside `Package.swift`
 
 ## Testing locally
 
@@ -23,8 +23,12 @@ To build the package you will need the following installed:
 3. nightly toolchain and simulator targets for your desired platform. See the [release script](https://github.com/matrix-org/matrix-rust-sdk/blob/main/bindings/apple/build_xcframework.sh) for all possible options.
 ```
 rustup toolchain install nightly
+rustup default nightly
+rustup target add aarch64-apple-ios --toolchain nightly
+rustup target add aarch64-apple-darwin --toolchain nightly
 rustup target add aarch64-apple-ios-sim --toolchain nightly
 rustup target add x86_64-apple-ios --toolchain nightly
+rustup target add x86_64-apple-darwin --toolchain nightly
 ```
 4. matrix-rust-sdk cloned next to this repo `git clone https://github.com/matrix-org/matrix-rust-sdk`
 5. When running the `debug_build_xcframework.sh` script, enable the `useLocalBinary` flag in `Package.swift`.

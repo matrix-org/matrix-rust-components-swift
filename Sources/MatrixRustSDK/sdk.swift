@@ -19,13 +19,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_sdk_39ff_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_sdk_22ae_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_sdk_39ff_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_sdk_22ae_rustbuffer_free(self, $0) }
     }
 }
 
@@ -341,11 +341,53 @@ private class ConcurrentHandleMap<T> {
 // Magic number for the Rust proxy to call using the same mechanism as every other method,
 // to free the callback once it's dropped by Rust.
 private let IDX_CALLBACK_FREE: Int32 = 0
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum Membership {
+    case invited
+    case joined
+    case left
+}
+
+private struct FfiConverterTypeMembership: FfiConverterRustBuffer {
+    typealias SwiftType = Membership
+
+    static func read(from buf: Reader) throws -> Membership {
+        let variant: Int32 = try buf.readInt()
+        switch variant {
+        case 1: return .invited
+
+        case 2: return .joined
+
+        case 3: return .left
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    static func write(_ value: Membership, into buf: Writer) {
+        switch value {
+        case .invited:
+            buf.writeInt(Int32(1))
+
+        case .joined:
+            buf.writeInt(Int32(2))
+
+        case .left:
+            buf.writeInt(Int32(3))
+        }
+    }
+}
+
+extension Membership: Equatable, Hashable {}
+
 public func setupTracing(configuration: String) {
     try!
 
         rustCall {
-            sdk_39ff_setup_tracing(
+            sdk_22ae_setup_tracing(
                 FfiConverterString.lower(configuration), $0
             )
         }
@@ -356,7 +398,7 @@ public func mediaSourceFromUrl(url: String) -> MediaSource {
         try!
 
             rustCall {
-                sdk_39ff_media_source_from_url(
+                sdk_22ae_media_source_from_url(
                     FfiConverterString.lower(url), $0
                 )
             }
@@ -368,7 +410,7 @@ public func messageEventContentFromMarkdown(md: String) -> MessageEventContent {
         try!
 
             rustCall {
-                sdk_39ff_message_event_content_from_markdown(
+                sdk_22ae_message_event_content_from_markdown(
                     FfiConverterString.lower(md), $0
                 )
             }
@@ -380,7 +422,7 @@ public func genTransactionId() -> String {
         try!
 
             rustCall {
-                sdk_39ff_gen_transaction_id($0)
+                sdk_22ae_gen_transaction_id($0)
             }
     )
 }
@@ -406,19 +448,19 @@ public class ClientBuilder: ClientBuilderProtocol {
         self.init(unsafeFromRawPointer: try!
 
             rustCall {
-                sdk_39ff_ClientBuilder_new($0)
+                sdk_22ae_ClientBuilder_new($0)
             })
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_ClientBuilder_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_ClientBuilder_object_free(pointer, $0) }
     }
 
     public func basePath(path: String) -> ClientBuilder {
         return try! FfiConverterTypeClientBuilder.lift(
             try!
                 rustCall {
-                    sdk_39ff_ClientBuilder_base_path(self.pointer,
+                    sdk_22ae_ClientBuilder_base_path(self.pointer,
                                                      FfiConverterString.lower(path), $0)
                 }
         )
@@ -428,7 +470,7 @@ public class ClientBuilder: ClientBuilderProtocol {
         return try! FfiConverterTypeClientBuilder.lift(
             try!
                 rustCall {
-                    sdk_39ff_ClientBuilder_username(self.pointer,
+                    sdk_22ae_ClientBuilder_username(self.pointer,
                                                     FfiConverterString.lower(username), $0)
                 }
         )
@@ -438,7 +480,7 @@ public class ClientBuilder: ClientBuilderProtocol {
         return try! FfiConverterTypeClientBuilder.lift(
             try!
                 rustCall {
-                    sdk_39ff_ClientBuilder_homeserver_url(self.pointer,
+                    sdk_22ae_ClientBuilder_homeserver_url(self.pointer,
                                                           FfiConverterString.lower(url), $0)
                 }
         )
@@ -448,7 +490,7 @@ public class ClientBuilder: ClientBuilderProtocol {
         return try FfiConverterTypeClient.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_ClientBuilder_build(self.pointer, $0)
+                    sdk_22ae_ClientBuilder_build(self.pointer, $0)
                 }
         )
     }
@@ -489,7 +531,7 @@ public protocol ClientProtocol {
     func login(username: String, password: String) throws
     func restoreLogin(restoreToken: String) throws
     func homeserver() -> String
-    func startSync()
+    func startSync(timelineLimit: UInt16?)
     func restoreToken() throws -> String
     func isGuest() -> Bool
     func hasFirstSynced() -> Bool
@@ -514,13 +556,13 @@ public class Client: ClientProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_Client_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_Client_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: ClientDelegate?) {
         try!
             rustCall {
-                sdk_39ff_Client_set_delegate(self.pointer,
+                sdk_22ae_Client_set_delegate(self.pointer,
                                              FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
             }
     }
@@ -528,7 +570,7 @@ public class Client: ClientProtocol {
     public func login(username: String, password: String) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                sdk_39ff_Client_login(self.pointer,
+                sdk_22ae_Client_login(self.pointer,
                                       FfiConverterString.lower(username),
                                       FfiConverterString.lower(password), $0)
             }
@@ -537,7 +579,7 @@ public class Client: ClientProtocol {
     public func restoreLogin(restoreToken: String) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                sdk_39ff_Client_restore_login(self.pointer,
+                sdk_22ae_Client_restore_login(self.pointer,
                                               FfiConverterString.lower(restoreToken), $0)
             }
     }
@@ -546,15 +588,16 @@ public class Client: ClientProtocol {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_Client_homeserver(self.pointer, $0)
+                    sdk_22ae_Client_homeserver(self.pointer, $0)
                 }
         )
     }
 
-    public func startSync() {
+    public func startSync(timelineLimit: UInt16?) {
         try!
             rustCall {
-                sdk_39ff_Client_start_sync(self.pointer, $0)
+                sdk_22ae_Client_start_sync(self.pointer,
+                                           FfiConverterOptionUInt16.lower(timelineLimit), $0)
             }
     }
 
@@ -562,7 +605,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Client_restore_token(self.pointer, $0)
+                    sdk_22ae_Client_restore_token(self.pointer, $0)
                 }
         )
     }
@@ -571,7 +614,7 @@ public class Client: ClientProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Client_is_guest(self.pointer, $0)
+                    sdk_22ae_Client_is_guest(self.pointer, $0)
                 }
         )
     }
@@ -580,7 +623,7 @@ public class Client: ClientProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Client_has_first_synced(self.pointer, $0)
+                    sdk_22ae_Client_has_first_synced(self.pointer, $0)
                 }
         )
     }
@@ -589,7 +632,7 @@ public class Client: ClientProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Client_is_syncing(self.pointer, $0)
+                    sdk_22ae_Client_is_syncing(self.pointer, $0)
                 }
         )
     }
@@ -598,7 +641,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Client_user_id(self.pointer, $0)
+                    sdk_22ae_Client_user_id(self.pointer, $0)
                 }
         )
     }
@@ -607,7 +650,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Client_display_name(self.pointer, $0)
+                    sdk_22ae_Client_display_name(self.pointer, $0)
                 }
         )
     }
@@ -616,7 +659,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Client_avatar_url(self.pointer, $0)
+                    sdk_22ae_Client_avatar_url(self.pointer, $0)
                 }
         )
     }
@@ -625,7 +668,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Client_device_id(self.pointer, $0)
+                    sdk_22ae_Client_device_id(self.pointer, $0)
                 }
         )
     }
@@ -634,7 +677,7 @@ public class Client: ClientProtocol {
         return try! FfiConverterSequenceTypeRoom.lift(
             try!
                 rustCall {
-                    sdk_39ff_Client_rooms(self.pointer, $0)
+                    sdk_22ae_Client_rooms(self.pointer, $0)
                 }
         )
     }
@@ -643,7 +686,7 @@ public class Client: ClientProtocol {
         return try FfiConverterSequenceUInt8.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Client_get_media_content(self.pointer,
+                    sdk_22ae_Client_get_media_content(self.pointer,
                                                       FfiConverterTypeMediaSource.lower(source), $0)
                 }
         )
@@ -653,7 +696,7 @@ public class Client: ClientProtocol {
         return try FfiConverterTypeSessionVerificationController.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Client_get_session_verification_controller(self.pointer, $0)
+                    sdk_22ae_Client_get_session_verification_controller(self.pointer, $0)
                 }
         )
     }
@@ -695,6 +738,7 @@ public protocol RoomProtocol {
     func name() -> String?
     func topic() -> String?
     func avatarUrl() -> String?
+    func membership() -> Membership
     func isDirect() -> Bool
     func isPublic() -> Bool
     func isSpace() -> Bool
@@ -719,13 +763,13 @@ public class Room: RoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_Room_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_Room_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: RoomDelegate?) {
         try!
             rustCall {
-                sdk_39ff_Room_set_delegate(self.pointer,
+                sdk_22ae_Room_set_delegate(self.pointer,
                                            FfiConverterOptionCallbackInterfaceRoomDelegate.lower(delegate), $0)
             }
     }
@@ -734,7 +778,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_id(self.pointer, $0)
+                    sdk_22ae_Room_id(self.pointer, $0)
                 }
         )
     }
@@ -743,7 +787,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_name(self.pointer, $0)
+                    sdk_22ae_Room_name(self.pointer, $0)
                 }
         )
     }
@@ -752,7 +796,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_topic(self.pointer, $0)
+                    sdk_22ae_Room_topic(self.pointer, $0)
                 }
         )
     }
@@ -761,7 +805,16 @@ public class Room: RoomProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_avatar_url(self.pointer, $0)
+                    sdk_22ae_Room_avatar_url(self.pointer, $0)
+                }
+        )
+    }
+
+    public func membership() -> Membership {
+        return try! FfiConverterTypeMembership.lift(
+            try!
+                rustCall {
+                    sdk_22ae_Room_membership(self.pointer, $0)
                 }
         )
     }
@@ -770,7 +823,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_is_direct(self.pointer, $0)
+                    sdk_22ae_Room_is_direct(self.pointer, $0)
                 }
         )
     }
@@ -779,7 +832,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_is_public(self.pointer, $0)
+                    sdk_22ae_Room_is_public(self.pointer, $0)
                 }
         )
     }
@@ -788,7 +841,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_is_space(self.pointer, $0)
+                    sdk_22ae_Room_is_space(self.pointer, $0)
                 }
         )
     }
@@ -797,7 +850,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_is_encrypted(self.pointer, $0)
+                    sdk_22ae_Room_is_encrypted(self.pointer, $0)
                 }
         )
     }
@@ -806,7 +859,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_is_tombstoned(self.pointer, $0)
+                    sdk_22ae_Room_is_tombstoned(self.pointer, $0)
                 }
         )
     }
@@ -815,7 +868,7 @@ public class Room: RoomProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Room_display_name(self.pointer, $0)
+                    sdk_22ae_Room_display_name(self.pointer, $0)
                 }
         )
     }
@@ -824,7 +877,7 @@ public class Room: RoomProtocol {
         return try FfiConverterOptionString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Room_member_avatar_url(self.pointer,
+                    sdk_22ae_Room_member_avatar_url(self.pointer,
                                                     FfiConverterString.lower(userId), $0)
                 }
         )
@@ -834,7 +887,7 @@ public class Room: RoomProtocol {
         return try FfiConverterOptionString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    sdk_39ff_Room_member_display_name(self.pointer,
+                    sdk_22ae_Room_member_display_name(self.pointer,
                                                       FfiConverterString.lower(userId), $0)
                 }
         )
@@ -844,7 +897,7 @@ public class Room: RoomProtocol {
         return try! FfiConverterOptionTypeBackwardsStream.lift(
             try!
                 rustCall {
-                    sdk_39ff_Room_start_live_event_listener(self.pointer, $0)
+                    sdk_22ae_Room_start_live_event_listener(self.pointer, $0)
                 }
         )
     }
@@ -852,14 +905,14 @@ public class Room: RoomProtocol {
     public func stopLiveEventListener() {
         try!
             rustCall {
-                sdk_39ff_Room_stop_live_event_listener(self.pointer, $0)
+                sdk_22ae_Room_stop_live_event_listener(self.pointer, $0)
             }
     }
 
     public func send(msg: MessageEventContent, txnId: String?) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                sdk_39ff_Room_send(self.pointer,
+                sdk_22ae_Room_send(self.pointer,
                                    FfiConverterTypeMessageEventContent.lower(msg),
                                    FfiConverterOptionString.lower(txnId), $0)
             }
@@ -911,14 +964,14 @@ public class BackwardsStream: BackwardsStreamProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_BackwardsStream_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_BackwardsStream_object_free(pointer, $0) }
     }
 
     public func paginateBackwards(count: UInt64) -> [AnyMessage] {
         return try! FfiConverterSequenceTypeAnyMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_BackwardsStream_paginate_backwards(self.pointer,
+                    sdk_22ae_BackwardsStream_paginate_backwards(self.pointer,
                                                                 FfiConverterUInt64.lower(count), $0)
                 }
         )
@@ -968,7 +1021,7 @@ public class MessageEventContent: MessageEventContentProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_MessageEventContent_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_MessageEventContent_object_free(pointer, $0) }
     }
 }
 
@@ -1020,14 +1073,14 @@ public class AnyMessage: AnyMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_AnyMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_AnyMessage_object_free(pointer, $0) }
     }
 
     public func textMessage() -> TextMessage? {
         return try! FfiConverterOptionTypeTextMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_AnyMessage_text_message(self.pointer, $0)
+                    sdk_22ae_AnyMessage_text_message(self.pointer, $0)
                 }
         )
     }
@@ -1036,7 +1089,7 @@ public class AnyMessage: AnyMessageProtocol {
         return try! FfiConverterOptionTypeImageMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_AnyMessage_image_message(self.pointer, $0)
+                    sdk_22ae_AnyMessage_image_message(self.pointer, $0)
                 }
         )
     }
@@ -1045,7 +1098,7 @@ public class AnyMessage: AnyMessageProtocol {
         return try! FfiConverterOptionTypeNoticeMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_AnyMessage_notice_message(self.pointer, $0)
+                    sdk_22ae_AnyMessage_notice_message(self.pointer, $0)
                 }
         )
     }
@@ -1054,7 +1107,7 @@ public class AnyMessage: AnyMessageProtocol {
         return try! FfiConverterOptionTypeEmoteMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_AnyMessage_emote_message(self.pointer, $0)
+                    sdk_22ae_AnyMessage_emote_message(self.pointer, $0)
                 }
         )
     }
@@ -1109,14 +1162,14 @@ public class BaseMessage: BaseMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_BaseMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_BaseMessage_object_free(pointer, $0) }
     }
 
     public func id() -> String {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_BaseMessage_id(self.pointer, $0)
+                    sdk_22ae_BaseMessage_id(self.pointer, $0)
                 }
         )
     }
@@ -1125,7 +1178,7 @@ public class BaseMessage: BaseMessageProtocol {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_BaseMessage_body(self.pointer, $0)
+                    sdk_22ae_BaseMessage_body(self.pointer, $0)
                 }
         )
     }
@@ -1134,7 +1187,7 @@ public class BaseMessage: BaseMessageProtocol {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_BaseMessage_sender(self.pointer, $0)
+                    sdk_22ae_BaseMessage_sender(self.pointer, $0)
                 }
         )
     }
@@ -1143,7 +1196,7 @@ public class BaseMessage: BaseMessageProtocol {
         return try! FfiConverterUInt64.lift(
             try!
                 rustCall {
-                    sdk_39ff_BaseMessage_origin_server_ts(self.pointer, $0)
+                    sdk_22ae_BaseMessage_origin_server_ts(self.pointer, $0)
                 }
         )
     }
@@ -1152,7 +1205,7 @@ public class BaseMessage: BaseMessageProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_BaseMessage_transaction_id(self.pointer, $0)
+                    sdk_22ae_BaseMessage_transaction_id(self.pointer, $0)
                 }
         )
     }
@@ -1204,14 +1257,14 @@ public class TextMessage: TextMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_TextMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_TextMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         return try! FfiConverterTypeBaseMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_TextMessage_base_message(self.pointer, $0)
+                    sdk_22ae_TextMessage_base_message(self.pointer, $0)
                 }
         )
     }
@@ -1220,7 +1273,7 @@ public class TextMessage: TextMessageProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_TextMessage_html_body(self.pointer, $0)
+                    sdk_22ae_TextMessage_html_body(self.pointer, $0)
                 }
         )
     }
@@ -1275,14 +1328,14 @@ public class ImageMessage: ImageMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_ImageMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_ImageMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         return try! FfiConverterTypeBaseMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_ImageMessage_base_message(self.pointer, $0)
+                    sdk_22ae_ImageMessage_base_message(self.pointer, $0)
                 }
         )
     }
@@ -1291,7 +1344,7 @@ public class ImageMessage: ImageMessageProtocol {
         return try! FfiConverterTypeMediaSource.lift(
             try!
                 rustCall {
-                    sdk_39ff_ImageMessage_source(self.pointer, $0)
+                    sdk_22ae_ImageMessage_source(self.pointer, $0)
                 }
         )
     }
@@ -1300,7 +1353,7 @@ public class ImageMessage: ImageMessageProtocol {
         return try! FfiConverterOptionUInt64.lift(
             try!
                 rustCall {
-                    sdk_39ff_ImageMessage_width(self.pointer, $0)
+                    sdk_22ae_ImageMessage_width(self.pointer, $0)
                 }
         )
     }
@@ -1309,7 +1362,7 @@ public class ImageMessage: ImageMessageProtocol {
         return try! FfiConverterOptionUInt64.lift(
             try!
                 rustCall {
-                    sdk_39ff_ImageMessage_height(self.pointer, $0)
+                    sdk_22ae_ImageMessage_height(self.pointer, $0)
                 }
         )
     }
@@ -1318,7 +1371,7 @@ public class ImageMessage: ImageMessageProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_ImageMessage_blurhash(self.pointer, $0)
+                    sdk_22ae_ImageMessage_blurhash(self.pointer, $0)
                 }
         )
     }
@@ -1370,14 +1423,14 @@ public class NoticeMessage: NoticeMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_NoticeMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_NoticeMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         return try! FfiConverterTypeBaseMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_NoticeMessage_base_message(self.pointer, $0)
+                    sdk_22ae_NoticeMessage_base_message(self.pointer, $0)
                 }
         )
     }
@@ -1386,7 +1439,7 @@ public class NoticeMessage: NoticeMessageProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_NoticeMessage_html_body(self.pointer, $0)
+                    sdk_22ae_NoticeMessage_html_body(self.pointer, $0)
                 }
         )
     }
@@ -1438,14 +1491,14 @@ public class EmoteMessage: EmoteMessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_EmoteMessage_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_EmoteMessage_object_free(pointer, $0) }
     }
 
     public func baseMessage() -> BaseMessage {
         return try! FfiConverterTypeBaseMessage.lift(
             try!
                 rustCall {
-                    sdk_39ff_EmoteMessage_base_message(self.pointer, $0)
+                    sdk_22ae_EmoteMessage_base_message(self.pointer, $0)
                 }
         )
     }
@@ -1454,7 +1507,7 @@ public class EmoteMessage: EmoteMessageProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_EmoteMessage_html_body(self.pointer, $0)
+                    sdk_22ae_EmoteMessage_html_body(self.pointer, $0)
                 }
         )
     }
@@ -1505,14 +1558,14 @@ public class MediaSource: MediaSourceProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_MediaSource_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_MediaSource_object_free(pointer, $0) }
     }
 
     public func url() -> String {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_MediaSource_url(self.pointer, $0)
+                    sdk_22ae_MediaSource_url(self.pointer, $0)
                 }
         )
     }
@@ -1565,14 +1618,14 @@ public class HomeserverLoginDetails: HomeserverLoginDetailsProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_HomeserverLoginDetails_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_HomeserverLoginDetails_object_free(pointer, $0) }
     }
 
     public func url() -> String {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_HomeserverLoginDetails_url(self.pointer, $0)
+                    sdk_22ae_HomeserverLoginDetails_url(self.pointer, $0)
                 }
         )
     }
@@ -1581,7 +1634,7 @@ public class HomeserverLoginDetails: HomeserverLoginDetailsProtocol {
         return try! FfiConverterOptionString.lift(
             try!
                 rustCall {
-                    sdk_39ff_HomeserverLoginDetails_authentication_issuer(self.pointer, $0)
+                    sdk_22ae_HomeserverLoginDetails_authentication_issuer(self.pointer, $0)
                 }
         )
     }
@@ -1590,7 +1643,7 @@ public class HomeserverLoginDetails: HomeserverLoginDetailsProtocol {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_HomeserverLoginDetails_supports_password_login(self.pointer, $0)
+                    sdk_22ae_HomeserverLoginDetails_supports_password_login(self.pointer, $0)
                 }
         )
     }
@@ -1647,21 +1700,21 @@ public class AuthenticationService: AuthenticationServiceProtocol {
         self.init(unsafeFromRawPointer: try!
 
             rustCall {
-                sdk_39ff_AuthenticationService_new(
+                sdk_22ae_AuthenticationService_new(
                     FfiConverterString.lower(basePath), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_AuthenticationService_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_AuthenticationService_object_free(pointer, $0) }
     }
 
     public func homeserverDetails() -> HomeserverLoginDetails? {
         return try! FfiConverterOptionTypeHomeserverLoginDetails.lift(
             try!
                 rustCall {
-                    sdk_39ff_AuthenticationService_homeserver_details(self.pointer, $0)
+                    sdk_22ae_AuthenticationService_homeserver_details(self.pointer, $0)
                 }
         )
     }
@@ -1669,7 +1722,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
     public func configureHomeserver(serverName: String) throws {
         try
             rustCallWithError(FfiConverterTypeAuthenticationError.self) {
-                sdk_39ff_AuthenticationService_configure_homeserver(self.pointer,
+                sdk_22ae_AuthenticationService_configure_homeserver(self.pointer,
                                                                     FfiConverterString.lower(serverName), $0)
             }
     }
@@ -1678,7 +1731,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
         return try FfiConverterTypeClient.lift(
             try
                 rustCallWithError(FfiConverterTypeAuthenticationError.self) {
-                    sdk_39ff_AuthenticationService_login(self.pointer,
+                    sdk_22ae_AuthenticationService_login(self.pointer,
                                                          FfiConverterString.lower(username),
                                                          FfiConverterString.lower(password), $0)
                 }
@@ -1689,7 +1742,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
         return try FfiConverterTypeClient.lift(
             try
                 rustCallWithError(FfiConverterTypeAuthenticationError.self) {
-                    sdk_39ff_AuthenticationService_restore_with_access_token(self.pointer,
+                    sdk_22ae_AuthenticationService_restore_with_access_token(self.pointer,
                                                                              FfiConverterString.lower(token),
                                                                              FfiConverterString.lower(deviceId), $0)
                 }
@@ -1743,14 +1796,14 @@ public class SessionVerificationEmoji: SessionVerificationEmojiProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_SessionVerificationEmoji_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_SessionVerificationEmoji_object_free(pointer, $0) }
     }
 
     public func symbol() -> String {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_SessionVerificationEmoji_symbol(self.pointer, $0)
+                    sdk_22ae_SessionVerificationEmoji_symbol(self.pointer, $0)
                 }
         )
     }
@@ -1759,7 +1812,7 @@ public class SessionVerificationEmoji: SessionVerificationEmojiProtocol {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    sdk_39ff_SessionVerificationEmoji_description(self.pointer, $0)
+                    sdk_22ae_SessionVerificationEmoji_description(self.pointer, $0)
                 }
         )
     }
@@ -1815,13 +1868,13 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     deinit {
-        try! rustCall { ffi_sdk_39ff_SessionVerificationController_object_free(pointer, $0) }
+        try! rustCall { ffi_sdk_22ae_SessionVerificationController_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: SessionVerificationControllerDelegate?) {
         try!
             rustCall {
-                sdk_39ff_SessionVerificationController_set_delegate(self.pointer,
+                sdk_22ae_SessionVerificationController_set_delegate(self.pointer,
                                                                     FfiConverterOptionCallbackInterfaceSessionVerificationControllerDelegate.lower(delegate), $0)
             }
     }
@@ -1830,7 +1883,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    sdk_39ff_SessionVerificationController_is_verified(self.pointer, $0)
+                    sdk_22ae_SessionVerificationController_is_verified(self.pointer, $0)
                 }
         )
     }
@@ -1838,28 +1891,28 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     public func requestVerification() throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                sdk_39ff_SessionVerificationController_request_verification(self.pointer, $0)
+                sdk_22ae_SessionVerificationController_request_verification(self.pointer, $0)
             }
     }
 
     public func approveVerification() throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                sdk_39ff_SessionVerificationController_approve_verification(self.pointer, $0)
+                sdk_22ae_SessionVerificationController_approve_verification(self.pointer, $0)
             }
     }
 
     public func declineVerification() throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                sdk_39ff_SessionVerificationController_decline_verification(self.pointer, $0)
+                sdk_22ae_SessionVerificationController_decline_verification(self.pointer, $0)
             }
     }
 
     public func cancelVerification() throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                sdk_39ff_SessionVerificationController_cancel_verification(self.pointer, $0)
+                sdk_22ae_SessionVerificationController_cancel_verification(self.pointer, $0)
             }
     }
 }
@@ -2024,7 +2077,7 @@ private enum FfiConverterCallbackInterfaceClientDelegate {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_sdk_39ff_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+            ffi_sdk_22ae_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
         }
     }
 
@@ -2123,7 +2176,7 @@ private enum FfiConverterCallbackInterfaceRoomDelegate {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_sdk_39ff_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
+            ffi_sdk_22ae_RoomDelegate_init_callback(foreignCallbackCallbackInterfaceRoomDelegate, err)
         }
     }
 
@@ -2264,7 +2317,7 @@ private enum FfiConverterCallbackInterfaceSessionVerificationControllerDelegate 
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_sdk_39ff_SessionVerificationControllerDelegate_init_callback(foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate, err)
+            ffi_sdk_22ae_SessionVerificationControllerDelegate_init_callback(foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate, err)
         }
     }
 
@@ -2321,6 +2374,19 @@ private struct FfiConverterUInt8: FfiConverterPrimitive {
     }
 
     static func write(_ value: UInt8, into buf: Writer) {
+        buf.writeInt(lower(value))
+    }
+}
+
+private struct FfiConverterUInt16: FfiConverterPrimitive {
+    typealias FfiType = UInt16
+    typealias SwiftType = UInt16
+
+    static func read(from buf: Reader) throws -> UInt16 {
+        return try lift(buf.readInt())
+    }
+
+    static func write(_ value: SwiftType, into buf: Writer) {
         buf.writeInt(lower(value))
     }
 }
@@ -2413,8 +2479,30 @@ private struct FfiConverterString: FfiConverter {
 // Helper code for SessionVerificationController class is found in ObjectTemplate.swift
 // Helper code for SessionVerificationEmoji class is found in ObjectTemplate.swift
 // Helper code for TextMessage class is found in ObjectTemplate.swift
+// Helper code for Membership enum is found in EnumTemplate.swift
 // Helper code for AuthenticationError error is found in ErrorTemplate.swift
 // Helper code for ClientError error is found in ErrorTemplate.swift
+
+private struct FfiConverterOptionUInt16: FfiConverterRustBuffer {
+    typealias SwiftType = UInt16?
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
+        }
+        buf.writeInt(Int8(1))
+        FfiConverterUInt16.write(value, into: buf)
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt16.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
 
 private struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
     typealias SwiftType = UInt64?
