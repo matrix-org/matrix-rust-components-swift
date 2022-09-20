@@ -3,8 +3,8 @@
 
 import PackageDescription
 
-let checksum = "f9ca5eb59758803ef36282bf5d8987b4bc313aeb0aaa14b055166c204806a36e"
-let version = "v0.0.2-demo"
+let checksum = "490250f6696803e56c4b19149ddd17a980f948482b0a91bb0956996ca41e960a"
+let version = "v0.0.3-demo"
 let url = "https://github.com/matrix-org/matrix-rust-components-swift/releases/download/\(version)/MatrixSDKFFI.xcframework.zip"
 
 let useLocalBinary = false
@@ -24,11 +24,6 @@ let package = Package(
     ],
     targets: [
         binaryTarget,
-        /*
-         * A placeholder wrapper for our binaryTarget so that Xcode will ensure this is
-         * downloaded/built before trying to use it in the build process
-         * A bit hacky but necessary for now https://github.com/mozilla/application-services/issues/4422
-         */
         .target(
             name: "MatrixRustSDK",
             dependencies: [
