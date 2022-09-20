@@ -5663,16 +5663,6 @@ public func genTransactionId() -> String {
     )
 }
 
-public func setupTracing(configuration: String) {
-    try!
-
-        rustCall {
-            _uniffi_matrix_sdk_ffi_setup_tracing_89c1(
-                FfiConverterString.lower(configuration), $0
-            )
-        }
-}
-
 public func mediaSourceFromUrl(url: String) -> MediaSource {
     return try! FfiConverterTypeMediaSource.lift(
         try!
@@ -5695,6 +5685,16 @@ public func messageEventContentFromMarkdown(md: String) -> RoomMessageEventConte
                 )
             }
     )
+}
+
+public func setupTracing(configuration: String) {
+    try!
+
+        rustCall {
+            _uniffi_matrix_sdk_ffi_setup_tracing_89c1(
+                FfiConverterString.lower(configuration), $0
+            )
+        }
 }
 
 /**
