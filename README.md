@@ -19,7 +19,7 @@ The package can be added to an Xcode project from a local checkout and the binar
 
 To build the package you will need the following installed:
 1. cargo + rustup https://www.rust-lang.org/tools/install
-2. uniffi-bindgen `cargo install uniffi_bindgen --version x.x.x` where version needs to match the ones defined in the rust-sdk-ffi crate [Cargo.toml](https://github.com/matrix-org/matrix-rust-sdk/blob/main/crates/matrix-sdk-ffi/Cargo.toml).
+2. uniffi-bindgen `cargo install uniffi_bindgen --version x.x.x | --git https://github.com/mozilla/uniffi-rs --rev abc...` where the version or revision needs to match the one defined in the rust-sdk-ffi crate [Cargo.toml](https://github.com/matrix-org/matrix-rust-sdk/blob/main/bindings/matrix-sdk-ffi/Cargo.toml).
 3. nightly toolchain and simulator targets for your desired platform. See the [release script](https://github.com/matrix-org/matrix-rust-sdk/blob/main/bindings/apple/build_xcframework.sh) for all possible options.
 ```
 rustup toolchain install nightly
