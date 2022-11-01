@@ -19,13 +19,13 @@ private extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_rustbuffer_free(self, $0) }
     }
 }
 
@@ -413,20 +413,20 @@ public class AuthenticationService: AuthenticationServiceProtocol {
         self.init(unsafeFromRawPointer: try!
 
             rustCall {
-                matrix_sdk_ffi_b0f6_AuthenticationService_new(
+                matrix_sdk_ffi_91ce_AuthenticationService_new(
                     FfiConverterString.lower(basePath), $0
                 )
             })
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_AuthenticationService_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_AuthenticationService_object_free(pointer, $0) }
     }
 
     public func configureHomeserver(serverName: String) throws {
         try
             rustCallWithError(FfiConverterTypeAuthenticationError.self) {
-                matrix_sdk_ffi_b0f6_AuthenticationService_configure_homeserver(self.pointer,
+                matrix_sdk_ffi_91ce_AuthenticationService_configure_homeserver(self.pointer,
                                                                                FfiConverterString.lower(serverName), $0)
             }
     }
@@ -435,7 +435,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
         return try FfiConverterTypeClient.lift(
             try
                 rustCallWithError(FfiConverterTypeAuthenticationError.self) {
-                    matrix_sdk_ffi_b0f6_AuthenticationService_login(self.pointer,
+                    matrix_sdk_ffi_91ce_AuthenticationService_login(self.pointer,
                                                                     FfiConverterString.lower(username),
                                                                     FfiConverterString.lower(password),
                                                                     FfiConverterOptionString.lower(initialDeviceName),
@@ -448,7 +448,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
         return try FfiConverterTypeClient.lift(
             try
                 rustCallWithError(FfiConverterTypeAuthenticationError.self) {
-                    matrix_sdk_ffi_b0f6_AuthenticationService_restore_with_access_token(self.pointer,
+                    matrix_sdk_ffi_91ce_AuthenticationService_restore_with_access_token(self.pointer,
                                                                                         FfiConverterString.lower(token),
                                                                                         FfiConverterString.lower(deviceId), $0)
                 }
@@ -511,6 +511,7 @@ public protocol ClientProtocol {
     func getSessionVerificationController() throws -> SessionVerificationController
     func fullSlidingSync() throws -> SlidingSync
     func logout() throws
+    func setPusher(pushkey: String, kind: PusherKind?, appId: String, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String, url: String?, format: PushFormat?, defaultPayload: String?) throws
     func hasFirstSynced() -> Bool
     func homeserver() -> String
     func isGuest() -> Bool
@@ -532,13 +533,13 @@ public class Client: ClientProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_Client_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_Client_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: ClientDelegate?) {
         try!
             rustCall {
-                matrix_sdk_ffi_b0f6_Client_set_delegate(self.pointer,
+                matrix_sdk_ffi_91ce_Client_set_delegate(self.pointer,
                                                         FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate), $0)
             }
     }
@@ -546,7 +547,7 @@ public class Client: ClientProtocol {
     public func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_Client_login(self.pointer,
+                matrix_sdk_ffi_91ce_Client_login(self.pointer,
                                                  FfiConverterString.lower(username),
                                                  FfiConverterString.lower(password),
                                                  FfiConverterOptionString.lower(initialDeviceName),
@@ -557,7 +558,7 @@ public class Client: ClientProtocol {
     public func restoreLogin(restoreToken: String) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_Client_restore_login(self.pointer,
+                matrix_sdk_ffi_91ce_Client_restore_login(self.pointer,
                                                          FfiConverterString.lower(restoreToken), $0)
             }
     }
@@ -566,7 +567,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_restore_token(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Client_restore_token(self.pointer, $0)
                 }
         )
     }
@@ -575,7 +576,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_user_id(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Client_user_id(self.pointer, $0)
                 }
         )
     }
@@ -584,7 +585,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_display_name(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Client_display_name(self.pointer, $0)
                 }
         )
     }
@@ -593,7 +594,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_avatar_url(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Client_avatar_url(self.pointer, $0)
                 }
         )
     }
@@ -602,7 +603,7 @@ public class Client: ClientProtocol {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_device_id(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Client_device_id(self.pointer, $0)
                 }
         )
     }
@@ -611,7 +612,7 @@ public class Client: ClientProtocol {
         return try FfiConverterOptionString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_account_data(self.pointer,
+                    matrix_sdk_ffi_91ce_Client_account_data(self.pointer,
                                                             FfiConverterString.lower(eventType), $0)
                 }
         )
@@ -620,7 +621,7 @@ public class Client: ClientProtocol {
     public func setAccountData(eventType: String, content: String) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_Client_set_account_data(self.pointer,
+                matrix_sdk_ffi_91ce_Client_set_account_data(self.pointer,
                                                             FfiConverterString.lower(eventType),
                                                             FfiConverterString.lower(content), $0)
             }
@@ -630,7 +631,7 @@ public class Client: ClientProtocol {
         return try FfiConverterSequenceUInt8.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_get_media_content(self.pointer,
+                    matrix_sdk_ffi_91ce_Client_get_media_content(self.pointer,
                                                                  FfiConverterTypeMediaSource.lower(source), $0)
                 }
         )
@@ -640,7 +641,7 @@ public class Client: ClientProtocol {
         return try FfiConverterSequenceUInt8.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_get_media_thumbnail(self.pointer,
+                    matrix_sdk_ffi_91ce_Client_get_media_thumbnail(self.pointer,
                                                                    FfiConverterTypeMediaSource.lower(source),
                                                                    FfiConverterUInt64.lower(width),
                                                                    FfiConverterUInt64.lower(height), $0)
@@ -652,7 +653,7 @@ public class Client: ClientProtocol {
         return try FfiConverterTypeSessionVerificationController.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_get_session_verification_controller(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Client_get_session_verification_controller(self.pointer, $0)
                 }
         )
     }
@@ -661,7 +662,7 @@ public class Client: ClientProtocol {
         return try FfiConverterTypeSlidingSync.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Client_full_sliding_sync(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Client_full_sliding_sync(self.pointer, $0)
                 }
         )
     }
@@ -669,7 +670,24 @@ public class Client: ClientProtocol {
     public func logout() throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_Client_logout(self.pointer, $0)
+                matrix_sdk_ffi_91ce_Client_logout(self.pointer, $0)
+            }
+    }
+
+    public func setPusher(pushkey: String, kind: PusherKind?, appId: String, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String, url: String?, format: PushFormat?, defaultPayload: String?) throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                matrix_sdk_ffi_91ce_Client_set_pusher(self.pointer,
+                                                      FfiConverterString.lower(pushkey),
+                                                      FfiConverterOptionTypePusherKind.lower(kind),
+                                                      FfiConverterString.lower(appId),
+                                                      FfiConverterString.lower(appDisplayName),
+                                                      FfiConverterString.lower(deviceDisplayName),
+                                                      FfiConverterOptionString.lower(profileTag),
+                                                      FfiConverterString.lower(lang),
+                                                      FfiConverterOptionString.lower(url),
+                                                      FfiConverterOptionTypePushFormat.lower(format),
+                                                      FfiConverterOptionString.lower(defaultPayload), $0)
             }
     }
 
@@ -798,19 +816,19 @@ public class ClientBuilder: ClientBuilderProtocol {
         self.init(unsafeFromRawPointer: try!
 
             rustCall {
-                matrix_sdk_ffi_b0f6_ClientBuilder_new($0)
+                matrix_sdk_ffi_91ce_ClientBuilder_new($0)
             })
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_ClientBuilder_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_ClientBuilder_object_free(pointer, $0) }
     }
 
     public func build() throws -> Client {
         return try FfiConverterTypeClient.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_ClientBuilder_build(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_ClientBuilder_build(self.pointer, $0)
                 }
         )
     }
@@ -897,11 +915,12 @@ private struct FfiConverterTypeClientBuilder: FfiConverter {
 }
 
 public protocol EventTimelineItemProtocol {
-    func key() -> TimelineKey
     func reactions() -> [Reaction]
     func content() -> TimelineItemContent
     func eventId() -> String?
+    func fmtDebug() -> String
     func isOwn() -> Bool
+    func key() -> TimelineKey
     func originServerTs() -> UInt64?
     func raw() -> String?
     func sender() -> String
@@ -918,23 +937,14 @@ public class EventTimelineItem: EventTimelineItemProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_EventTimelineItem_object_free(pointer, $0) }
-    }
-
-    public func key() -> TimelineKey {
-        return try! FfiConverterTypeTimelineKey.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_EventTimelineItem_key(self.pointer, $0)
-                }
-        )
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_EventTimelineItem_object_free(pointer, $0) }
     }
 
     public func reactions() -> [Reaction] {
         return try! FfiConverterSequenceTypeReaction.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_EventTimelineItem_reactions(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_EventTimelineItem_reactions(self.pointer, $0)
                 }
         )
     }
@@ -957,11 +967,29 @@ public class EventTimelineItem: EventTimelineItemProtocol {
         )
     }
 
+    public func fmtDebug() -> String {
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_fmt_debug_52c6(self.pointer, $0)
+                }
+        )
+    }
+
     public func isOwn() -> Bool {
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
                     _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_is_own_e917(self.pointer, $0)
+                }
+        )
+    }
+
+    public func key() -> TimelineKey {
+        return try! FfiConverterTypeTimelineKey.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_key_ffba(self.pointer, $0)
                 }
         )
     }
@@ -1117,14 +1145,14 @@ public class MediaSource: MediaSourceProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_MediaSource_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_MediaSource_object_free(pointer, $0) }
     }
 
     public func url() -> String {
         return try! FfiConverterString.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_MediaSource_url(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_MediaSource_url(self.pointer, $0)
                 }
         )
     }
@@ -1178,14 +1206,14 @@ public class Message: MessageProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_Message_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_Message_object_free(pointer, $0) }
     }
 
     public func msgtype() -> MessageType? {
         return try! FfiConverterOptionTypeMessageType.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_Message_msgtype(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Message_msgtype(self.pointer, $0)
                 }
         )
     }
@@ -1248,8 +1276,78 @@ private struct FfiConverterTypeMessage: FfiConverter {
     }
 }
 
+public protocol NotificationServiceProtocol {
+    func getNotificationItem(roomId: String, eventId: String) throws -> NotificationItem?
+}
+
+public class NotificationService: NotificationServiceProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    public convenience init(basePath: String, userId: String) {
+        self.init(unsafeFromRawPointer: try!
+
+            rustCall {
+                matrix_sdk_ffi_91ce_NotificationService_new(
+                    FfiConverterString.lower(basePath),
+                    FfiConverterString.lower(userId), $0
+                )
+            })
+    }
+
+    deinit {
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_NotificationService_object_free(pointer, $0) }
+    }
+
+    public func getNotificationItem(roomId: String, eventId: String) throws -> NotificationItem? {
+        return try FfiConverterOptionTypeNotificationItem.lift(
+            try
+                rustCallWithError(FfiConverterTypeClientError.self) {
+                    matrix_sdk_ffi_91ce_NotificationService_get_notification_item(self.pointer,
+                                                                                  FfiConverterString.lower(roomId),
+                                                                                  FfiConverterString.lower(eventId), $0)
+                }
+        )
+    }
+}
+
+private struct FfiConverterTypeNotificationService: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = NotificationService
+
+    static func read(from buf: Reader) throws -> NotificationService {
+        let v: UInt64 = try buf.readInt()
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if ptr == nil {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    static func write(_ value: NotificationService, into buf: Writer) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        buf.writeInt(UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationService {
+        return NotificationService(unsafeFromRawPointer: pointer)
+    }
+
+    static func lower(_ value: NotificationService) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
 public protocol RoomProtocol {
-    func membership() -> Membership
     func displayName() throws -> String
     func memberAvatarUrl(userId: String) throws -> String?
     func memberDisplayName(userId: String) throws -> String?
@@ -1265,6 +1363,7 @@ public protocol RoomProtocol {
     func isPublic() -> Bool
     func isSpace() -> Bool
     func isTombstoned() -> Bool
+    func membership() -> Membership
     func name() -> String?
     func removeTimeline()
     func topic() -> String?
@@ -1281,23 +1380,14 @@ public class Room: RoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_Room_object_free(pointer, $0) }
-    }
-
-    public func membership() -> Membership {
-        return try! FfiConverterTypeMembership.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_Room_membership(self.pointer, $0)
-                }
-        )
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_Room_object_free(pointer, $0) }
     }
 
     public func displayName() throws -> String {
         return try FfiConverterString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Room_display_name(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_Room_display_name(self.pointer, $0)
                 }
         )
     }
@@ -1306,7 +1396,7 @@ public class Room: RoomProtocol {
         return try FfiConverterOptionString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Room_member_avatar_url(self.pointer,
+                    matrix_sdk_ffi_91ce_Room_member_avatar_url(self.pointer,
                                                                FfiConverterString.lower(userId), $0)
                 }
         )
@@ -1316,7 +1406,7 @@ public class Room: RoomProtocol {
         return try FfiConverterOptionString.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Room_member_display_name(self.pointer,
+                    matrix_sdk_ffi_91ce_Room_member_display_name(self.pointer,
                                                                  FfiConverterString.lower(userId), $0)
                 }
         )
@@ -1325,7 +1415,7 @@ public class Room: RoomProtocol {
     public func addTimelineListener(listener: TimelineListener) {
         try!
             rustCall {
-                matrix_sdk_ffi_b0f6_Room_add_timeline_listener(self.pointer,
+                matrix_sdk_ffi_91ce_Room_add_timeline_listener(self.pointer,
                                                                FfiConverterCallbackInterfaceTimelineListener.lower(listener), $0)
             }
     }
@@ -1334,7 +1424,7 @@ public class Room: RoomProtocol {
         return try FfiConverterTypePaginationOutcome.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_Room_paginate_backwards(self.pointer,
+                    matrix_sdk_ffi_91ce_Room_paginate_backwards(self.pointer,
                                                                 FfiConverterUInt16.lower(limit), $0)
                 }
         )
@@ -1343,7 +1433,7 @@ public class Room: RoomProtocol {
     public func send(msg: RoomMessageEventContent, txnId: String?) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_Room_send(self.pointer,
+                matrix_sdk_ffi_91ce_Room_send(self.pointer,
                                               FfiConverterTypeRoomMessageEventContent.lower(msg),
                                               FfiConverterOptionString.lower(txnId), $0)
             }
@@ -1352,7 +1442,7 @@ public class Room: RoomProtocol {
     public func sendReply(msg: String, inReplyToEventId: String, txnId: String?) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_Room_send_reply(self.pointer,
+                matrix_sdk_ffi_91ce_Room_send_reply(self.pointer,
                                                     FfiConverterString.lower(msg),
                                                     FfiConverterString.lower(inReplyToEventId),
                                                     FfiConverterOptionString.lower(txnId), $0)
@@ -1362,7 +1452,7 @@ public class Room: RoomProtocol {
     public func redact(eventId: String, reason: String?, txnId: String?) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_Room_redact(self.pointer,
+                matrix_sdk_ffi_91ce_Room_redact(self.pointer,
                                                 FfiConverterString.lower(eventId),
                                                 FfiConverterOptionString.lower(reason),
                                                 FfiConverterOptionString.lower(txnId), $0)
@@ -1428,6 +1518,15 @@ public class Room: RoomProtocol {
             try!
                 rustCall {
                     _uniffi_matrix_sdk_ffi_impl_Room_is_tombstoned_acd3(self.pointer, $0)
+                }
+        )
+    }
+
+    public func membership() -> Membership {
+        return try! FfiConverterTypeMembership.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_Room_membership_4bda(self.pointer, $0)
                 }
         )
     }
@@ -1501,7 +1600,7 @@ public class RoomMessageEventContent: RoomMessageEventContentProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_RoomMessageEventContent_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_RoomMessageEventContent_object_free(pointer, $0) }
     }
 }
 
@@ -1537,11 +1636,11 @@ private struct FfiConverterTypeRoomMessageEventContent: FfiConverter {
 
 public protocol SessionVerificationControllerProtocol {
     func setDelegate(delegate: SessionVerificationControllerDelegate?)
-    func isVerified() -> Bool
     func requestVerification() throws
     func approveVerification() throws
     func declineVerification() throws
     func cancelVerification() throws
+    func isVerified() -> Bool
 }
 
 public class SessionVerificationController: SessionVerificationControllerProtocol {
@@ -1555,14 +1654,42 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_SessionVerificationController_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_SessionVerificationController_object_free(pointer, $0) }
     }
 
     public func setDelegate(delegate: SessionVerificationControllerDelegate?) {
         try!
             rustCall {
-                matrix_sdk_ffi_b0f6_SessionVerificationController_set_delegate(self.pointer,
+                matrix_sdk_ffi_91ce_SessionVerificationController_set_delegate(self.pointer,
                                                                                FfiConverterOptionCallbackInterfaceSessionVerificationControllerDelegate.lower(delegate), $0)
+            }
+    }
+
+    public func requestVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                matrix_sdk_ffi_91ce_SessionVerificationController_request_verification(self.pointer, $0)
+            }
+    }
+
+    public func approveVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                matrix_sdk_ffi_91ce_SessionVerificationController_approve_verification(self.pointer, $0)
+            }
+    }
+
+    public func declineVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                matrix_sdk_ffi_91ce_SessionVerificationController_decline_verification(self.pointer, $0)
+            }
+    }
+
+    public func cancelVerification() throws {
+        try
+            rustCallWithError(FfiConverterTypeClientError.self) {
+                matrix_sdk_ffi_91ce_SessionVerificationController_cancel_verification(self.pointer, $0)
             }
     }
 
@@ -1570,37 +1697,9 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
         return try! FfiConverterBool.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SessionVerificationController_is_verified(self.pointer, $0)
+                    _uniffi_matrix_sdk_ffi_impl_SessionVerificationController_is_verified_d4e8(self.pointer, $0)
                 }
         )
-    }
-
-    public func requestVerification() throws {
-        try
-            rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_SessionVerificationController_request_verification(self.pointer, $0)
-            }
-    }
-
-    public func approveVerification() throws {
-        try
-            rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_SessionVerificationController_approve_verification(self.pointer, $0)
-            }
-    }
-
-    public func declineVerification() throws {
-        try
-            rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_SessionVerificationController_decline_verification(self.pointer, $0)
-            }
-    }
-
-    public func cancelVerification() throws {
-        try
-            rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_SessionVerificationController_cancel_verification(self.pointer, $0)
-            }
     }
 }
 
@@ -1650,7 +1749,7 @@ public class SessionVerificationEmoji: SessionVerificationEmojiProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_SessionVerificationEmoji_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_SessionVerificationEmoji_object_free(pointer, $0) }
     }
 
     public func description() -> String {
@@ -1723,13 +1822,13 @@ public class SlidingSync: SlidingSyncProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_SlidingSync_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_SlidingSync_object_free(pointer, $0) }
     }
 
     public func setObserver(observer: SlidingSyncObserver?) {
         try!
             rustCall {
-                matrix_sdk_ffi_b0f6_SlidingSync_set_observer(self.pointer,
+                matrix_sdk_ffi_91ce_SlidingSync_set_observer(self.pointer,
                                                              FfiConverterOptionCallbackInterfaceSlidingSyncObserver.lower(observer), $0)
             }
     }
@@ -1737,7 +1836,7 @@ public class SlidingSync: SlidingSyncProtocol {
     public func subscribe(roomId: String, settings: RoomSubscription?) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_SlidingSync_subscribe(self.pointer,
+                matrix_sdk_ffi_91ce_SlidingSync_subscribe(self.pointer,
                                                           FfiConverterString.lower(roomId),
                                                           FfiConverterOptionTypeRoomSubscription.lower(settings), $0)
             }
@@ -1746,7 +1845,7 @@ public class SlidingSync: SlidingSyncProtocol {
     public func unsubscribe(roomId: String) throws {
         try
             rustCallWithError(FfiConverterTypeClientError.self) {
-                matrix_sdk_ffi_b0f6_SlidingSync_unsubscribe(self.pointer,
+                matrix_sdk_ffi_91ce_SlidingSync_unsubscribe(self.pointer,
                                                             FfiConverterString.lower(roomId), $0)
             }
     }
@@ -1755,7 +1854,7 @@ public class SlidingSync: SlidingSyncProtocol {
         return try! FfiConverterOptionTypeSlidingSyncView.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSync_get_view(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSync_get_view(self.pointer,
                                                              FfiConverterString.lower(name), $0)
                 }
         )
@@ -1765,7 +1864,7 @@ public class SlidingSync: SlidingSyncProtocol {
         return try FfiConverterOptionTypeSlidingSyncRoom.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_SlidingSync_get_room(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSync_get_room(self.pointer,
                                                              FfiConverterString.lower(roomId), $0)
                 }
         )
@@ -1775,7 +1874,7 @@ public class SlidingSync: SlidingSyncProtocol {
         return try FfiConverterSequenceOptionTypeSlidingSyncRoom.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_SlidingSync_get_rooms(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSync_get_rooms(self.pointer,
                                                               FfiConverterSequenceString.lower(roomIds), $0)
                 }
         )
@@ -1823,11 +1922,11 @@ private struct FfiConverterTypeSlidingSync: FfiConverter {
 
 public protocol SlidingSyncBuilderProtocol {
     func homeserver(url: String) throws -> SlidingSyncBuilder
-    func addFullsyncView() -> SlidingSyncBuilder
-    func noViews() -> SlidingSyncBuilder
-    func addView(view: SlidingSyncView) -> SlidingSyncBuilder
-    func withCommonExtensions() -> SlidingSyncBuilder
     func build() throws -> SlidingSync
+    func addFullsyncView() -> SlidingSyncBuilder
+    func addView(v: SlidingSyncView) -> SlidingSyncBuilder
+    func noViews() -> SlidingSyncBuilder
+    func withCommonExtensions() -> SlidingSyncBuilder
 }
 
 public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
@@ -1841,52 +1940,15 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_SlidingSyncBuilder_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_SlidingSyncBuilder_object_free(pointer, $0) }
     }
 
     public func homeserver(url: String) throws -> SlidingSyncBuilder {
         return try FfiConverterTypeSlidingSyncBuilder.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_SlidingSyncBuilder_homeserver(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSyncBuilder_homeserver(self.pointer,
                                                                       FfiConverterString.lower(url), $0)
-                }
-        )
-    }
-
-    public func addFullsyncView() -> SlidingSyncBuilder {
-        return try! FfiConverterTypeSlidingSyncBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncBuilder_add_fullsync_view(self.pointer, $0)
-                }
-        )
-    }
-
-    public func noViews() -> SlidingSyncBuilder {
-        return try! FfiConverterTypeSlidingSyncBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncBuilder_no_views(self.pointer, $0)
-                }
-        )
-    }
-
-    public func addView(view: SlidingSyncView) -> SlidingSyncBuilder {
-        return try! FfiConverterTypeSlidingSyncBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncBuilder_add_view(self.pointer,
-                                                                    FfiConverterTypeSlidingSyncView.lower(view), $0)
-                }
-        )
-    }
-
-    public func withCommonExtensions() -> SlidingSyncBuilder {
-        return try! FfiConverterTypeSlidingSyncBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncBuilder_with_common_extensions(self.pointer, $0)
                 }
         )
     }
@@ -1895,7 +1957,44 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
         return try FfiConverterTypeSlidingSync.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_SlidingSyncBuilder_build(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_SlidingSyncBuilder_build(self.pointer, $0)
+                }
+        )
+    }
+
+    public func addFullsyncView() -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_add_fullsync_view_fcaf(self.pointer, $0)
+                }
+        )
+    }
+
+    public func addView(v: SlidingSyncView) -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_add_view_26c9(self.pointer,
+                                                                                 FfiConverterTypeSlidingSyncView.lower(v), $0)
+                }
+        )
+    }
+
+    public func noViews() -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_no_views_ad32(self.pointer, $0)
+                }
+        )
+    }
+
+    public func withCommonExtensions() -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_with_common_extensions_ea25(self.pointer, $0)
                 }
         )
     }
@@ -1954,7 +2053,7 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_SlidingSyncRoom_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_SlidingSyncRoom_object_free(pointer, $0) }
     }
 
     public func fullRoom() -> Room? {
@@ -2092,14 +2191,14 @@ public class SlidingSyncView: SlidingSyncViewProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_SlidingSyncView_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_SlidingSyncView_object_free(pointer, $0) }
     }
 
     public func observeRoomList(observer: SlidingSyncViewRoomListObserver) -> StoppableSpawn {
         return try! FfiConverterTypeStoppableSpawn.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncView_observe_room_list(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSyncView_observe_room_list(self.pointer,
                                                                           FfiConverterCallbackInterfaceSlidingSyncViewRoomListObserver.lower(observer), $0)
                 }
         )
@@ -2109,7 +2208,7 @@ public class SlidingSyncView: SlidingSyncViewProtocol {
         return try! FfiConverterTypeStoppableSpawn.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncView_observe_rooms_count(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSyncView_observe_rooms_count(self.pointer,
                                                                             FfiConverterCallbackInterfaceSlidingSyncViewRoomsCountObserver.lower(observer), $0)
                 }
         )
@@ -2119,7 +2218,7 @@ public class SlidingSyncView: SlidingSyncViewProtocol {
         return try! FfiConverterTypeStoppableSpawn.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncView_observe_state(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSyncView_observe_state(self.pointer,
                                                                       FfiConverterCallbackInterfaceSlidingSyncViewStateObserver.lower(observer), $0)
                 }
         )
@@ -2129,7 +2228,7 @@ public class SlidingSyncView: SlidingSyncViewProtocol {
         return try! FfiConverterTypeStoppableSpawn.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncView_observe_room_items(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSyncView_observe_room_items(self.pointer,
                                                                            FfiConverterCallbackInterfaceSlidingSyncViewRoomItemsObserver.lower(observer), $0)
                 }
         )
@@ -2139,7 +2238,7 @@ public class SlidingSyncView: SlidingSyncViewProtocol {
         return try! FfiConverterSequenceTypeRoomListEntry.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncView_current_rooms_list(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_SlidingSyncView_current_rooms_list(self.pointer, $0)
                 }
         )
     }
@@ -2210,15 +2309,16 @@ private struct FfiConverterTypeSlidingSyncView: FfiConverter {
 }
 
 public protocol SlidingSyncViewBuilderProtocol {
-    func timelineLimit(limit: UInt32) -> SlidingSyncViewBuilder
     func syncMode(mode: SlidingSyncMode) -> SlidingSyncViewBuilder
-    func batchSize(size: UInt32) -> SlidingSyncViewBuilder
-    func name(name: String) -> SlidingSyncViewBuilder
-    func sort(sort: [String]) -> SlidingSyncViewBuilder
-    func addRange(from: UInt32, to: UInt32) -> SlidingSyncViewBuilder
-    func resetRanges() -> SlidingSyncViewBuilder
     func requiredState(requiredState: [RequiredState]) -> SlidingSyncViewBuilder
     func build() throws -> SlidingSyncView
+    func addRange(from: UInt32, to: UInt32) -> SlidingSyncViewBuilder
+    func batchSize(batchSize: UInt32) -> SlidingSyncViewBuilder
+    func name(name: String) -> SlidingSyncViewBuilder
+    func noTimelineLimit() -> SlidingSyncViewBuilder
+    func resetRanges() -> SlidingSyncViewBuilder
+    func sort(sort: [String]) -> SlidingSyncViewBuilder
+    func timelineLimit(limit: UInt32) -> SlidingSyncViewBuilder
 }
 
 public class SlidingSyncViewBuilder: SlidingSyncViewBuilderProtocol {
@@ -2235,80 +2335,20 @@ public class SlidingSyncViewBuilder: SlidingSyncViewBuilderProtocol {
         self.init(unsafeFromRawPointer: try!
 
             rustCall {
-                matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_new($0)
+                matrix_sdk_ffi_91ce_SlidingSyncViewBuilder_new($0)
             })
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_object_free(pointer, $0) }
-    }
-
-    public func timelineLimit(limit: UInt32) -> SlidingSyncViewBuilder {
-        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_timeline_limit(self.pointer,
-                                                                              FfiConverterUInt32.lower(limit), $0)
-                }
-        )
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_SlidingSyncViewBuilder_object_free(pointer, $0) }
     }
 
     public func syncMode(mode: SlidingSyncMode) -> SlidingSyncViewBuilder {
         return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_sync_mode(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSyncViewBuilder_sync_mode(self.pointer,
                                                                          FfiConverterTypeSlidingSyncMode.lower(mode), $0)
-                }
-        )
-    }
-
-    public func batchSize(size: UInt32) -> SlidingSyncViewBuilder {
-        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_batch_size(self.pointer,
-                                                                          FfiConverterUInt32.lower(size), $0)
-                }
-        )
-    }
-
-    public func name(name: String) -> SlidingSyncViewBuilder {
-        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_name(self.pointer,
-                                                                    FfiConverterString.lower(name), $0)
-                }
-        )
-    }
-
-    public func sort(sort: [String]) -> SlidingSyncViewBuilder {
-        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_sort(self.pointer,
-                                                                    FfiConverterSequenceString.lower(sort), $0)
-                }
-        )
-    }
-
-    public func addRange(from: UInt32, to: UInt32) -> SlidingSyncViewBuilder {
-        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_add_range(self.pointer,
-                                                                         FfiConverterUInt32.lower(from),
-                                                                         FfiConverterUInt32.lower(to), $0)
-                }
-        )
-    }
-
-    public func resetRanges() -> SlidingSyncViewBuilder {
-        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_reset_ranges(self.pointer, $0)
                 }
         )
     }
@@ -2317,7 +2357,7 @@ public class SlidingSyncViewBuilder: SlidingSyncViewBuilderProtocol {
         return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_required_state(self.pointer,
+                    matrix_sdk_ffi_91ce_SlidingSyncViewBuilder_required_state(self.pointer,
                                                                               FfiConverterSequenceTypeRequiredState.lower(requiredState), $0)
                 }
         )
@@ -2327,7 +2367,76 @@ public class SlidingSyncViewBuilder: SlidingSyncViewBuilderProtocol {
         return try FfiConverterTypeSlidingSyncView.lift(
             try
                 rustCallWithError(FfiConverterTypeClientError.self) {
-                    matrix_sdk_ffi_b0f6_SlidingSyncViewBuilder_build(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_SlidingSyncViewBuilder_build(self.pointer, $0)
+                }
+        )
+    }
+
+    public func addRange(from: UInt32, to: UInt32) -> SlidingSyncViewBuilder {
+        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncViewBuilder_add_range_13a3(self.pointer,
+                                                                                      FfiConverterUInt32.lower(from),
+                                                                                      FfiConverterUInt32.lower(to), $0)
+                }
+        )
+    }
+
+    public func batchSize(batchSize: UInt32) -> SlidingSyncViewBuilder {
+        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncViewBuilder_batch_size_c33f(self.pointer,
+                                                                                       FfiConverterUInt32.lower(batchSize), $0)
+                }
+        )
+    }
+
+    public func name(name: String) -> SlidingSyncViewBuilder {
+        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncViewBuilder_name_8e7b(self.pointer,
+                                                                                 FfiConverterString.lower(name), $0)
+                }
+        )
+    }
+
+    public func noTimelineLimit() -> SlidingSyncViewBuilder {
+        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncViewBuilder_no_timeline_limit_e80e(self.pointer, $0)
+                }
+        )
+    }
+
+    public func resetRanges() -> SlidingSyncViewBuilder {
+        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncViewBuilder_reset_ranges_8b42(self.pointer, $0)
+                }
+        )
+    }
+
+    public func sort(sort: [String]) -> SlidingSyncViewBuilder {
+        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncViewBuilder_sort_7839(self.pointer,
+                                                                                 FfiConverterSequenceString.lower(sort), $0)
+                }
+        )
+    }
+
+    public func timelineLimit(limit: UInt32) -> SlidingSyncViewBuilder {
+        return try! FfiConverterTypeSlidingSyncViewBuilder.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_SlidingSyncViewBuilder_timeline_limit_4fbd(self.pointer,
+                                                                                           FfiConverterUInt32.lower(limit), $0)
                 }
         )
     }
@@ -2379,7 +2488,7 @@ public class StoppableSpawn: StoppableSpawnProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_StoppableSpawn_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_StoppableSpawn_object_free(pointer, $0) }
     }
 
     public func cancel() {
@@ -2430,13 +2539,13 @@ private struct FfiConverterTypeStoppableSpawn: FfiConverter {
 }
 
 public protocol TimelineDiffProtocol {
-    func change() -> TimelineChange
     func replace() -> [TimelineItem]?
     func insertAt() -> InsertAtData?
     func updateAt() -> UpdateAtData?
     func removeAt() -> UInt32?
     func move() -> MoveData?
     func push() -> TimelineItem?
+    func change() -> TimelineChange
 }
 
 public class TimelineDiff: TimelineDiffProtocol {
@@ -2450,23 +2559,14 @@ public class TimelineDiff: TimelineDiffProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_TimelineDiff_object_free(pointer, $0) }
-    }
-
-    public func change() -> TimelineChange {
-        return try! FfiConverterTypeTimelineChange.lift(
-            try!
-                rustCall {
-                    matrix_sdk_ffi_b0f6_TimelineDiff_change(self.pointer, $0)
-                }
-        )
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_TimelineDiff_object_free(pointer, $0) }
     }
 
     public func replace() -> [TimelineItem]? {
         return try! FfiConverterOptionSequenceTypeTimelineItem.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_TimelineDiff_replace(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_TimelineDiff_replace(self.pointer, $0)
                 }
         )
     }
@@ -2475,7 +2575,7 @@ public class TimelineDiff: TimelineDiffProtocol {
         return try! FfiConverterOptionTypeInsertAtData.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_TimelineDiff_insert_at(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_TimelineDiff_insert_at(self.pointer, $0)
                 }
         )
     }
@@ -2484,7 +2584,7 @@ public class TimelineDiff: TimelineDiffProtocol {
         return try! FfiConverterOptionTypeUpdateAtData.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_TimelineDiff_update_at(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_TimelineDiff_update_at(self.pointer, $0)
                 }
         )
     }
@@ -2493,7 +2593,7 @@ public class TimelineDiff: TimelineDiffProtocol {
         return try! FfiConverterOptionUInt32.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_TimelineDiff_remove_at(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_TimelineDiff_remove_at(self.pointer, $0)
                 }
         )
     }
@@ -2502,7 +2602,7 @@ public class TimelineDiff: TimelineDiffProtocol {
         return try! FfiConverterOptionTypeMoveData.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_TimelineDiff_move(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_TimelineDiff_move(self.pointer, $0)
                 }
         )
     }
@@ -2511,7 +2611,16 @@ public class TimelineDiff: TimelineDiffProtocol {
         return try! FfiConverterOptionTypeTimelineItem.lift(
             try!
                 rustCall {
-                    matrix_sdk_ffi_b0f6_TimelineDiff_push(self.pointer, $0)
+                    matrix_sdk_ffi_91ce_TimelineDiff_push(self.pointer, $0)
+                }
+        )
+    }
+
+    public func change() -> TimelineChange {
+        return try! FfiConverterTypeTimelineChange.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_TimelineDiff_change_fa90(self.pointer, $0)
                 }
         )
     }
@@ -2550,6 +2659,7 @@ private struct FfiConverterTypeTimelineDiff: FfiConverter {
 public protocol TimelineItemProtocol {
     func asEvent() -> EventTimelineItem?
     func asVirtual() -> VirtualTimelineItem?
+    func fmtDebug() -> String
 }
 
 public class TimelineItem: TimelineItemProtocol {
@@ -2563,7 +2673,7 @@ public class TimelineItem: TimelineItemProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_TimelineItem_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_91ce_TimelineItem_object_free(pointer, $0) }
     }
 
     public func asEvent() -> EventTimelineItem? {
@@ -2580,6 +2690,15 @@ public class TimelineItem: TimelineItemProtocol {
             try!
                 rustCall {
                     _uniffi_matrix_sdk_ffi_impl_TimelineItem_as_virtual_ed31(self.pointer, $0)
+                }
+        )
+    }
+
+    public func fmtDebug() -> String {
+        return try! FfiConverterString.lift(
+            try!
+                rustCall {
+                    _uniffi_matrix_sdk_ffi_impl_TimelineItem_fmt_debug_2488(self.pointer, $0)
                 }
         )
     }
@@ -2774,7 +2893,7 @@ public class VirtualTimelineItem: VirtualTimelineItemProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_b0f6_VirtualTimelineItem_object_free(pointer, $0) }
+        try! rustCall { _uniffi_matrix_sdk_ffi_object_free_VirtualTimelineItem_21e1(pointer, $0) }
     }
 }
 
@@ -3079,6 +3198,44 @@ private struct FfiConverterTypeNoticeMessageContent: FfiConverterRustBuffer {
     fileprivate static func write(_ value: NoticeMessageContent, into buf: Writer) {
         FfiConverterString.write(value.body, into: buf)
         FfiConverterOptionTypeFormattedBody.write(value.formatted, into: buf)
+    }
+}
+
+public struct NotificationItem {
+    public var item: TimelineItem
+    public var title: String
+    public var subtitle: String?
+    public var isNoisy: Bool
+    public var avatarUrl: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(item: TimelineItem, title: String, subtitle: String?, isNoisy: Bool, avatarUrl: String?) {
+        self.item = item
+        self.title = title
+        self.subtitle = subtitle
+        self.isNoisy = isNoisy
+        self.avatarUrl = avatarUrl
+    }
+}
+
+private struct FfiConverterTypeNotificationItem: FfiConverterRustBuffer {
+    fileprivate static func read(from buf: Reader) throws -> NotificationItem {
+        return try NotificationItem(
+            item: FfiConverterTypeTimelineItem.read(from: buf),
+            title: FfiConverterString.read(from: buf),
+            subtitle: FfiConverterOptionString.read(from: buf),
+            isNoisy: FfiConverterBool.read(from: buf),
+            avatarUrl: FfiConverterOptionString.read(from: buf)
+        )
+    }
+
+    fileprivate static func write(_ value: NotificationItem, into buf: Writer) {
+        FfiConverterTypeTimelineItem.write(value.item, into: buf)
+        FfiConverterString.write(value.title, into: buf)
+        FfiConverterOptionString.write(value.subtitle, into: buf)
+        FfiConverterBool.write(value.isNoisy, into: buf)
+        FfiConverterOptionString.write(value.avatarUrl, into: buf)
     }
 }
 
@@ -3546,6 +3703,68 @@ private struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
         }
     }
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum PushFormat {
+    case eventIdOnly
+}
+
+private struct FfiConverterTypePushFormat: FfiConverterRustBuffer {
+    typealias SwiftType = PushFormat
+
+    static func read(from buf: Reader) throws -> PushFormat {
+        let variant: Int32 = try buf.readInt()
+        switch variant {
+        case 1: return .eventIdOnly
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    static func write(_ value: PushFormat, into buf: Writer) {
+        switch value {
+        case .eventIdOnly:
+            buf.writeInt(Int32(1))
+        }
+    }
+}
+
+extension PushFormat: Equatable, Hashable {}
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum PusherKind {
+    case http
+    case email
+}
+
+private struct FfiConverterTypePusherKind: FfiConverterRustBuffer {
+    typealias SwiftType = PusherKind
+
+    static func read(from buf: Reader) throws -> PusherKind {
+        let variant: Int32 = try buf.readInt()
+        switch variant {
+        case 1: return .http
+
+        case 2: return .email
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    static func write(_ value: PusherKind, into buf: Writer) {
+        switch value {
+        case .http:
+            buf.writeInt(Int32(1))
+
+        case .email:
+            buf.writeInt(Int32(2))
+        }
+    }
+}
+
+extension PusherKind: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -4107,7 +4326,7 @@ private enum FfiConverterCallbackInterfaceClientDelegate {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+            ffi_matrix_sdk_ffi_91ce_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
         }
     }
 
@@ -4271,7 +4490,7 @@ private enum FfiConverterCallbackInterfaceSessionVerificationControllerDelegate 
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_SessionVerificationControllerDelegate_init_callback(foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate, err)
+            ffi_matrix_sdk_ffi_91ce_SessionVerificationControllerDelegate_init_callback(foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate, err)
         }
     }
 
@@ -4381,7 +4600,7 @@ private enum FfiConverterCallbackInterfaceSlidingSyncObserver {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_SlidingSyncObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncObserver, err)
+            ffi_matrix_sdk_ffi_91ce_SlidingSyncObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncObserver, err)
         }
     }
 
@@ -4487,7 +4706,7 @@ private enum FfiConverterCallbackInterfaceSlidingSyncViewRoomItemsObserver {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_SlidingSyncViewRoomItemsObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewRoomItemsObserver, err)
+            ffi_matrix_sdk_ffi_91ce_SlidingSyncViewRoomItemsObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewRoomItemsObserver, err)
         }
     }
 
@@ -4597,7 +4816,7 @@ private enum FfiConverterCallbackInterfaceSlidingSyncViewRoomListObserver {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_SlidingSyncViewRoomListObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewRoomListObserver, err)
+            ffi_matrix_sdk_ffi_91ce_SlidingSyncViewRoomListObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewRoomListObserver, err)
         }
     }
 
@@ -4707,7 +4926,7 @@ private enum FfiConverterCallbackInterfaceSlidingSyncViewRoomsCountObserver {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_SlidingSyncViewRoomsCountObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewRoomsCountObserver, err)
+            ffi_matrix_sdk_ffi_91ce_SlidingSyncViewRoomsCountObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewRoomsCountObserver, err)
         }
     }
 
@@ -4817,7 +5036,7 @@ private enum FfiConverterCallbackInterfaceSlidingSyncViewStateObserver {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_SlidingSyncViewStateObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewStateObserver, err)
+            ffi_matrix_sdk_ffi_91ce_SlidingSyncViewStateObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncViewStateObserver, err)
         }
     }
 
@@ -4927,7 +5146,7 @@ private enum FfiConverterCallbackInterfaceTimelineListener {
     private static var callbackInitialized = false
     private static func initCallback() {
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-            ffi_matrix_sdk_ffi_b0f6_TimelineListener_init_callback(foreignCallbackCallbackInterfaceTimelineListener, err)
+            ffi_matrix_sdk_ffi_91ce_TimelineListener_init_callback(foreignCallbackCallbackInterfaceTimelineListener, err)
         }
     }
 
@@ -5353,6 +5572,27 @@ private struct FfiConverterOptionTypeMoveData: FfiConverterRustBuffer {
     }
 }
 
+private struct FfiConverterOptionTypeNotificationItem: FfiConverterRustBuffer {
+    typealias SwiftType = NotificationItem?
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
+        }
+        buf.writeInt(Int8(1))
+        FfiConverterTypeNotificationItem.write(value, into: buf)
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeNotificationItem.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 private struct FfiConverterOptionTypeRoomSubscription: FfiConverterRustBuffer {
     typealias SwiftType = RoomSubscription?
 
@@ -5432,6 +5672,48 @@ private struct FfiConverterOptionTypeMessageType: FfiConverterRustBuffer {
         switch try buf.readInt() as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeMessageType.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+private struct FfiConverterOptionTypePushFormat: FfiConverterRustBuffer {
+    typealias SwiftType = PushFormat?
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
+        }
+        buf.writeInt(Int8(1))
+        FfiConverterTypePushFormat.write(value, into: buf)
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypePushFormat.read(from: buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+private struct FfiConverterOptionTypePusherKind: FfiConverterRustBuffer {
+    typealias SwiftType = PusherKind?
+
+    static func write(_ value: SwiftType, into buf: Writer) {
+        guard let value = value else {
+            buf.writeInt(Int8(0))
+            return
+        }
+        buf.writeInt(Int8(1))
+        FfiConverterTypePusherKind.write(value, into: buf)
+    }
+
+    static func read(from buf: Reader) throws -> SwiftType {
+        switch try buf.readInt() as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypePusherKind.read(from: buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
