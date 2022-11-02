@@ -3,8 +3,8 @@
 
 import PackageDescription
 
-let checksum = "b16a94a359d5794687d3ed7907ed335553ba2d5e1713ae496e87527a34b5ba9d"
-let version = "v1.0.15-alpha"
+let checksum = "cd3da326ef61c782ed77ec6c16fbc7138f1bd4febe773a789b276086f26360b9"
+let version = "v1.0.16-alpha"
 let url = "https://github.com/matrix-org/matrix-rust-components-swift/releases/download/\(version)/MatrixSDKFFI.xcframework.zip"
 
 let useLocalBinary = false
