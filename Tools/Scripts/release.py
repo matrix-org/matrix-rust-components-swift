@@ -32,14 +32,15 @@ else:
 print("SDK path: " + sdk_path)
 print("Generating framework")
 os.system(sdk_path + "/bindings/apple/build_xcframework.sh")
+sdk_generated_path = "/bindings/apple/generated"
 
 print("Copy generated files")
-os.system("rsync -a '" + sdk_path + "/generated/swift/' '" + root + "/Sources/MatrixRustSDK'")
+os.system("rsync -a '" + sdk_path + sdk_generated_path + "/swift/' '" + root + "/Sources/MatrixRustSDK'")
 os.system("rm '" + root + "/Sources/MatrixRustSDK/sdk.swift'")
 
 print("Zipping framework")
 zip_file_name = "MatrixSDKFFI.xcframework.zip"
-os.system("pushd " + sdk_path + "/generated; zip -r " + root + "/" + zip_file_name + " MatrixSDKFFI.xcframework; popd")
+os.system("pushd " + sdk_path + sdk_generated_path + "/; zip -r " + root + "/" + zip_file_name + " MatrixSDKFFI.xcframework; popd")
 
 github_token = os.environ['GITHUB_TOKEN']
 
