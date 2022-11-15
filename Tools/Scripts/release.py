@@ -32,7 +32,7 @@ else:
 print("SDK path: " + sdk_path)
 print("Generating framework")
 os.system(sdk_path + "/bindings/apple/build_xcframework.sh")
-sdk_generated_path = "/bindings/apple/generated"
+sdk_generated_path = "/generated"
 
 print("Copy generated files")
 os.system("rsync -a '" + sdk_path + sdk_generated_path + "/swift/' '" + root + "/Sources/MatrixRustSDK'")
