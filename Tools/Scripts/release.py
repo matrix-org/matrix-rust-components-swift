@@ -58,8 +58,6 @@ with FileInput(files=[root + '/Package.swift'], inplace=True) as file:
             line = 'let checksum = "' + checksum + '"'
         if line.startswith('let version ='):
             line = 'let version = "' + version + '"'
-        if line.startswith('let useLocalBinary = true'):
-            line = 'let useLocalBinary = false'
         print(line)
 
 sdk_commit_hash = subprocess.getoutput("cat " + sdk_path + "/.git/refs/heads/main")
