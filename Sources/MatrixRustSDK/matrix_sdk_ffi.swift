@@ -319,6 +319,19 @@ fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     }
 }
 
+fileprivate struct FfiConverterInt32: FfiConverterPrimitive {
+    typealias FfiType = Int32
+    typealias SwiftType = Int32
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int32 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Int32, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
 fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     typealias FfiType = UInt64
     typealias SwiftType = UInt64
@@ -2952,7 +2965,7 @@ public class TimelineItem: TimelineItemProtocol {
             try!
     rustCall() {
     
-    _uniffi_matrix_sdk_ffi_impl_TimelineItem_as_virtual_e50d(self.pointer, $0
+    _uniffi_matrix_sdk_ffi_impl_TimelineItem_as_virtual_c1a3(self.pointer, $0
     )
 }
         )
@@ -3175,62 +3188,6 @@ public struct FfiConverterTypeUnreadNotificationsCount: FfiConverter {
     }
 
     public static func lower(_ value: UnreadNotificationsCount) -> UnsafeMutableRawPointer {
-        return value.pointer
-    }
-}
-
-
-public protocol VirtualTimelineItemProtocol {
-    
-}
-
-public class VirtualTimelineItem: VirtualTimelineItemProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
-
-    // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `FfiConverter` without making this `required` and we can't
-    // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
-    }
-
-    deinit {
-        try! rustCall { _uniffi_matrix_sdk_ffi_object_free_VirtualTimelineItem_21e1(pointer, $0) }
-    }
-
-    
-
-    
-    
-}
-
-
-public struct FfiConverterTypeVirtualTimelineItem: FfiConverter {
-    typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = VirtualTimelineItem
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VirtualTimelineItem {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
-    }
-
-    public static func write(_ value: VirtualTimelineItem, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
-    }
-
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> VirtualTimelineItem {
-        return VirtualTimelineItem(unsafeFromRawPointer: pointer)
-    }
-
-    public static func lower(_ value: VirtualTimelineItem) -> UnsafeMutableRawPointer {
         return value.pointer
     }
 }
@@ -4890,6 +4847,55 @@ public struct FfiConverterTypeTimelineKey: FfiConverterRustBuffer {
 extension TimelineKey: Equatable, Hashable {}
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum VirtualTimelineItem {
+    
+    case `dayDivider`(`year`: Int32, `month`: UInt32, `day`: UInt32)
+    case `readMarker`
+}
+
+public struct FfiConverterTypeVirtualTimelineItem: FfiConverterRustBuffer {
+    typealias SwiftType = VirtualTimelineItem
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VirtualTimelineItem {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`dayDivider`(
+            `year`: try FfiConverterInt32.read(from: &buf), 
+            `month`: try FfiConverterUInt32.read(from: &buf), 
+            `day`: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 2: return .`readMarker`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: VirtualTimelineItem, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .`dayDivider`(`year`,`month`,`day`):
+            writeInt(&buf, Int32(1))
+            FfiConverterInt32.write(`year`, into: &buf)
+            FfiConverterUInt32.write(`month`, into: &buf)
+            FfiConverterUInt32.write(`day`, into: &buf)
+            
+        
+        case .`readMarker`:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+extension VirtualTimelineItem: Equatable, Hashable {}
+
+
 
 public enum AuthenticationError {
 
@@ -6361,27 +6367,6 @@ fileprivate struct FfiConverterOptionTypeTimelineItem: FfiConverterRustBuffer {
     }
 }
 
-fileprivate struct FfiConverterOptionTypeVirtualTimelineItem: FfiConverterRustBuffer {
-    typealias SwiftType = VirtualTimelineItem?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeVirtualTimelineItem.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeVirtualTimelineItem.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 fileprivate struct FfiConverterOptionTypeFileInfo: FfiConverterRustBuffer {
     typealias SwiftType = FileInfo?
 
@@ -6608,6 +6593,27 @@ fileprivate struct FfiConverterOptionTypeMessageType: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeMessageType.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypeVirtualTimelineItem: FfiConverterRustBuffer {
+    typealias SwiftType = VirtualTimelineItem?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeVirtualTimelineItem.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeVirtualTimelineItem.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
