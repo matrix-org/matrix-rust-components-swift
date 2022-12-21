@@ -31,7 +31,7 @@ else:
 
 print("SDK path: " + sdk_path)
 print("Generating framework")
-os.system(sdk_path + "/bindings/apple/build_xcframework.sh")
+os.system("(cd '" + sdk_path + "'; cargo xtask swift build-framework --release)")
 sdk_generated_path = "/bindings/apple/generated"
 
 print("Copy generated files")
