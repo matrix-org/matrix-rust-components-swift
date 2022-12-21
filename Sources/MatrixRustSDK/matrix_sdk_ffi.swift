@@ -1414,6 +1414,7 @@ public protocol RoomProtocol {
     func `membership`()  -> Membership
     func `name`()  -> String?
     func `removeTimeline`() 
+    func `retryDecryption`(`sessionIds`: [String]) 
     func `topic`()  -> String?
     
 }
@@ -1634,6 +1635,15 @@ public class Room: RoomProtocol {
     rustCall() {
     
     _uniffi_matrix_sdk_ffi_impl_Room_remove_timeline_a9df(self.pointer, $0
+    )
+}
+    }
+    public func `retryDecryption`(`sessionIds`: [String])  {
+        try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_Room_retry_decryption_b803(self.pointer, 
+        FfiConverterSequenceString.lower(`sessionIds`), $0
     )
 }
     }
