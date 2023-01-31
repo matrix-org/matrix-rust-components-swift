@@ -2044,7 +2044,8 @@ public protocol SlidingSyncProtocol {
     func `unsubscribe`(`roomId`: String) throws
     func `getRoom`(`roomId`: String) throws -> SlidingSyncRoom?
     func `getRooms`(`roomIds`: [String]) throws -> [SlidingSyncRoom?]
-    func `addView`(`view`: SlidingSyncView)  -> UInt32?
+    func `addCommonExtensions`() 
+    func `addView`(`view`: SlidingSyncView)  -> SlidingSyncView?
     func `getView`(`name`: String)  -> SlidingSyncView?
     func `popView`(`name`: String)  -> SlidingSyncView?
     func `sync`()  -> StoppableSpawn
@@ -2114,12 +2115,20 @@ public class SlidingSync: SlidingSyncProtocol {
 }
         )
     }
-    public func `addView`(`view`: SlidingSyncView)  -> UInt32? {
-        return try! FfiConverterOptionUInt32.lift(
+    public func `addCommonExtensions`()  {
+        try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSync_add_common_extensions_26c4(self.pointer, $0
+    )
+}
+    }
+    public func `addView`(`view`: SlidingSyncView)  -> SlidingSyncView? {
+        return try! FfiConverterOptionTypeSlidingSyncView.lift(
             try!
     rustCall() {
     
-    _uniffi_matrix_sdk_ffi_impl_SlidingSync_add_view_7082(self.pointer, 
+    _uniffi_matrix_sdk_ffi_impl_SlidingSync_add_view_5d63(self.pointer, 
         FfiConverterTypeSlidingSyncView.lower(`view`), $0
     )
 }
@@ -2199,7 +2208,13 @@ public protocol SlidingSyncBuilderProtocol {
     func `addView`(`v`: SlidingSyncView)  -> SlidingSyncBuilder
     func `coldCache`(`name`: String)  -> SlidingSyncBuilder
     func `noViews`()  -> SlidingSyncBuilder
+    func `withAllExtensions`()  -> SlidingSyncBuilder
     func `withCommonExtensions`()  -> SlidingSyncBuilder
+    func `withoutAccountDataExtension`()  -> SlidingSyncBuilder
+    func `withoutE2eeExtension`()  -> SlidingSyncBuilder
+    func `withoutReceiptExtension`()  -> SlidingSyncBuilder
+    func `withoutToDeviceExtension`()  -> SlidingSyncBuilder
+    func `withoutTypingExtension`()  -> SlidingSyncBuilder
     
 }
 
@@ -2281,12 +2296,72 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
 }
         )
     }
+    public func `withAllExtensions`()  -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_with_all_extensions_a54(self.pointer, $0
+    )
+}
+        )
+    }
     public func `withCommonExtensions`()  -> SlidingSyncBuilder {
         return try! FfiConverterTypeSlidingSyncBuilder.lift(
             try!
     rustCall() {
     
     _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_with_common_extensions_f2da(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `withoutAccountDataExtension`()  -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_without_account_data_extension_5a9d(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `withoutE2eeExtension`()  -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_without_e2ee_extension_6ff7(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `withoutReceiptExtension`()  -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_without_receipt_extension_9fb2(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `withoutToDeviceExtension`()  -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_without_to_device_extension_29f5(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `withoutTypingExtension`()  -> SlidingSyncBuilder {
+        return try! FfiConverterTypeSlidingSyncBuilder.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncBuilder_without_typing_extension_f1c8(self.pointer, $0
     )
 }
         )
