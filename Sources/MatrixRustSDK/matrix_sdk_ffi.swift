@@ -987,10 +987,12 @@ public protocol EventTimelineItemProtocol {
     func `eventId`()  -> String?
     func `fmtDebug`()  -> String
     func `isEditable`()  -> Bool
+    func `isLocal`()  -> Bool
     func `isOwn`()  -> Bool
-    func `key`()  -> TimelineKey
+    func `isRemote`()  -> Bool
+    func `localSendState`()  -> LocalEventTimelineItemSendState?
     func `raw`()  -> String?
-    func `reactions`()  -> [Reaction]
+    func `reactions`()  -> [Reaction]?
     func `sender`()  -> String
     func `senderProfile`()  -> Profile
     func `timestamp`()  -> UInt64
@@ -1054,6 +1056,16 @@ public class EventTimelineItem: EventTimelineItemProtocol {
 }
         )
     }
+    public func `isLocal`()  -> Bool {
+        return try! FfiConverterBool.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_is_local_3020(self.pointer, $0
+    )
+}
+        )
+    }
     public func `isOwn`()  -> Bool {
         return try! FfiConverterBool.lift(
             try!
@@ -1064,12 +1076,22 @@ public class EventTimelineItem: EventTimelineItemProtocol {
 }
         )
     }
-    public func `key`()  -> TimelineKey {
-        return try! FfiConverterTypeTimelineKey.lift(
+    public func `isRemote`()  -> Bool {
+        return try! FfiConverterBool.lift(
             try!
     rustCall() {
     
-    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_key_f0ea(self.pointer, $0
+    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_is_remote_8b79(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `localSendState`()  -> LocalEventTimelineItemSendState? {
+        return try! FfiConverterOptionTypeLocalEventTimelineItemSendState.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_local_send_state_a591(self.pointer, $0
     )
 }
         )
@@ -1084,12 +1106,12 @@ public class EventTimelineItem: EventTimelineItemProtocol {
 }
         )
     }
-    public func `reactions`()  -> [Reaction] {
-        return try! FfiConverterSequenceTypeReaction.lift(
+    public func `reactions`()  -> [Reaction]? {
+        return try! FfiConverterOptionSequenceTypeReaction.lift(
             try!
     rustCall() {
     
-    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_reactions_92e6(self.pointer, $0
+    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_reactions_ed6a(self.pointer, $0
     )
 }
         )
@@ -2481,8 +2503,11 @@ public protocol SlidingSyncViewProtocol {
     func `addRange`(`start`: UInt32, `end`: UInt32) 
     func `currentRoomCount`()  -> UInt32?
     func `currentRoomsList`()  -> [RoomListEntry]
+    func `getTimelineLimit`()  -> UInt32?
     func `resetRanges`() 
     func `setRange`(`start`: UInt32, `end`: UInt32) 
+    func `setTimelineLimit`(`value`: UInt32) 
+    func `unsetTimelineLimit`() 
     
 }
 
@@ -2577,6 +2602,16 @@ public class SlidingSyncView: SlidingSyncViewProtocol {
 }
         )
     }
+    public func `getTimelineLimit`()  -> UInt32? {
+        return try! FfiConverterOptionUInt32.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncView_get_timeline_limit_f84c(self.pointer, $0
+    )
+}
+        )
+    }
     public func `resetRanges`()  {
         try!
     rustCall() {
@@ -2592,6 +2627,23 @@ public class SlidingSyncView: SlidingSyncViewProtocol {
     _uniffi_matrix_sdk_ffi_impl_SlidingSyncView_set_range_afda(self.pointer, 
         FfiConverterUInt32.lower(`start`), 
         FfiConverterUInt32.lower(`end`), $0
+    )
+}
+    }
+    public func `setTimelineLimit`(`value`: UInt32)  {
+        try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncView_set_timeline_limit_e983(self.pointer, 
+        FfiConverterUInt32.lower(`value`), $0
+    )
+}
+    }
+    public func `unsetTimelineLimit`()  {
+        try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_SlidingSyncView_unset_timeline_limit_5cad(self.pointer, $0
     )
 }
     }
@@ -4490,6 +4542,55 @@ extension EncryptedMessage: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum LocalEventTimelineItemSendState {
+    
+    case `notSendYet`
+    case `sendingFailed`
+    case `sent`
+}
+
+public struct FfiConverterTypeLocalEventTimelineItemSendState: FfiConverterRustBuffer {
+    typealias SwiftType = LocalEventTimelineItemSendState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LocalEventTimelineItemSendState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`notSendYet`
+        
+        case 2: return .`sendingFailed`
+        
+        case 3: return .`sent`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: LocalEventTimelineItemSendState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`notSendYet`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .`sendingFailed`:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .`sent`:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+extension LocalEventTimelineItemSendState: Equatable, Hashable {}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum Membership {
     
     case `invited`
@@ -4557,9 +4658,7 @@ public enum MembershipChange {
     case `knockAccepted`
     case `knockRetracted`
     case `knockDenied`
-    case `profileChanged`(`displayName`: String?, `prevDisplayName`: String?, `avatarUrl`: String?, `prevAvatarUrl`: String?)
     case `notImplemented`
-    case `unknown`(`membership`: MembershipState, `displayName`: String?, `avatarUrl`: String?)
 }
 
 public struct FfiConverterTypeMembershipChange: FfiConverterRustBuffer {
@@ -4601,20 +4700,7 @@ public struct FfiConverterTypeMembershipChange: FfiConverterRustBuffer {
         
         case 16: return .`knockDenied`
         
-        case 17: return .`profileChanged`(
-            `displayName`: try FfiConverterOptionString.read(from: &buf), 
-            `prevDisplayName`: try FfiConverterOptionString.read(from: &buf), 
-            `avatarUrl`: try FfiConverterOptionString.read(from: &buf), 
-            `prevAvatarUrl`: try FfiConverterOptionString.read(from: &buf)
-        )
-        
-        case 18: return .`notImplemented`
-        
-        case 19: return .`unknown`(
-            `membership`: try FfiConverterTypeMembershipState.read(from: &buf), 
-            `displayName`: try FfiConverterOptionString.read(from: &buf), 
-            `avatarUrl`: try FfiConverterOptionString.read(from: &buf)
-        )
+        case 17: return .`notImplemented`
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -4688,24 +4774,9 @@ public struct FfiConverterTypeMembershipChange: FfiConverterRustBuffer {
             writeInt(&buf, Int32(16))
         
         
-        case let .`profileChanged`(`displayName`,`prevDisplayName`,`avatarUrl`,`prevAvatarUrl`):
-            writeInt(&buf, Int32(17))
-            FfiConverterOptionString.write(`displayName`, into: &buf)
-            FfiConverterOptionString.write(`prevDisplayName`, into: &buf)
-            FfiConverterOptionString.write(`avatarUrl`, into: &buf)
-            FfiConverterOptionString.write(`prevAvatarUrl`, into: &buf)
-            
-        
         case .`notImplemented`:
-            writeInt(&buf, Int32(18))
+            writeInt(&buf, Int32(17))
         
-        
-        case let .`unknown`(`membership`,`displayName`,`avatarUrl`):
-            writeInt(&buf, Int32(19))
-            FfiConverterTypeMembershipState.write(`membership`, into: &buf)
-            FfiConverterOptionString.write(`displayName`, into: &buf)
-            FfiConverterOptionString.write(`avatarUrl`, into: &buf)
-            
         }
     }
 }
@@ -5505,7 +5576,8 @@ public enum TimelineItemContentKind {
     case `redactedMessage`
     case `sticker`(`body`: String, `info`: ImageInfo, `url`: String)
     case `unableToDecrypt`(`msg`: EncryptedMessage)
-    case `roomMembership`(`userId`: String, `change`: MembershipChange)
+    case `roomMembership`(`userId`: String, `change`: MembershipChange?)
+    case `profileChange`(`displayName`: String?, `prevDisplayName`: String?, `avatarUrl`: String?, `prevAvatarUrl`: String?)
     case `state`(`stateKey`: String, `content`: OtherState)
     case `failedToParseMessageLike`(`eventType`: String, `error`: String)
     case `failedToParseState`(`eventType`: String, `stateKey`: String, `error`: String)
@@ -5534,20 +5606,27 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
         
         case 5: return .`roomMembership`(
             `userId`: try FfiConverterString.read(from: &buf), 
-            `change`: try FfiConverterTypeMembershipChange.read(from: &buf)
+            `change`: try FfiConverterOptionTypeMembershipChange.read(from: &buf)
         )
         
-        case 6: return .`state`(
+        case 6: return .`profileChange`(
+            `displayName`: try FfiConverterOptionString.read(from: &buf), 
+            `prevDisplayName`: try FfiConverterOptionString.read(from: &buf), 
+            `avatarUrl`: try FfiConverterOptionString.read(from: &buf), 
+            `prevAvatarUrl`: try FfiConverterOptionString.read(from: &buf)
+        )
+        
+        case 7: return .`state`(
             `stateKey`: try FfiConverterString.read(from: &buf), 
             `content`: try FfiConverterTypeOtherState.read(from: &buf)
         )
         
-        case 7: return .`failedToParseMessageLike`(
+        case 8: return .`failedToParseMessageLike`(
             `eventType`: try FfiConverterString.read(from: &buf), 
             `error`: try FfiConverterString.read(from: &buf)
         )
         
-        case 8: return .`failedToParseState`(
+        case 9: return .`failedToParseState`(
             `eventType`: try FfiConverterString.read(from: &buf), 
             `stateKey`: try FfiConverterString.read(from: &buf), 
             `error`: try FfiConverterString.read(from: &buf)
@@ -5584,23 +5663,31 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
         case let .`roomMembership`(`userId`,`change`):
             writeInt(&buf, Int32(5))
             FfiConverterString.write(`userId`, into: &buf)
-            FfiConverterTypeMembershipChange.write(`change`, into: &buf)
+            FfiConverterOptionTypeMembershipChange.write(`change`, into: &buf)
+            
+        
+        case let .`profileChange`(`displayName`,`prevDisplayName`,`avatarUrl`,`prevAvatarUrl`):
+            writeInt(&buf, Int32(6))
+            FfiConverterOptionString.write(`displayName`, into: &buf)
+            FfiConverterOptionString.write(`prevDisplayName`, into: &buf)
+            FfiConverterOptionString.write(`avatarUrl`, into: &buf)
+            FfiConverterOptionString.write(`prevAvatarUrl`, into: &buf)
             
         
         case let .`state`(`stateKey`,`content`):
-            writeInt(&buf, Int32(6))
+            writeInt(&buf, Int32(7))
             FfiConverterString.write(`stateKey`, into: &buf)
             FfiConverterTypeOtherState.write(`content`, into: &buf)
             
         
         case let .`failedToParseMessageLike`(`eventType`,`error`):
-            writeInt(&buf, Int32(7))
+            writeInt(&buf, Int32(8))
             FfiConverterString.write(`eventType`, into: &buf)
             FfiConverterString.write(`error`, into: &buf)
             
         
         case let .`failedToParseState`(`eventType`,`stateKey`,`error`):
-            writeInt(&buf, Int32(8))
+            writeInt(&buf, Int32(9))
             FfiConverterString.write(`eventType`, into: &buf)
             FfiConverterString.write(`stateKey`, into: &buf)
             FfiConverterString.write(`error`, into: &buf)
@@ -5609,54 +5696,6 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
     }
 }
 
-
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-public enum TimelineKey {
-    
-    case `transactionId`(`txnId`: String)
-    case `eventId`(`eventId`: String)
-}
-
-public struct FfiConverterTypeTimelineKey: FfiConverterRustBuffer {
-    typealias SwiftType = TimelineKey
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineKey {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .`transactionId`(
-            `txnId`: try FfiConverterString.read(from: &buf)
-        )
-        
-        case 2: return .`eventId`(
-            `eventId`: try FfiConverterString.read(from: &buf)
-        )
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: TimelineKey, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case let .`transactionId`(`txnId`):
-            writeInt(&buf, Int32(1))
-            FfiConverterString.write(`txnId`, into: &buf)
-            
-        
-        case let .`eventId`(`eventId`):
-            writeInt(&buf, Int32(2))
-            FfiConverterString.write(`eventId`, into: &buf)
-            
-        }
-    }
-}
-
-
-extension TimelineKey: Equatable, Hashable {}
 
 
 // Note that we don't yet support `indirect` for enums.
@@ -7416,6 +7455,48 @@ fileprivate struct FfiConverterOptionTypeVideoInfo: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeLocalEventTimelineItemSendState: FfiConverterRustBuffer {
+    typealias SwiftType = LocalEventTimelineItemSendState?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeLocalEventTimelineItemSendState.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeLocalEventTimelineItemSendState.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypeMembershipChange: FfiConverterRustBuffer {
+    typealias SwiftType = MembershipChange?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeMembershipChange.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeMembershipChange.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeMessageType: FfiConverterRustBuffer {
     typealias SwiftType = MessageType?
 
@@ -7537,6 +7618,27 @@ fileprivate struct FfiConverterOptionSequenceTypeTimelineItem: FfiConverterRustB
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceTypeTimelineItem.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionSequenceTypeReaction: FfiConverterRustBuffer {
+    typealias SwiftType = [Reaction]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceTypeReaction.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceTypeReaction.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
