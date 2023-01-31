@@ -996,6 +996,7 @@ public protocol EventTimelineItemProtocol {
     func `sender`()  -> String
     func `senderProfile`()  -> Profile
     func `timestamp`()  -> UInt64
+    func `uniqueIdentifier`()  -> String
     
 }
 
@@ -1142,6 +1143,16 @@ public class EventTimelineItem: EventTimelineItemProtocol {
     rustCall() {
     
     _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_timestamp_650b(self.pointer, $0
+    )
+}
+        )
+    }
+    public func `uniqueIdentifier`()  -> String {
+        return try! FfiConverterString.lift(
+            try!
+    rustCall() {
+    
+    _uniffi_matrix_sdk_ffi_impl_EventTimelineItem_unique_identifier_1709(self.pointer, $0
     )
 }
         )
