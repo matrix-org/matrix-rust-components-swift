@@ -8,6 +8,15 @@ from fileinput import FileInput
 from pathlib import Path
 import requests
 import json
+import netrc
+
+# Get the GitHub token from the user's .netrc
+secrets = netrc.netrc()
+username, account, github_token = secrets.authenticators('api.github.com')
+
+if github_token is None:
+    print("Please set api.github.com in your .netrc file.")
+    exit(1)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--version', type=str, help='Version of the release', required=True)
@@ -41,12 +50,6 @@ os.system("rm '" + root + "/Sources/MatrixRustSDK/sdk.swift'")
 print("Zipping framework")
 zip_file_name = "MatrixSDKFFI.xcframework.zip"
 os.system("pushd " + sdk_path + sdk_generated_path + "/; zip -r " + root + "/" + zip_file_name + " MatrixSDKFFI.xcframework; popd")
-
-github_token = os.environ['GITHUB_TOKEN']
-
-if github_token is None:
-    print("Please set GITHUB_TOKEN environment variable")
-    exit(1)
 
 print("Creating release")
 checksum = subprocess.getoutput("shasum -a 256 " + root + "/" + zip_file_name).split()[0]
