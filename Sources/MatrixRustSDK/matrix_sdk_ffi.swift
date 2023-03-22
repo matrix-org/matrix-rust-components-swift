@@ -562,6 +562,7 @@ public protocol ClientProtocol {
     func `logout`()  throws
     func `restoreSession`(`session`: Session)  throws
     func `rooms`()   -> [Room]
+    func `searchUsers`(`searchTerm`: String, `limit`: UInt64)  throws -> SearchUsersResults
     func `session`()  throws -> Session
     func `setAccountData`(`eventType`: String, `content`: String)  throws
     func `setDisplayName`(`name`: String)  throws
@@ -786,6 +787,18 @@ public class Client: ClientProtocol {
     rustCall() {
     
     _uniffi_matrix_sdk_ffi_impl_Client_rooms_bbf1(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `searchUsers`(`searchTerm`: String, `limit`: UInt64) throws -> SearchUsersResults {
+        return try  FfiConverterTypeSearchUsersResults.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    _uniffi_matrix_sdk_ffi_impl_Client_search_users_f239(self.pointer, 
+        FfiConverterString.lower(`searchTerm`), 
+        FfiConverterUInt64.lower(`limit`), $0
     )
 }
         )
@@ -5334,6 +5347,61 @@ public func FfiConverterTypeRoomSubscription_lower(_ value: RoomSubscription) ->
 }
 
 
+public struct SearchUsersResults {
+    public var `results`: [UserProfile]
+    public var `limited`: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`results`: [UserProfile], `limited`: Bool) {
+        self.`results` = `results`
+        self.`limited` = `limited`
+    }
+}
+
+
+extension SearchUsersResults: Equatable, Hashable {
+    public static func ==(lhs: SearchUsersResults, rhs: SearchUsersResults) -> Bool {
+        if lhs.`results` != rhs.`results` {
+            return false
+        }
+        if lhs.`limited` != rhs.`limited` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`results`)
+        hasher.combine(`limited`)
+    }
+}
+
+
+public struct FfiConverterTypeSearchUsersResults: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SearchUsersResults {
+        return try SearchUsersResults(
+            `results`: FfiConverterSequenceTypeUserProfile.read(from: &buf), 
+            `limited`: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SearchUsersResults, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeUserProfile.write(value.`results`, into: &buf)
+        FfiConverterBool.write(value.`limited`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeSearchUsersResults_lift(_ buf: RustBuffer) throws -> SearchUsersResults {
+    return try FfiConverterTypeSearchUsersResults.lift(buf)
+}
+
+public func FfiConverterTypeSearchUsersResults_lower(_ value: SearchUsersResults) -> RustBuffer {
+    return FfiConverterTypeSearchUsersResults.lower(value)
+}
+
+
 public struct Session {
     public var `accessToken`: String
     public var `refreshToken`: String?
@@ -5794,6 +5862,69 @@ public func FfiConverterTypeUpdateSummary_lift(_ buf: RustBuffer) throws -> Upda
 
 public func FfiConverterTypeUpdateSummary_lower(_ value: UpdateSummary) -> RustBuffer {
     return FfiConverterTypeUpdateSummary.lower(value)
+}
+
+
+public struct UserProfile {
+    public var `userId`: String
+    public var `displayName`: String?
+    public var `avatarUrl`: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`userId`: String, `displayName`: String?, `avatarUrl`: String?) {
+        self.`userId` = `userId`
+        self.`displayName` = `displayName`
+        self.`avatarUrl` = `avatarUrl`
+    }
+}
+
+
+extension UserProfile: Equatable, Hashable {
+    public static func ==(lhs: UserProfile, rhs: UserProfile) -> Bool {
+        if lhs.`userId` != rhs.`userId` {
+            return false
+        }
+        if lhs.`displayName` != rhs.`displayName` {
+            return false
+        }
+        if lhs.`avatarUrl` != rhs.`avatarUrl` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`userId`)
+        hasher.combine(`displayName`)
+        hasher.combine(`avatarUrl`)
+    }
+}
+
+
+public struct FfiConverterTypeUserProfile: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UserProfile {
+        return try UserProfile(
+            `userId`: FfiConverterString.read(from: &buf), 
+            `displayName`: FfiConverterOptionString.read(from: &buf), 
+            `avatarUrl`: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UserProfile, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.`userId`, into: &buf)
+        FfiConverterOptionString.write(value.`displayName`, into: &buf)
+        FfiConverterOptionString.write(value.`avatarUrl`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeUserProfile_lift(_ buf: RustBuffer) throws -> UserProfile {
+    return try FfiConverterTypeUserProfile.lift(buf)
+}
+
+public func FfiConverterTypeUserProfile_lower(_ value: UserProfile) -> RustBuffer {
+    return FfiConverterTypeUserProfile.lower(value)
 }
 
 
@@ -9746,6 +9877,28 @@ fileprivate struct FfiConverterSequenceTypeRequiredState: FfiConverterRustBuffer
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeRequiredState.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+fileprivate struct FfiConverterSequenceTypeUserProfile: FfiConverterRustBuffer {
+    typealias SwiftType = [UserProfile]
+
+    public static func write(_ value: [UserProfile], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeUserProfile.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UserProfile] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [UserProfile]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeUserProfile.read(from: &buf))
         }
         return seq
     }
