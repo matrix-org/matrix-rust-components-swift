@@ -19,13 +19,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_rustbuffer_free(self, $0) }
     }
 }
 
@@ -437,7 +437,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
     }
     public convenience init(`basePath`: String, `passphrase`: String?, `customSlidingSyncProxy`: String?)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
-    matrix_sdk_ffi_2a41_AuthenticationService_new(
+    matrix_sdk_ffi_be72_AuthenticationService_new(
         FfiConverterString.lower(`basePath`), 
         FfiConverterOptionString.lower(`passphrase`), 
         FfiConverterOptionString.lower(`customSlidingSyncProxy`), $0)
@@ -445,7 +445,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_AuthenticationService_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_AuthenticationService_object_free(pointer, $0) }
     }
 
     
@@ -556,6 +556,7 @@ public protocol ClientProtocol {
     func `getDmRoom`(`userId`: String)  throws -> Room?
     func `getMediaContent`(`mediaSource`: MediaSource)  throws -> [UInt8]
     func `getMediaThumbnail`(`mediaSource`: MediaSource, `width`: UInt64, `height`: UInt64)  throws -> [UInt8]
+    func `getProfile`(`userId`: String)  throws -> UserProfile
     func `getSessionVerificationController`()  throws -> SessionVerificationController
     func `homeserver`()   -> String
     func `ignoreUser`(`userId`: String)  throws
@@ -585,7 +586,7 @@ public class Client: ClientProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_Client_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_Client_object_free(pointer, $0) }
     }
 
     
@@ -597,7 +598,7 @@ public class Client: ClientProtocol {
         try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_Client_set_delegate(self.pointer, 
+    matrix_sdk_ffi_be72_Client_set_delegate(self.pointer, 
         FfiConverterOptionCallbackInterfaceClientDelegate.lower(`delegate`), $0
     )
 }
@@ -606,7 +607,7 @@ public class Client: ClientProtocol {
     public func `login`(`username`: String, `password`: String, `initialDeviceName`: String?, `deviceId`: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Client_login(self.pointer, 
+    matrix_sdk_ffi_be72_Client_login(self.pointer, 
         FfiConverterString.lower(`username`), 
         FfiConverterString.lower(`password`), 
         FfiConverterOptionString.lower(`initialDeviceName`), 
@@ -619,7 +620,7 @@ public class Client: ClientProtocol {
         return try  FfiConverterTypeMediaFileHandle.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Client_get_media_file(self.pointer, 
+    matrix_sdk_ffi_be72_Client_get_media_file(self.pointer, 
         FfiConverterTypeMediaSource.lower(`source`), 
         FfiConverterString.lower(`mimeType`), $0
     )
@@ -729,6 +730,17 @@ public class Client: ClientProtocol {
         FfiConverterTypeMediaSource.lower(`mediaSource`), 
         FfiConverterUInt64.lower(`width`), 
         FfiConverterUInt64.lower(`height`), $0
+    )
+}
+        )
+    }
+
+    public func `getProfile`(`userId`: String) throws -> UserProfile {
+        return try  FfiConverterTypeUserProfile.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    _uniffi_matrix_sdk_ffi_impl_Client_get_profile_7f94(self.pointer, 
+        FfiConverterString.lower(`userId`), $0
     )
 }
         )
@@ -956,12 +968,12 @@ public class ClientBuilder: ClientBuilderProtocol {
     }
     public convenience init()  {
         self.init(unsafeFromRawPointer: try! rustCall() {
-    matrix_sdk_ffi_2a41_ClientBuilder_new($0)
+    matrix_sdk_ffi_be72_ClientBuilder_new($0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_ClientBuilder_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_ClientBuilder_object_free(pointer, $0) }
     }
 
     
@@ -973,7 +985,7 @@ public class ClientBuilder: ClientBuilderProtocol {
         return try  FfiConverterTypeClient.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_ClientBuilder_build(self.pointer, $0
+    matrix_sdk_ffi_be72_ClientBuilder_build(self.pointer, $0
     )
 }
         )
@@ -1470,7 +1482,7 @@ public class MediaFileHandle: MediaFileHandleProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_MediaFileHandle_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_MediaFileHandle_object_free(pointer, $0) }
     }
 
     
@@ -1483,7 +1495,7 @@ public class MediaFileHandle: MediaFileHandleProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_MediaFileHandle_path(self.pointer, $0
+    matrix_sdk_ffi_be72_MediaFileHandle_path(self.pointer, $0
     )
 }
         )
@@ -1548,7 +1560,7 @@ public class MediaSource: MediaSourceProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_MediaSource_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_MediaSource_object_free(pointer, $0) }
     }
 
     
@@ -1561,7 +1573,7 @@ public class MediaSource: MediaSourceProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_MediaSource_url(self.pointer, $0
+    matrix_sdk_ffi_be72_MediaSource_url(self.pointer, $0
     )
 }
         )
@@ -1740,14 +1752,14 @@ public class NotificationService: NotificationServiceProtocol {
     }
     public convenience init(`basePath`: String, `userId`: String)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
-    matrix_sdk_ffi_2a41_NotificationService_new(
+    matrix_sdk_ffi_be72_NotificationService_new(
         FfiConverterString.lower(`basePath`), 
         FfiConverterString.lower(`userId`), $0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_NotificationService_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_NotificationService_object_free(pointer, $0) }
     }
 
     
@@ -1759,7 +1771,7 @@ public class NotificationService: NotificationServiceProtocol {
         return try  FfiConverterOptionTypeNotificationItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_NotificationService_get_notification_item(self.pointer, 
+    matrix_sdk_ffi_be72_NotificationService_get_notification_item(self.pointer, 
         FfiConverterString.lower(`roomId`), 
         FfiConverterString.lower(`eventId`), $0
     )
@@ -1825,6 +1837,7 @@ public protocol RoomProtocol {
     func `edit`(`newMsg`: String, `originalEventId`: String, `txnId`: String?)  throws
     func `redact`(`eventId`: String, `reason`: String?, `txnId`: String?)  throws
     func `reportContent`(`eventId`: String, `score`: Int32?, `reason`: String?)  throws
+    func `ignoreUser`(`userId`: String)  throws
     func `sendReaction`(`eventId`: String, `key`: String)  throws
     func `leave`()  throws
     func `rejectInvitation`()  throws
@@ -1859,7 +1872,7 @@ public class Room: RoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_Room_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_Room_object_free(pointer, $0) }
     }
 
     
@@ -1871,7 +1884,7 @@ public class Room: RoomProtocol {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_display_name(self.pointer, $0
+    matrix_sdk_ffi_be72_Room_display_name(self.pointer, $0
     )
 }
         )
@@ -1881,7 +1894,7 @@ public class Room: RoomProtocol {
         return try  FfiConverterBool.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_is_encrypted(self.pointer, $0
+    matrix_sdk_ffi_be72_Room_is_encrypted(self.pointer, $0
     )
 }
         )
@@ -1891,7 +1904,7 @@ public class Room: RoomProtocol {
         return try  FfiConverterSequenceTypeRoomMember.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_members(self.pointer, $0
+    matrix_sdk_ffi_be72_Room_members(self.pointer, $0
     )
 }
         )
@@ -1901,7 +1914,7 @@ public class Room: RoomProtocol {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_member_avatar_url(self.pointer, 
+    matrix_sdk_ffi_be72_Room_member_avatar_url(self.pointer, 
         FfiConverterString.lower(`userId`), $0
     )
 }
@@ -1912,7 +1925,7 @@ public class Room: RoomProtocol {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_member_display_name(self.pointer, 
+    matrix_sdk_ffi_be72_Room_member_display_name(self.pointer, 
         FfiConverterString.lower(`userId`), $0
     )
 }
@@ -1924,7 +1937,7 @@ public class Room: RoomProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_Room_add_timeline_listener(self.pointer, 
+    matrix_sdk_ffi_be72_Room_add_timeline_listener(self.pointer, 
         FfiConverterCallbackInterfaceTimelineListener.lower(`listener`), $0
     )
 }
@@ -1934,7 +1947,7 @@ public class Room: RoomProtocol {
     public func `paginateBackwards`(`opts`: PaginationOptions) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_paginate_backwards(self.pointer, 
+    matrix_sdk_ffi_be72_Room_paginate_backwards(self.pointer, 
         FfiConverterTypePaginationOptions.lower(`opts`), $0
     )
 }
@@ -1943,7 +1956,7 @@ public class Room: RoomProtocol {
     public func `sendReadReceipt`(`eventId`: String) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_send_read_receipt(self.pointer, 
+    matrix_sdk_ffi_be72_Room_send_read_receipt(self.pointer, 
         FfiConverterString.lower(`eventId`), $0
     )
 }
@@ -1952,7 +1965,7 @@ public class Room: RoomProtocol {
     public func `sendReadMarker`(`fullyReadEventId`: String, `readReceiptEventId`: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_send_read_marker(self.pointer, 
+    matrix_sdk_ffi_be72_Room_send_read_marker(self.pointer, 
         FfiConverterString.lower(`fullyReadEventId`), 
         FfiConverterOptionString.lower(`readReceiptEventId`), $0
     )
@@ -1963,7 +1976,7 @@ public class Room: RoomProtocol {
         try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_Room_send(self.pointer, 
+    matrix_sdk_ffi_be72_Room_send(self.pointer, 
         FfiConverterTypeRoomMessageEventContent.lower(`msg`), 
         FfiConverterOptionString.lower(`txnId`), $0
     )
@@ -1973,7 +1986,7 @@ public class Room: RoomProtocol {
     public func `sendReply`(`msg`: String, `inReplyToEventId`: String, `txnId`: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_send_reply(self.pointer, 
+    matrix_sdk_ffi_be72_Room_send_reply(self.pointer, 
         FfiConverterString.lower(`msg`), 
         FfiConverterString.lower(`inReplyToEventId`), 
         FfiConverterOptionString.lower(`txnId`), $0
@@ -1984,7 +1997,7 @@ public class Room: RoomProtocol {
     public func `edit`(`newMsg`: String, `originalEventId`: String, `txnId`: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_edit(self.pointer, 
+    matrix_sdk_ffi_be72_Room_edit(self.pointer, 
         FfiConverterString.lower(`newMsg`), 
         FfiConverterString.lower(`originalEventId`), 
         FfiConverterOptionString.lower(`txnId`), $0
@@ -1995,7 +2008,7 @@ public class Room: RoomProtocol {
     public func `redact`(`eventId`: String, `reason`: String?, `txnId`: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_redact(self.pointer, 
+    matrix_sdk_ffi_be72_Room_redact(self.pointer, 
         FfiConverterString.lower(`eventId`), 
         FfiConverterOptionString.lower(`reason`), 
         FfiConverterOptionString.lower(`txnId`), $0
@@ -2006,7 +2019,7 @@ public class Room: RoomProtocol {
     public func `reportContent`(`eventId`: String, `score`: Int32?, `reason`: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_report_content(self.pointer, 
+    matrix_sdk_ffi_be72_Room_report_content(self.pointer, 
         FfiConverterString.lower(`eventId`), 
         FfiConverterOptionInt32.lower(`score`), 
         FfiConverterOptionString.lower(`reason`), $0
@@ -2014,10 +2027,19 @@ public class Room: RoomProtocol {
 }
     }
 
+    public func `ignoreUser`(`userId`: String) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    matrix_sdk_ffi_be72_Room_ignore_user(self.pointer, 
+        FfiConverterString.lower(`userId`), $0
+    )
+}
+    }
+
     public func `sendReaction`(`eventId`: String, `key`: String) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_send_reaction(self.pointer, 
+    matrix_sdk_ffi_be72_Room_send_reaction(self.pointer, 
         FfiConverterString.lower(`eventId`), 
         FfiConverterString.lower(`key`), $0
     )
@@ -2027,7 +2049,7 @@ public class Room: RoomProtocol {
     public func `leave`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_leave(self.pointer, $0
+    matrix_sdk_ffi_be72_Room_leave(self.pointer, $0
     )
 }
     }
@@ -2035,7 +2057,7 @@ public class Room: RoomProtocol {
     public func `rejectInvitation`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_reject_invitation(self.pointer, $0
+    matrix_sdk_ffi_be72_Room_reject_invitation(self.pointer, $0
     )
 }
     }
@@ -2043,7 +2065,7 @@ public class Room: RoomProtocol {
     public func `setTopic`(`topic`: String) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_set_topic(self.pointer, 
+    matrix_sdk_ffi_be72_Room_set_topic(self.pointer, 
         FfiConverterString.lower(`topic`), $0
     )
 }
@@ -2052,7 +2074,7 @@ public class Room: RoomProtocol {
     public func `uploadAvatar`(`mimeType`: String, `data`: [UInt8]) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_upload_avatar(self.pointer, 
+    matrix_sdk_ffi_be72_Room_upload_avatar(self.pointer, 
         FfiConverterString.lower(`mimeType`), 
         FfiConverterSequenceUInt8.lower(`data`), $0
     )
@@ -2062,7 +2084,7 @@ public class Room: RoomProtocol {
     public func `removeAvatar`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_Room_remove_avatar(self.pointer, $0
+    matrix_sdk_ffi_be72_Room_remove_avatar(self.pointer, $0
     )
 }
     }
@@ -2285,7 +2307,7 @@ public class RoomMember: RoomMemberProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_RoomMember_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_RoomMember_object_free(pointer, $0) }
     }
 
     
@@ -2466,7 +2488,7 @@ public class RoomMessageEventContent: RoomMessageEventContentProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_RoomMessageEventContent_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_RoomMessageEventContent_object_free(pointer, $0) }
     }
 
     
@@ -2539,7 +2561,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_SessionVerificationController_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_SessionVerificationController_object_free(pointer, $0) }
     }
 
     
@@ -2551,7 +2573,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
         try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_SessionVerificationController_set_delegate(self.pointer, 
+    matrix_sdk_ffi_be72_SessionVerificationController_set_delegate(self.pointer, 
         FfiConverterOptionCallbackInterfaceSessionVerificationControllerDelegate.lower(`delegate`), $0
     )
 }
@@ -2560,7 +2582,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     public func `requestVerification`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SessionVerificationController_request_verification(self.pointer, $0
+    matrix_sdk_ffi_be72_SessionVerificationController_request_verification(self.pointer, $0
     )
 }
     }
@@ -2568,7 +2590,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     public func `startSasVerification`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SessionVerificationController_start_sas_verification(self.pointer, $0
+    matrix_sdk_ffi_be72_SessionVerificationController_start_sas_verification(self.pointer, $0
     )
 }
     }
@@ -2576,7 +2598,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     public func `approveVerification`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SessionVerificationController_approve_verification(self.pointer, $0
+    matrix_sdk_ffi_be72_SessionVerificationController_approve_verification(self.pointer, $0
     )
 }
     }
@@ -2584,7 +2606,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     public func `declineVerification`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SessionVerificationController_decline_verification(self.pointer, $0
+    matrix_sdk_ffi_be72_SessionVerificationController_decline_verification(self.pointer, $0
     )
 }
     }
@@ -2592,7 +2614,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     public func `cancelVerification`() throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SessionVerificationController_cancel_verification(self.pointer, $0
+    matrix_sdk_ffi_be72_SessionVerificationController_cancel_verification(self.pointer, $0
     )
 }
     }
@@ -2668,7 +2690,7 @@ public class SessionVerificationEmoji: SessionVerificationEmojiProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_SessionVerificationEmoji_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_SessionVerificationEmoji_object_free(pointer, $0) }
     }
 
     
@@ -2766,7 +2788,7 @@ public class SlidingSync: SlidingSyncProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_SlidingSync_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_SlidingSync_object_free(pointer, $0) }
     }
 
     
@@ -2778,7 +2800,7 @@ public class SlidingSync: SlidingSyncProtocol {
         try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_SlidingSync_set_observer(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSync_set_observer(self.pointer, 
         FfiConverterOptionCallbackInterfaceSlidingSyncObserver.lower(`observer`), $0
     )
 }
@@ -2787,7 +2809,7 @@ public class SlidingSync: SlidingSyncProtocol {
     public func `subscribe`(`roomId`: String, `settings`: RoomSubscription?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSync_subscribe(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSync_subscribe(self.pointer, 
         FfiConverterString.lower(`roomId`), 
         FfiConverterOptionTypeRoomSubscription.lower(`settings`), $0
     )
@@ -2797,7 +2819,7 @@ public class SlidingSync: SlidingSyncProtocol {
     public func `unsubscribe`(`roomId`: String) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSync_unsubscribe(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSync_unsubscribe(self.pointer, 
         FfiConverterString.lower(`roomId`), $0
     )
 }
@@ -2807,7 +2829,7 @@ public class SlidingSync: SlidingSyncProtocol {
         return try  FfiConverterOptionTypeSlidingSyncRoom.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSync_get_room(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSync_get_room(self.pointer, 
         FfiConverterString.lower(`roomId`), $0
     )
 }
@@ -2818,7 +2840,7 @@ public class SlidingSync: SlidingSyncProtocol {
         return try  FfiConverterSequenceOptionTypeSlidingSyncRoom.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSync_get_rooms(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSync_get_rooms(self.pointer, 
         FfiConverterSequenceString.lower(`roomIds`), $0
     )
 }
@@ -2952,7 +2974,7 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_SlidingSyncBuilder_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_SlidingSyncBuilder_object_free(pointer, $0) }
     }
 
     
@@ -2964,7 +2986,7 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
         return try  FfiConverterTypeSlidingSyncBuilder.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSyncBuilder_homeserver(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncBuilder_homeserver(self.pointer, 
         FfiConverterString.lower(`url`), $0
     )
 }
@@ -2975,7 +2997,7 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
         return try  FfiConverterTypeSlidingSync.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSyncBuilder_build(self.pointer, $0
+    matrix_sdk_ffi_be72_SlidingSyncBuilder_build(self.pointer, $0
     )
 }
         )
@@ -3173,7 +3195,7 @@ public class SlidingSyncList: SlidingSyncListProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_SlidingSyncList_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_SlidingSyncList_object_free(pointer, $0) }
     }
 
     
@@ -3186,7 +3208,7 @@ public class SlidingSyncList: SlidingSyncListProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_SlidingSyncList_observe_room_list(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncList_observe_room_list(self.pointer, 
         FfiConverterCallbackInterfaceSlidingSyncListRoomListObserver.lower(`observer`), $0
     )
 }
@@ -3198,7 +3220,7 @@ public class SlidingSyncList: SlidingSyncListProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_SlidingSyncList_observe_rooms_count(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncList_observe_rooms_count(self.pointer, 
         FfiConverterCallbackInterfaceSlidingSyncListRoomsCountObserver.lower(`observer`), $0
     )
 }
@@ -3210,7 +3232,7 @@ public class SlidingSyncList: SlidingSyncListProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_SlidingSyncList_observe_state(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncList_observe_state(self.pointer, 
         FfiConverterCallbackInterfaceSlidingSyncListStateObserver.lower(`observer`), $0
     )
 }
@@ -3373,12 +3395,12 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
     }
     public convenience init()  {
         self.init(unsafeFromRawPointer: try! rustCall() {
-    matrix_sdk_ffi_2a41_SlidingSyncListBuilder_new($0)
+    matrix_sdk_ffi_be72_SlidingSyncListBuilder_new($0)
 })
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_SlidingSyncListBuilder_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_SlidingSyncListBuilder_object_free(pointer, $0) }
     }
 
     
@@ -3391,7 +3413,7 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_SlidingSyncListBuilder_sync_mode(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncListBuilder_sync_mode(self.pointer, 
         FfiConverterTypeSlidingSyncMode.lower(`mode`), $0
     )
 }
@@ -3403,7 +3425,7 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
             try! 
     rustCall() {
     
-    matrix_sdk_ffi_2a41_SlidingSyncListBuilder_send_updates_for_items(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncListBuilder_send_updates_for_items(self.pointer, 
         FfiConverterBool.lower(`enable`), $0
     )
 }
@@ -3414,7 +3436,7 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
         return try  FfiConverterTypeSlidingSyncList.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSyncListBuilder_build(self.pointer, $0
+    matrix_sdk_ffi_be72_SlidingSyncListBuilder_build(self.pointer, $0
     )
 }
         )
@@ -3630,7 +3652,7 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_SlidingSyncRoom_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_SlidingSyncRoom_object_free(pointer, $0) }
     }
 
     
@@ -3642,7 +3664,7 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
         return try  FfiConverterTypeSlidingSyncSubscribeResult.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSyncRoom_subscribe_and_add_timeline_listener(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncRoom_subscribe_and_add_timeline_listener(self.pointer, 
         FfiConverterCallbackInterfaceTimelineListener.lower(`listener`), 
         FfiConverterOptionTypeRoomSubscription.lower(`settings`), $0
     )
@@ -3654,7 +3676,7 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
         return try  FfiConverterTypeSlidingSyncSubscribeResult.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    matrix_sdk_ffi_2a41_SlidingSyncRoom_add_timeline_listener(self.pointer, 
+    matrix_sdk_ffi_be72_SlidingSyncRoom_add_timeline_listener(self.pointer, 
         FfiConverterCallbackInterfaceTimelineListener.lower(`listener`), $0
     )
 }
@@ -3820,7 +3842,7 @@ public class TaskHandle: TaskHandleProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_TaskHandle_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_TaskHandle_object_free(pointer, $0) }
     }
 
     
@@ -3914,7 +3936,7 @@ public class TimelineDiff: TimelineDiffProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_TimelineDiff_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_TimelineDiff_object_free(pointer, $0) }
     }
 
     
@@ -4071,7 +4093,7 @@ public class TimelineItem: TimelineItemProtocol {
     }
 
     deinit {
-        try! rustCall { ffi_matrix_sdk_ffi_2a41_TimelineItem_object_free(pointer, $0) }
+        try! rustCall { ffi_matrix_sdk_ffi_be72_TimelineItem_object_free(pointer, $0) }
     }
 
     
@@ -7956,6 +7978,10 @@ fileprivate class UniFFICallbackHandleMap<T> {
 // Magic number for the Rust proxy to call using the same mechanism as every other method,
 // to free the callback once it's dropped by Rust.
 private let IDX_CALLBACK_FREE: Int32 = 0
+// Callback return codes
+private let UNIFFI_CALLBACK_SUCCESS: Int32 = 0
+private let UNIFFI_CALLBACK_ERROR: Int32 = 1
+private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 
 // Declaration and FfiConverters for ClientDelegate Callback Interface
 
@@ -7966,70 +7992,63 @@ public protocol ClientDelegate : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceClientDelegate : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeDidReceiveAuthError`(_ swiftCallbackInterface: ClientDelegate, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
-            var reader = createReader(data: Data(rustBuffer: args))
-            swiftCallbackInterface.`didReceiveAuthError`(
+    func `invokeDidReceiveAuthError`(_ swiftCallbackInterface: ClientDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didReceiveAuthError`(
                     `isSoftLogout`:  try FfiConverterBool.read(from: &reader)
                     )
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        
-
-        let cb: ClientDelegate
-        do {
-            cb = try FfiConverterCallbackInterfaceClientDelegate.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("ClientDelegate: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceClientDelegate.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeDidReceiveAuthError`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceClientDelegate.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: ClientDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceClientDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("ClientDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidReceiveAuthError`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceClientDelegate {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
+            ffi_matrix_sdk_ffi_be72_ClientDelegate_init_callback(foreignCallbackCallbackInterfaceClientDelegate, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
@@ -8085,160 +8104,178 @@ public protocol SessionVerificationControllerDelegate : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeDidAcceptVerificationRequest`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
-            swiftCallbackInterface.`didAcceptVerificationRequest`()
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
+    func `invokeDidAcceptVerificationRequest`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didAcceptVerificationRequest`(
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        func `invokeDidStartSasVerification`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
-            swiftCallbackInterface.`didStartSasVerification`()
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
+        return try makeCall()
+    }
 
+    func `invokeDidStartSasVerification`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didStartSasVerification`(
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        func `invokeDidReceiveVerificationData`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
+        return try makeCall()
+    }
 
-            var reader = createReader(data: Data(rustBuffer: args))
-            swiftCallbackInterface.`didReceiveVerificationData`(
+    func `invokeDidReceiveVerificationData`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didReceiveVerificationData`(
                     `data`:  try FfiConverterSequenceTypeSessionVerificationEmoji.read(from: &reader)
                     )
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        func `invokeDidFail`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
-            swiftCallbackInterface.`didFail`()
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
-        }
-        func `invokeDidCancel`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
-            swiftCallbackInterface.`didCancel`()
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
-        }
-        func `invokeDidFinish`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
-            swiftCallbackInterface.`didFinish`()
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
-        }
-        
-
-        let cb: SessionVerificationControllerDelegate
-        do {
-            cb = try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("SessionVerificationControllerDelegate: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeDidAcceptVerificationRequest`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            case 2:
-                do {
-                    out_buf.pointee = try `invokeDidStartSasVerification`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            case 3:
-                do {
-                    out_buf.pointee = try `invokeDidReceiveVerificationData`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            case 4:
-                do {
-                    out_buf.pointee = try `invokeDidFail`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            case 5:
-                do {
-                    out_buf.pointee = try `invokeDidCancel`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            case 6:
-                do {
-                    out_buf.pointee = try `invokeDidFinish`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+    func `invokeDidFail`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didFail`(
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+    func `invokeDidCancel`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didCancel`(
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+    func `invokeDidFinish`(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didFinish`(
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: SessionVerificationControllerDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SessionVerificationControllerDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidAcceptVerificationRequest`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 2:
+            let cb: SessionVerificationControllerDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SessionVerificationControllerDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidStartSasVerification`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 3:
+            let cb: SessionVerificationControllerDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SessionVerificationControllerDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidReceiveVerificationData`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 4:
+            let cb: SessionVerificationControllerDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SessionVerificationControllerDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidFail`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 5:
+            let cb: SessionVerificationControllerDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SessionVerificationControllerDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidCancel`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 6:
+            let cb: SessionVerificationControllerDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SessionVerificationControllerDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidFinish`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSessionVerificationControllerDelegate {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_SessionVerificationControllerDelegate_init_callback(foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate, err)
+            ffi_matrix_sdk_ffi_be72_SessionVerificationControllerDelegate_init_callback(foreignCallbackCallbackInterfaceSessionVerificationControllerDelegate, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
@@ -8289,66 +8326,61 @@ public protocol SlidingSyncListRoomItemsObserver : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceSlidingSyncListRoomItemsObserver : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListRoomItemsObserver, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
-            swiftCallbackInterface.`didReceiveUpdate`()
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
+    func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListRoomItemsObserver, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didReceiveUpdate`(
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        
-
-        let cb: SlidingSyncListRoomItemsObserver
-        do {
-            cb = try FfiConverterCallbackInterfaceSlidingSyncListRoomItemsObserver.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("SlidingSyncListRoomItemsObserver: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceSlidingSyncListRoomItemsObserver.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeDidReceiveUpdate`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSlidingSyncListRoomItemsObserver.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: SlidingSyncListRoomItemsObserver
+            do {
+                cb = try FfiConverterCallbackInterfaceSlidingSyncListRoomItemsObserver.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SlidingSyncListRoomItemsObserver: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidReceiveUpdate`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSlidingSyncListRoomItemsObserver {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_SlidingSyncListRoomItemsObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListRoomItemsObserver, err)
+            ffi_matrix_sdk_ffi_be72_SlidingSyncListRoomItemsObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListRoomItemsObserver, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
@@ -8399,70 +8431,63 @@ public protocol SlidingSyncListRoomListObserver : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceSlidingSyncListRoomListObserver : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListRoomListObserver, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
-            var reader = createReader(data: Data(rustBuffer: args))
-            swiftCallbackInterface.`didReceiveUpdate`(
+    func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListRoomListObserver, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didReceiveUpdate`(
                     `diff`:  try FfiConverterTypeSlidingSyncListRoomsListDiff.read(from: &reader)
                     )
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        
-
-        let cb: SlidingSyncListRoomListObserver
-        do {
-            cb = try FfiConverterCallbackInterfaceSlidingSyncListRoomListObserver.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("SlidingSyncListRoomListObserver: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceSlidingSyncListRoomListObserver.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeDidReceiveUpdate`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSlidingSyncListRoomListObserver.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: SlidingSyncListRoomListObserver
+            do {
+                cb = try FfiConverterCallbackInterfaceSlidingSyncListRoomListObserver.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SlidingSyncListRoomListObserver: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidReceiveUpdate`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSlidingSyncListRoomListObserver {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_SlidingSyncListRoomListObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListRoomListObserver, err)
+            ffi_matrix_sdk_ffi_be72_SlidingSyncListRoomListObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListRoomListObserver, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
@@ -8513,70 +8538,63 @@ public protocol SlidingSyncListRoomsCountObserver : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceSlidingSyncListRoomsCountObserver : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListRoomsCountObserver, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
-            var reader = createReader(data: Data(rustBuffer: args))
-            swiftCallbackInterface.`didReceiveUpdate`(
+    func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListRoomsCountObserver, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didReceiveUpdate`(
                     `count`:  try FfiConverterUInt32.read(from: &reader)
                     )
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        
-
-        let cb: SlidingSyncListRoomsCountObserver
-        do {
-            cb = try FfiConverterCallbackInterfaceSlidingSyncListRoomsCountObserver.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("SlidingSyncListRoomsCountObserver: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceSlidingSyncListRoomsCountObserver.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeDidReceiveUpdate`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSlidingSyncListRoomsCountObserver.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: SlidingSyncListRoomsCountObserver
+            do {
+                cb = try FfiConverterCallbackInterfaceSlidingSyncListRoomsCountObserver.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SlidingSyncListRoomsCountObserver: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidReceiveUpdate`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSlidingSyncListRoomsCountObserver {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_SlidingSyncListRoomsCountObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListRoomsCountObserver, err)
+            ffi_matrix_sdk_ffi_be72_SlidingSyncListRoomsCountObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListRoomsCountObserver, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
@@ -8627,70 +8645,63 @@ public protocol SlidingSyncListStateObserver : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceSlidingSyncListStateObserver : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListStateObserver, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
-            var reader = createReader(data: Data(rustBuffer: args))
-            swiftCallbackInterface.`didReceiveUpdate`(
+    func `invokeDidReceiveUpdate`(_ swiftCallbackInterface: SlidingSyncListStateObserver, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didReceiveUpdate`(
                     `newState`:  try FfiConverterTypeSlidingSyncState.read(from: &reader)
                     )
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        
-
-        let cb: SlidingSyncListStateObserver
-        do {
-            cb = try FfiConverterCallbackInterfaceSlidingSyncListStateObserver.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("SlidingSyncListStateObserver: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceSlidingSyncListStateObserver.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeDidReceiveUpdate`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSlidingSyncListStateObserver.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: SlidingSyncListStateObserver
+            do {
+                cb = try FfiConverterCallbackInterfaceSlidingSyncListStateObserver.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SlidingSyncListStateObserver: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidReceiveUpdate`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSlidingSyncListStateObserver {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_SlidingSyncListStateObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListStateObserver, err)
+            ffi_matrix_sdk_ffi_be72_SlidingSyncListStateObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncListStateObserver, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
@@ -8741,70 +8752,63 @@ public protocol SlidingSyncObserver : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceSlidingSyncObserver : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeDidReceiveSyncUpdate`(_ swiftCallbackInterface: SlidingSyncObserver, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
-            var reader = createReader(data: Data(rustBuffer: args))
-            swiftCallbackInterface.`didReceiveSyncUpdate`(
+    func `invokeDidReceiveSyncUpdate`(_ swiftCallbackInterface: SlidingSyncObserver, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didReceiveSyncUpdate`(
                     `summary`:  try FfiConverterTypeUpdateSummary.read(from: &reader)
                     )
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        
-
-        let cb: SlidingSyncObserver
-        do {
-            cb = try FfiConverterCallbackInterfaceSlidingSyncObserver.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("SlidingSyncObserver: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceSlidingSyncObserver.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeDidReceiveSyncUpdate`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSlidingSyncObserver.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: SlidingSyncObserver
+            do {
+                cb = try FfiConverterCallbackInterfaceSlidingSyncObserver.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SlidingSyncObserver: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidReceiveSyncUpdate`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSlidingSyncObserver {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_SlidingSyncObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncObserver, err)
+            ffi_matrix_sdk_ffi_be72_SlidingSyncObserver_init_callback(foreignCallbackCallbackInterfaceSlidingSyncObserver, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
@@ -8855,70 +8859,63 @@ public protocol TimelineListener : AnyObject {
 
 // The ForeignCallback that is passed to Rust.
 fileprivate let foreignCallbackCallbackInterfaceTimelineListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, args: RustBuffer, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-        func `invokeOnUpdate`(_ swiftCallbackInterface: TimelineListener, _ args: RustBuffer) throws -> RustBuffer {
-        defer { args.deallocate() }
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
 
-            var reader = createReader(data: Data(rustBuffer: args))
-            swiftCallbackInterface.`onUpdate`(
+    func `invokeOnUpdate`(_ swiftCallbackInterface: TimelineListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`onUpdate`(
                     `update`:  try FfiConverterTypeTimelineDiff.read(from: &reader)
                     )
-            return RustBuffer()
-                // TODO catch errors and report them back to Rust.
-                // https://github.com/mozilla/uniffi-rs/issues/351
-
+            return UNIFFI_CALLBACK_SUCCESS
         }
-        
-
-        let cb: TimelineListener
-        do {
-            cb = try FfiConverterCallbackInterfaceTimelineListener.lift(handle)
-        } catch {
-            out_buf.pointee = FfiConverterString.lower("TimelineListener: Invalid handle")
-            return -1
-        }
-
-        switch method {
-            case IDX_CALLBACK_FREE:
-                FfiConverterCallbackInterfaceTimelineListener.drop(handle: handle)
-                // No return value.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return 0
-            case 1:
-                do {
-                    out_buf.pointee = try `invokeOnUpdate`(cb, args)
-                    // Value written to out buffer.
-                    // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                    return 1
-                } catch let error {
-                    out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                    return -1
-                }
-            
-            // This should never happen, because an out of bounds method index won't
-            // ever be used. Once we can catch errors, we should return an InternalError.
-            // https://github.com/mozilla/uniffi-rs/issues/351
-            default:
-                // An unexpected error happened.
-                // See docs of ForeignCallback in `uniffi/src/ffi/foreigncallbacks.rs`
-                return -1
-        }
+        return try makeCall()
     }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceTimelineListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: TimelineListener
+            do {
+                cb = try FfiConverterCallbackInterfaceTimelineListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("TimelineListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeOnUpdate`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceTimelineListener {
-    // Initialize our callback method with the scaffolding code
-    private static var callbackInitialized = false
-    private static func initCallback() {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
         try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
-                ffi_matrix_sdk_ffi_2a41_TimelineListener_init_callback(foreignCallbackCallbackInterfaceTimelineListener, err)
+            ffi_matrix_sdk_ffi_be72_TimelineListener_init_callback(foreignCallbackCallbackInterfaceTimelineListener, err)
         }
-    }
+    }()
+
     private static func ensureCallbackinitialized() {
-        if !callbackInitialized {
-            initCallback()
-            callbackInitialized = true
-        }
+        _ = initCallbackOnce
     }
 
     static func drop(handle: UniFFICallbackHandle) {
