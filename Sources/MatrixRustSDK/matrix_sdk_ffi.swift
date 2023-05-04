@@ -552,7 +552,7 @@ public protocol ClientProtocol {
     func `displayName`()  throws -> String
     func `getDmRoom`(`userId`: String)  throws -> Room?
     func `getMediaContent`(`mediaSource`: MediaSource)  throws -> [UInt8]
-    func `getMediaFile`(`mediaSource`: MediaSource, `mimeType`: String)  throws -> MediaFileHandle
+    func `getMediaFile`(`mediaSource`: MediaSource, `body`: String?, `mimeType`: String)  throws -> MediaFileHandle
     func `getMediaThumbnail`(`mediaSource`: MediaSource, `width`: UInt64, `height`: UInt64)  throws -> [UInt8]
     func `getProfile`(`userId`: String)  throws -> UserProfile
     func `getSessionVerificationController`()  throws -> SessionVerificationController
@@ -679,12 +679,13 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func `getMediaFile`(`mediaSource`: MediaSource, `mimeType`: String) throws -> MediaFileHandle {
+    public func `getMediaFile`(`mediaSource`: MediaSource, `body`: String?, `mimeType`: String) throws -> MediaFileHandle {
         return try  FfiConverterTypeMediaFileHandle.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
     uniffi_matrix_sdk_ffi_fn_method_client_get_media_file(self.pointer, 
         FfiConverterTypeMediaSource.lower(`mediaSource`), 
+        FfiConverterOptionString.lower(`body`), 
         FfiConverterString.lower(`mimeType`), $0
     )
 }
@@ -2359,6 +2360,13 @@ public func FfiConverterTypeRoom_lower(_ value: Room) -> UnsafeMutableRawPointer
 
 public protocol RoomMemberProtocol {
     func `avatarUrl`()   -> String?
+    func `canBan`()   -> Bool
+    func `canInvite`()   -> Bool
+    func `canKick`()   -> Bool
+    func `canRedact`()   -> Bool
+    func `canSendMessage`(`event`: MessageLikeEventType)   -> Bool
+    func `canSendState`(`stateEvent`: StateEventType)   -> Bool
+    func `canTriggerRoomNotification`()   -> Bool
     func `displayName`()   -> String?
     func `ignore`()  throws
     func `isAccountUser`()   -> Bool
@@ -2397,6 +2405,85 @@ public class RoomMember: RoomMemberProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_roommember_avatar_url(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `canBan`()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_ban(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `canInvite`()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_invite(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `canKick`()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_kick(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `canRedact`()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `canSendMessage`(`event`: MessageLikeEventType)  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_message(self.pointer, 
+        FfiConverterTypeMessageLikeEventType.lower(`event`), $0
+    )
+}
+        )
+    }
+
+    public func `canSendState`(`stateEvent`: StateEventType)  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_state(self.pointer, 
+        FfiConverterTypeStateEventType.lower(`stateEvent`), $0
+    )
+}
+        )
+    }
+
+    public func `canTriggerRoomNotification`()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_trigger_room_notification(self.pointer, $0
     )
 }
         )
@@ -7150,6 +7237,155 @@ public func FfiConverterTypeMessageLikeEventContent_lower(_ value: MessageLikeEv
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum MessageLikeEventType {
+    
+    case `callAnswer`
+    case `callInvite`
+    case `callHangup`
+    case `callCandidates`
+    case `keyVerificationReady`
+    case `keyVerificationStart`
+    case `keyVerificationCancel`
+    case `keyVerificationAccept`
+    case `keyVerificationKey`
+    case `keyVerificationMac`
+    case `keyVerificationDone`
+    case `reactionSent`
+    case `roomEncrypted`
+    case `roomMessage`
+    case `roomRedaction`
+    case `sticker`
+}
+
+public struct FfiConverterTypeMessageLikeEventType: FfiConverterRustBuffer {
+    typealias SwiftType = MessageLikeEventType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MessageLikeEventType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`callAnswer`
+        
+        case 2: return .`callInvite`
+        
+        case 3: return .`callHangup`
+        
+        case 4: return .`callCandidates`
+        
+        case 5: return .`keyVerificationReady`
+        
+        case 6: return .`keyVerificationStart`
+        
+        case 7: return .`keyVerificationCancel`
+        
+        case 8: return .`keyVerificationAccept`
+        
+        case 9: return .`keyVerificationKey`
+        
+        case 10: return .`keyVerificationMac`
+        
+        case 11: return .`keyVerificationDone`
+        
+        case 12: return .`reactionSent`
+        
+        case 13: return .`roomEncrypted`
+        
+        case 14: return .`roomMessage`
+        
+        case 15: return .`roomRedaction`
+        
+        case 16: return .`sticker`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MessageLikeEventType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`callAnswer`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .`callInvite`:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .`callHangup`:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .`callCandidates`:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .`keyVerificationReady`:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .`keyVerificationStart`:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .`keyVerificationCancel`:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .`keyVerificationAccept`:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .`keyVerificationKey`:
+            writeInt(&buf, Int32(9))
+        
+        
+        case .`keyVerificationMac`:
+            writeInt(&buf, Int32(10))
+        
+        
+        case .`keyVerificationDone`:
+            writeInt(&buf, Int32(11))
+        
+        
+        case .`reactionSent`:
+            writeInt(&buf, Int32(12))
+        
+        
+        case .`roomEncrypted`:
+            writeInt(&buf, Int32(13))
+        
+        
+        case .`roomMessage`:
+            writeInt(&buf, Int32(14))
+        
+        
+        case .`roomRedaction`:
+            writeInt(&buf, Int32(15))
+        
+        
+        case .`sticker`:
+            writeInt(&buf, Int32(16))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeMessageLikeEventType_lift(_ buf: RustBuffer) throws -> MessageLikeEventType {
+    return try FfiConverterTypeMessageLikeEventType.lift(buf)
+}
+
+public func FfiConverterTypeMessageLikeEventType_lower(_ value: MessageLikeEventType) -> RustBuffer {
+    return FfiConverterTypeMessageLikeEventType.lower(value)
+}
+
+
+extension MessageLikeEventType: Equatable, Hashable {}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum MessageType {
     
     case `emote`(`content`: EmoteMessageContent)
@@ -8372,6 +8608,190 @@ public func FfiConverterTypeStateEventContent_lower(_ value: StateEventContent) 
 
 
 extension StateEventContent: Equatable, Hashable {}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum StateEventType {
+    
+    case `policyRuleRoom`
+    case `policyRuleServer`
+    case `policyRuleUser`
+    case `roomAliases`
+    case `roomAvatar`
+    case `roomCanonicalAlias`
+    case `roomCreate`
+    case `roomEncryption`
+    case `roomGuestAccess`
+    case `roomHistoryVisibility`
+    case `roomJoinRules`
+    case `roomMemberEvent`
+    case `roomName`
+    case `roomPinnedEvents`
+    case `roomPowerLevels`
+    case `roomServerAcl`
+    case `roomThirdPartyInvite`
+    case `roomTombstone`
+    case `roomTopic`
+    case `spaceChild`
+    case `spaceParent`
+}
+
+public struct FfiConverterTypeStateEventType: FfiConverterRustBuffer {
+    typealias SwiftType = StateEventType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StateEventType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`policyRuleRoom`
+        
+        case 2: return .`policyRuleServer`
+        
+        case 3: return .`policyRuleUser`
+        
+        case 4: return .`roomAliases`
+        
+        case 5: return .`roomAvatar`
+        
+        case 6: return .`roomCanonicalAlias`
+        
+        case 7: return .`roomCreate`
+        
+        case 8: return .`roomEncryption`
+        
+        case 9: return .`roomGuestAccess`
+        
+        case 10: return .`roomHistoryVisibility`
+        
+        case 11: return .`roomJoinRules`
+        
+        case 12: return .`roomMemberEvent`
+        
+        case 13: return .`roomName`
+        
+        case 14: return .`roomPinnedEvents`
+        
+        case 15: return .`roomPowerLevels`
+        
+        case 16: return .`roomServerAcl`
+        
+        case 17: return .`roomThirdPartyInvite`
+        
+        case 18: return .`roomTombstone`
+        
+        case 19: return .`roomTopic`
+        
+        case 20: return .`spaceChild`
+        
+        case 21: return .`spaceParent`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: StateEventType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`policyRuleRoom`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .`policyRuleServer`:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .`policyRuleUser`:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .`roomAliases`:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .`roomAvatar`:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .`roomCanonicalAlias`:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .`roomCreate`:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .`roomEncryption`:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .`roomGuestAccess`:
+            writeInt(&buf, Int32(9))
+        
+        
+        case .`roomHistoryVisibility`:
+            writeInt(&buf, Int32(10))
+        
+        
+        case .`roomJoinRules`:
+            writeInt(&buf, Int32(11))
+        
+        
+        case .`roomMemberEvent`:
+            writeInt(&buf, Int32(12))
+        
+        
+        case .`roomName`:
+            writeInt(&buf, Int32(13))
+        
+        
+        case .`roomPinnedEvents`:
+            writeInt(&buf, Int32(14))
+        
+        
+        case .`roomPowerLevels`:
+            writeInt(&buf, Int32(15))
+        
+        
+        case .`roomServerAcl`:
+            writeInt(&buf, Int32(16))
+        
+        
+        case .`roomThirdPartyInvite`:
+            writeInt(&buf, Int32(17))
+        
+        
+        case .`roomTombstone`:
+            writeInt(&buf, Int32(18))
+        
+        
+        case .`roomTopic`:
+            writeInt(&buf, Int32(19))
+        
+        
+        case .`spaceChild`:
+            writeInt(&buf, Int32(20))
+        
+        
+        case .`spaceParent`:
+            writeInt(&buf, Int32(21))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeStateEventType_lift(_ buf: RustBuffer) throws -> StateEventType {
+    return try FfiConverterTypeStateEventType.lift(buf)
+}
+
+public func FfiConverterTypeStateEventType_lower(_ value: StateEventType) -> RustBuffer {
+    return FfiConverterTypeStateEventType.lower(value)
+}
+
+
+extension StateEventType: Equatable, Hashable {}
 
 
 // Note that we don't yet support `indirect` for enums.
@@ -11365,10 +11785,10 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 62033) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 48299) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 48238) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 12545) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 35040) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 53941) {
@@ -11377,661 +11797,682 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 13500) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 58974) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_id() != 25195) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_homeserver_details() != 43410) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_type() != 27167) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 26097) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_sender_id() != 25201) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_restore_with_access_token() != 1534) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 3671) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 56663) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 37308) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 6123) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_ban() != 33458) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 23839) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_invite() != 27576) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationservice_get_notification_item() != 31719) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_kick() != 3852) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_id() != 20444) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact() != 19326) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_type() != 53387) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_message() != 6558) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_sender_id() != 9141) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_state() != 23998) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 30335) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_trigger_room_notification() != 15452) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 9148) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_display_name() != 40871) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_display_name() != 28367) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_ignore() != 20664) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_ignore() != 65160) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_account_user() != 36936) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_account_user() != 37767) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_ignored() != 32613) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_ignored() != 46154) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_name_ambiguous() != 58257) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_name_ambiguous() != 65246) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_membership() != 27982) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_membership() != 56240) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_normalized_power_level() != 17587) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_normalized_power_level() != 49076) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_power_level() != 3849) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_power_level() != 17042) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_unignore() != 56421) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_unignore() != 27497) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_user_id() != 60084) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_user_id() != 19498) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_event() != 53516) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_event() != 54601) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_virtual() != 16627) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_virtual() != 48088) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_fmt_debug() != 61241) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_fmt_debug() != 25731) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_append() != 49675) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_append() != 9309) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_change() != 29896) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_change() != 10923) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_insert() != 24692) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_insert() != 11211) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_back() != 13831) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_back() != 65106) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_front() != 21268) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_front() != 36057) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_remove() != 29556) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_remove() != 13408) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_reset() != 51144) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_reset() != 12141) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_set() != 879) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_set() != 13000) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_url() != 8330) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_url() != 8449) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_description() != 33857) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_description() != 55458) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_symbol() != 18234) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_symbol() != 1848) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 39753) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 55707) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_homeserver_details() != 34256) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 37807) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 51598) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 44227) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_restore_with_access_token() != 36575) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_passphrase() != 29446) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 7444) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 48161) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 44437) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_versions() != 6823) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 27083) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sliding_sync_proxy() != 1781) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_passphrase() != 864) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 33771) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 62997) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 12278) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_versions() != 12312) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_add_range() != 20133) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sliding_sync_proxy() != 56243) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_batch_size() != 9547) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 60344) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_build() != 63116) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 3669) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_filters() != 35637) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationservice_get_notification_item() != 154) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_name() != 39683) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_add_range() != 52420) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_filters() != 6872) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_batch_size() != 18730) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_room_limit() != 59526) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_build() != 43655) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_timeline_limit() != 15644) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_filters() != 29583) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_required_state() != 51406) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_name() != 41532) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_reset_ranges() != 10145) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_filters() != 29534) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_room_limit() != 47804) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_room_limit() != 41973) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sort() != 12857) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_timeline_limit() != 21616) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode() != 4902) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_required_state() != 43471) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_timeline_limit() != 61217) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_reset_ranges() != 31691) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 34519) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_room_limit() != 23246) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 49401) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sort() != 50198) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_cached_avatar_url() != 62128) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode() != 11241) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_create_room() != 25936) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_timeline_limit() != 28972) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_device_id() != 62851) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 35904) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_display_name() != 45305) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 16758) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 36259) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 36602) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 23208) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 35305) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 17715) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 10684) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 58625) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_cached_avatar_url() != 52464) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 5007) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_create_room() != 3428) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 5903) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_device_id() != 11266) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver() != 509) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_display_name() != 60379) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 22941) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 5600) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 21664) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 27030) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 20090) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 48356) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 43776) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 56583) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_rooms() != 21717) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 43206) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_search_users() != 19919) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 6860) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_session() != 17573) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver() != 64174) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_account_data() != 17203) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 3305) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_delegate() != 25090) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 3527) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_display_name() != 4306) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 51260) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_notification_delegate() != 5055) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 4065) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 7650) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_rooms() != 47471) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_sliding_sync() != 26034) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_search_users() != 46706) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 39701) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_session() != 56234) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 50967) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_account_data() != 6499) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 7418) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_delegate() != 2687) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_content() != 25399) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_display_name() != 64497) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_debug_info() != 31486) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_notification_delegate() != 21033) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_event_id() != 57306) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 46648) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_editable() != 593) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_sliding_sync() != 26936) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_local() != 47845) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 735) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_own() != 18359) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 62456) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_remote() != 17688) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 26690) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_local_send_state() != 49067) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_content() != 48593) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_reactions() != 26217) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_debug_info() != 24252) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender() != 46892) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_event_id() != 31946) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender_profile() != 39117) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_editable() != 29058) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_timestamp() != 481) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_local() != 64224) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_unique_identifier() != 60062) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_own() != 42462) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_authentication_issuer() != 29919) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_remote() != 38329) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 6028) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_local_send_state() != 19154) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 40398) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_reactions() != 21306) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 57070) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender() != 1665) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_body() != 2560) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender_profile() != 21623) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_in_reply_to() != 43725) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_timestamp() != 40228) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_is_edited() != 3402) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_unique_identifier() != 18285) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 12992) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_authentication_issuer() != 37548) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_accept_invitation() != 64131) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 25425) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 54950) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 40876) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 25219) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 34298) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 38267) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_body() != 36716) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 15084) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_in_reply_to() != 25801) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 38354) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_is_edited() != 20497) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 53443) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 52820) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_event_details() != 49039) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_accept_invitation() != 1594) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members() != 22527) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 28483) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 27132) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 41766) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 62999) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 52388) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 3703) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 17770) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_invite_user_by_id() != 2033) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 48839) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 46881) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 64955) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_encrypted() != 1012) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_event_details() != 11671) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_public() != 22937) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members() != 28806) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_space() != 8495) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 12308) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_tombstoned() != 55887) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 7010) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 7871) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 9854) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 65348) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_invite_user_by_id() != 62895) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 15408) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 53633) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 27612) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_encrypted() != 5068) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 71) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_public() != 42254) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_name() != 58791) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_space() != 8388) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_paginate_backwards() != 8404) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_tombstoned() != 8174) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 45435) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 32484) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_reject_invitation() != 5576) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 28201) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 37869) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 62963) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_timeline() != 13720) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 26534) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 47176) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 41512) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_retry_decryption() != 17014) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_name() != 51510) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 62710) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_paginate_backwards() != 54167) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 40907) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 53363) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_file() != 53647) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_reject_invitation() != 63670) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 44095) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 30371) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reaction() != 13880) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_timeline() != 7024) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_marker() != 11680) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 45879) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_receipt() != 40576) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_retry_decryption() != 17743) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 12796) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 60271) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 34544) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 44590) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 24336) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_file() != 18466) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 23413) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 8885) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 14298) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reaction() != 21324) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 59797) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_marker() != 47462) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 31413) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_receipt() != 16822) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 31145) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 28386) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 949) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 33883) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 46089) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 9114) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 23581) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 55526) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 14568) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 17140) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_common_extensions() != 27218) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 46152) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 26352) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 8903) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_list() != 8590) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 29945) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_room() != 59010) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 35678) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_rooms() != 7384) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 3645) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_pop_list() != 21626) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 52241) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_reset_lists() != 27778) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 22085) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 4499) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_common_extensions() != 62767) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe() != 2188) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 58480) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_sync() != 20057) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_list() != 6339) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe() != 8942) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_room() != 60249) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_list() != 58534) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_rooms() != 19799) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_build() != 7436) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_pop_list() != 12290) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_bump_event_types() != 20571) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_reset_lists() != 53833) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_homeserver() != 59228) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 53265) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_storage_key() != 36139) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe() != 52937) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_account_data_extension() != 45694) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_sync() != 20224) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_e2ee_extension() != 54565) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe() != 61859) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_receipt_extension() != 26095) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_list() != 63769) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_to_device_extension() != 20059) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_build() != 65391) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_typing_extension() != 17847) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_bump_event_types() != 65312) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_all_extensions() != 14265) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_homeserver() != 62399) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_common_extensions() != 60110) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_storage_key() != 49501) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_add_range() != 63123) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_account_data_extension() != 2317) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_count() != 33155) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_e2ee_extension() != 52211) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_list() != 47412) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_receipt_extension() != 25777) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_get_timeline_limit() != 17420) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_to_device_extension() != 17246) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_rooms_count() != 30663) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_typing_extension() != 43128) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_room_list() != 20774) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_all_extensions() != 40377) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_state() != 53217) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_common_extensions() != 65139) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_reset_ranges() != 25554) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_add_range() != 57863) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_range() != 35057) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_count() != 28445) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_timeline_limit() != 62648) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_list() != 28978) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_unset_timeline_limit() != 52394) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_get_timeline_limit() != 6712) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_add_timeline_listener() != 40206) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_rooms_count() != 62225) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_avatar_url() != 59967) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_room_list() != 12987) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_full_room() != 44236) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_state() != 12538) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_has_unread_notifications() != 48727) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_reset_ranges() != 46679) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_dm() != 44161) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_range() != 48586) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_initial() != 52236) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_timeline_limit() != 43302) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_loading_more() != 14011) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_unset_timeline_limit() != 15719) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_latest_room_message() != 45747) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_add_timeline_listener() != 31138) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_name() != 60393) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_avatar_url() != 47248) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_room_id() != 38152) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_full_room() != 32352) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_and_add_timeline_listener() != 14967) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_has_unread_notifications() != 35130) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unread_notifications() != 17651) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_dm() != 38395) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 59047) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_initial() != 63464) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 3905) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_loading_more() != 14088) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_as_message() != 7699) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_latest_room_message() != 23437) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_kind() != 47015) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_name() != 24035) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 38874) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_room_id() != 37051) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 30763) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_and_add_timeline_listener() != 30415) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 10233) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unread_notifications() != 44389) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 33036) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 3024) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 34516) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 56466) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 16750) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_as_message() != 21743) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_notificationservice_new() != 1860) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_kind() != 61737) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 44719) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 17684) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_slidingsynclistbuilder_new() != 6831) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 15002) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 52564) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 51213) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 54066) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_notificationservice_new() != 12706) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_slidingsynclistbuilder_new() != 54590) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 63785) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 43592) {
         return CheckVersionResult.apiChecksumMismatch
     }
     return CheckVersionResult.ok
