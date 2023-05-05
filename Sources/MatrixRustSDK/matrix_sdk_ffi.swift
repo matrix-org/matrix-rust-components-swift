@@ -554,6 +554,7 @@ public protocol ClientProtocol {
     func `getMediaContent`(`mediaSource`: MediaSource)  throws -> [UInt8]
     func `getMediaFile`(`mediaSource`: MediaSource, `body`: String?, `mimeType`: String)  throws -> MediaFileHandle
     func `getMediaThumbnail`(`mediaSource`: MediaSource, `width`: UInt64, `height`: UInt64)  throws -> [UInt8]
+    func `getNotificationItem`(`roomId`: String, `eventId`: String)  throws -> NotificationItem
     func `getProfile`(`userId`: String)  throws -> UserProfile
     func `getSessionVerificationController`()  throws -> SessionVerificationController
     func `homeserver`()   -> String
@@ -700,6 +701,18 @@ public class Client: ClientProtocol {
         FfiConverterTypeMediaSource.lower(`mediaSource`), 
         FfiConverterUInt64.lower(`width`), 
         FfiConverterUInt64.lower(`height`), $0
+    )
+}
+        )
+    }
+
+    public func `getNotificationItem`(`roomId`: String, `eventId`: String) throws -> NotificationItem {
+        return try  FfiConverterTypeNotificationItem.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    uniffi_matrix_sdk_ffi_fn_method_client_get_notification_item(self.pointer, 
+        FfiConverterString.lower(`roomId`), 
+        FfiConverterString.lower(`eventId`), $0
     )
 }
         )
@@ -1726,94 +1739,9 @@ public func FfiConverterTypeMessage_lower(_ value: Message) -> UnsafeMutableRawP
 }
 
 
-public protocol NotificationServiceProtocol {
-    func `getNotificationItem`(`roomId`: String, `eventId`: String)  throws -> NotificationItem?
-    
-}
-
-public class NotificationService: NotificationServiceProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
-
-    // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `FfiConverter` without making this `required` and we can't
-    // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
-    }
-    public convenience init(`basePath`: String, `userId`: String)  {
-        self.init(unsafeFromRawPointer: try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_constructor_notificationservice_new(
-        FfiConverterString.lower(`basePath`), 
-        FfiConverterString.lower(`userId`), $0)
-})
-    }
-
-    deinit {
-        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationservice(pointer, $0) }
-    }
-
-    
-
-    
-    
-
-    public func `getNotificationItem`(`roomId`: String, `eventId`: String) throws -> NotificationItem? {
-        return try  FfiConverterOptionTypeNotificationItem.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.self) {
-    uniffi_matrix_sdk_ffi_fn_method_notificationservice_get_notification_item(self.pointer, 
-        FfiConverterString.lower(`roomId`), 
-        FfiConverterString.lower(`eventId`), $0
-    )
-}
-        )
-    }
-}
-
-
-
-public struct FfiConverterTypeNotificationService: FfiConverter {
-    typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = NotificationService
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationService {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
-    }
-
-    public static func write(_ value: NotificationService, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
-    }
-
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationService {
-        return NotificationService(unsafeFromRawPointer: pointer)
-    }
-
-    public static func lower(_ value: NotificationService) -> UnsafeMutableRawPointer {
-        return value.pointer
-    }
-}
-
-
-public func FfiConverterTypeNotificationService_lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationService {
-    return try FfiConverterTypeNotificationService.lift(pointer)
-}
-
-public func FfiConverterTypeNotificationService_lower(_ value: NotificationService) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeNotificationService.lower(value)
-}
-
-
 public protocol RoomProtocol {
     func `acceptInvitation`()  throws
+    func `activeMembersCount`()   -> UInt64
     func `addTimelineListener`(`listener`: TimelineListener)   -> [TimelineItem]
     func `alternativeAliases`()   -> [String]
     func `avatarUrl`()   -> String?
@@ -1884,6 +1812,17 @@ public class Room: RoomProtocol {
     uniffi_matrix_sdk_ffi_fn_method_room_accept_invitation(self.pointer, $0
     )
 }
+    }
+
+    public func `activeMembersCount`()  -> UInt64 {
+        return try!  FfiConverterUInt64.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_active_members_count(self.pointer, $0
+    )
+}
+        )
     }
 
     public func `addTimelineListener`(`listener`: TimelineListener)  -> [TimelineItem] {
@@ -3527,9 +3466,8 @@ public func FfiConverterTypeSlidingSyncList_lower(_ value: SlidingSyncList) -> U
 public protocol SlidingSyncListBuilderProtocol {
     func `addRange`(`from`: UInt32, `to`: UInt32)   -> SlidingSyncListBuilder
     func `batchSize`(`batchSize`: UInt32)   -> SlidingSyncListBuilder
-    func `build`()  throws -> SlidingSyncList
+    func `build`()   -> SlidingSyncList
     func `filters`(`filters`: SlidingSyncRequestListFilters)   -> SlidingSyncListBuilder
-    func `name`(`name`: String)   -> SlidingSyncListBuilder
     func `noFilters`()   -> SlidingSyncListBuilder
     func `noRoomLimit`()   -> SlidingSyncListBuilder
     func `noTimelineLimit`()   -> SlidingSyncListBuilder
@@ -3551,9 +3489,10 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
-    public convenience init()  {
+    public convenience init(`name`: String)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_constructor_slidingsynclistbuilder_new($0)
+    uniffi_matrix_sdk_ffi_fn_constructor_slidingsynclistbuilder_new(
+        FfiConverterString.lower(`name`), $0)
 })
     }
 
@@ -3591,10 +3530,11 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
         )
     }
 
-    public func `build`() throws -> SlidingSyncList {
-        return try  FfiConverterTypeSlidingSyncList.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.self) {
+    public func `build`()  -> SlidingSyncList {
+        return try!  FfiConverterTypeSlidingSyncList.lift(
+            try! 
+    rustCall() {
+    
     uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_build(self.pointer, $0
     )
 }
@@ -3608,18 +3548,6 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_filters(self.pointer, 
         FfiConverterTypeSlidingSyncRequestListFilters.lower(`filters`), $0
-    )
-}
-        )
-    }
-
-    public func `name`(`name`: String)  -> SlidingSyncListBuilder {
-        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_name(self.pointer, 
-        FfiConverterString.lower(`name`), $0
     )
 }
         )
@@ -9393,7 +9321,6 @@ public enum SlidingSyncError {
     
     
     case BadResponse(`msg`: String)
-    case BuildMissingField(`msg`: String)
     case RequestGeneratorHasNotBeenInitialized(`msg`: String)
     case CannotModifyRanges(`msg`: String)
     case InvalidRange(`start`: UInt32, `end`: UInt32)
@@ -9413,20 +9340,17 @@ public struct FfiConverterTypeSlidingSyncError: FfiConverterRustBuffer {
         case 1: return .BadResponse(
             `msg`: try FfiConverterString.read(from: &buf)
             )
-        case 2: return .BuildMissingField(
+        case 2: return .RequestGeneratorHasNotBeenInitialized(
             `msg`: try FfiConverterString.read(from: &buf)
             )
-        case 3: return .RequestGeneratorHasNotBeenInitialized(
+        case 3: return .CannotModifyRanges(
             `msg`: try FfiConverterString.read(from: &buf)
             )
-        case 4: return .CannotModifyRanges(
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-        case 5: return .InvalidRange(
+        case 4: return .InvalidRange(
             `start`: try FfiConverterUInt32.read(from: &buf), 
             `end`: try FfiConverterUInt32.read(from: &buf)
             )
-        case 6: return .Unknown(
+        case 5: return .Unknown(
             `error`: try FfiConverterString.read(from: &buf)
             )
 
@@ -9446,29 +9370,24 @@ public struct FfiConverterTypeSlidingSyncError: FfiConverterRustBuffer {
             FfiConverterString.write(`msg`, into: &buf)
             
         
-        case let .BuildMissingField(`msg`):
+        case let .RequestGeneratorHasNotBeenInitialized(`msg`):
             writeInt(&buf, Int32(2))
             FfiConverterString.write(`msg`, into: &buf)
             
         
-        case let .RequestGeneratorHasNotBeenInitialized(`msg`):
+        case let .CannotModifyRanges(`msg`):
             writeInt(&buf, Int32(3))
             FfiConverterString.write(`msg`, into: &buf)
             
         
-        case let .CannotModifyRanges(`msg`):
-            writeInt(&buf, Int32(4))
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        
         case let .InvalidRange(`start`,`end`):
-            writeInt(&buf, Int32(5))
+            writeInt(&buf, Int32(4))
             FfiConverterUInt32.write(`start`, into: &buf)
             FfiConverterUInt32.write(`end`, into: &buf)
             
         
         case let .Unknown(`error`):
-            writeInt(&buf, Int32(6))
+            writeInt(&buf, Int32(5))
             FfiConverterString.write(`error`, into: &buf)
             
         }
@@ -11103,27 +11022,6 @@ fileprivate struct FfiConverterOptionTypeInsertData: FfiConverterRustBuffer {
     }
 }
 
-fileprivate struct FfiConverterOptionTypeNotificationItem: FfiConverterRustBuffer {
-    typealias SwiftType = NotificationItem?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeNotificationItem.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeNotificationItem.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 fileprivate struct FfiConverterOptionTypeRoomSubscription: FfiConverterRustBuffer {
     typealias SwiftType = RoomSubscription?
 
@@ -11944,22 +11842,16 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 3669) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationservice_get_notification_item() != 154) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_add_range() != 52420) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_batch_size() != 18730) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_build() != 43655) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_build() != 39230) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_filters() != 29583) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_name() != 41532) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_filters() != 29534) {
@@ -12026,6 +11918,9 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 56583) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_item() != 21870) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 43206) {
@@ -12149,6 +12044,9 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_accept_invitation() != 1594) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 26328) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 28483) {
@@ -12463,10 +12361,7 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 54066) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_notificationservice_new() != 12706) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_slidingsynclistbuilder_new() != 54590) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_slidingsynclistbuilder_new() != 14792) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 63785) {
