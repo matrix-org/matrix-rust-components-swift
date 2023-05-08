@@ -2867,12 +2867,10 @@ public func FfiConverterTypeSessionVerificationEmoji_lower(_ value: SessionVerif
 
 public protocol SlidingSyncProtocol {
     func `addCommonExtensions`()  
-    func `addList`(`list`: SlidingSyncList)   -> SlidingSyncList?
-    func `getList`(`name`: String)   -> SlidingSyncList?
+    func `addList`(`listBuilder`: SlidingSyncListBuilder)  
     func `getRoom`(`roomId`: String)  throws -> SlidingSyncRoom?
     func `getRooms`(`roomIds`: [String])  throws -> [SlidingSyncRoom?]
-    func `popList`(`name`: String)   -> SlidingSyncList?
-    func `resetLists`()  
+    func `resetLists`()  throws
     func `setObserver`(`observer`: SlidingSyncObserver?)  
     func `subscribe`(`roomId`: String, `settings`: RoomSubscription?)  throws
     func `sync`()   -> TaskHandle
@@ -2908,28 +2906,14 @@ public class SlidingSync: SlidingSyncProtocol {
 }
     }
 
-    public func `addList`(`list`: SlidingSyncList)  -> SlidingSyncList? {
-        return try!  FfiConverterOptionTypeSlidingSyncList.lift(
-            try! 
+    public func `addList`(`listBuilder`: SlidingSyncListBuilder)  {
+        try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsync_add_list(self.pointer, 
-        FfiConverterTypeSlidingSyncList.lower(`list`), $0
+        FfiConverterTypeSlidingSyncListBuilder.lower(`listBuilder`), $0
     )
 }
-        )
-    }
-
-    public func `getList`(`name`: String)  -> SlidingSyncList? {
-        return try!  FfiConverterOptionTypeSlidingSyncList.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsync_get_list(self.pointer, 
-        FfiConverterString.lower(`name`), $0
-    )
-}
-        )
     }
 
     public func `getRoom`(`roomId`: String) throws -> SlidingSyncRoom? {
@@ -2954,22 +2938,9 @@ public class SlidingSync: SlidingSyncProtocol {
         )
     }
 
-    public func `popList`(`name`: String)  -> SlidingSyncList? {
-        return try!  FfiConverterOptionTypeSlidingSyncList.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsync_pop_list(self.pointer, 
-        FfiConverterString.lower(`name`), $0
-    )
-}
-        )
-    }
-
-    public func `resetLists`()  {
-        try! 
-    rustCall() {
-    
+    public func `resetLists`() throws {
+        try 
+    rustCallWithError(FfiConverterTypeSlidingSyncError.self) {
     uniffi_matrix_sdk_ffi_fn_method_slidingsync_reset_lists(self.pointer, $0
     )
 }
@@ -3059,7 +3030,7 @@ public func FfiConverterTypeSlidingSync_lower(_ value: SlidingSync) -> UnsafeMut
 
 
 public protocol SlidingSyncBuilderProtocol {
-    func `addList`(`v`: SlidingSyncList)   -> SlidingSyncBuilder
+    func `addList`(`listBuilder`: SlidingSyncListBuilder)   -> SlidingSyncBuilder
     func `build`()  throws -> SlidingSync
     func `bumpEventTypes`(`bumpEventTypes`: [String])   -> SlidingSyncBuilder
     func `homeserver`(`url`: String)  throws -> SlidingSyncBuilder
@@ -3093,13 +3064,13 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
     
     
 
-    public func `addList`(`v`: SlidingSyncList)  -> SlidingSyncBuilder {
+    public func `addList`(`listBuilder`: SlidingSyncListBuilder)  -> SlidingSyncBuilder {
         return try!  FfiConverterTypeSlidingSyncBuilder.lift(
             try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_add_list(self.pointer, 
-        FfiConverterTypeSlidingSyncList.lower(`v`), $0
+        FfiConverterTypeSlidingSyncListBuilder.lower(`listBuilder`), $0
     )
 }
         )
@@ -3466,11 +3437,11 @@ public func FfiConverterTypeSlidingSyncList_lower(_ value: SlidingSyncList) -> U
 public protocol SlidingSyncListBuilderProtocol {
     func `addRange`(`from`: UInt32, `to`: UInt32)   -> SlidingSyncListBuilder
     func `batchSize`(`batchSize`: UInt32)   -> SlidingSyncListBuilder
-    func `build`()   -> SlidingSyncList
     func `filters`(`filters`: SlidingSyncRequestListFilters)   -> SlidingSyncListBuilder
     func `noFilters`()   -> SlidingSyncListBuilder
     func `noRoomLimit`()   -> SlidingSyncListBuilder
     func `noTimelineLimit`()   -> SlidingSyncListBuilder
+    func `onceBuilt`(`callback`: SlidingSyncListOnceBuilt)   -> SlidingSyncListBuilder
     func `requiredState`(`requiredState`: [RequiredState])   -> SlidingSyncListBuilder
     func `resetRanges`()   -> SlidingSyncListBuilder
     func `roomLimit`(`limit`: UInt32)   -> SlidingSyncListBuilder
@@ -3530,17 +3501,6 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
         )
     }
 
-    public func `build`()  -> SlidingSyncList {
-        return try!  FfiConverterTypeSlidingSyncList.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_build(self.pointer, $0
-    )
-}
-        )
-    }
-
     public func `filters`(`filters`: SlidingSyncRequestListFilters)  -> SlidingSyncListBuilder {
         return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
             try! 
@@ -3581,6 +3541,18 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_no_timeline_limit(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `onceBuilt`(`callback`: SlidingSyncListOnceBuilt)  -> SlidingSyncListBuilder {
+        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_once_built(self.pointer, 
+        FfiConverterCallbackInterfaceSlidingSyncListOnceBuilt.lower(`callback`), $0
     )
 }
         )
@@ -9321,9 +9293,11 @@ public enum SlidingSyncError {
     
     
     case BadResponse(`msg`: String)
+    case BuildMissingField(`msg`: String)
     case RequestGeneratorHasNotBeenInitialized(`msg`: String)
     case CannotModifyRanges(`msg`: String)
     case InvalidRange(`start`: UInt32, `end`: UInt32)
+    case InternalChannelIsBroken
     case Unknown(`error`: String)
 }
 
@@ -9340,17 +9314,21 @@ public struct FfiConverterTypeSlidingSyncError: FfiConverterRustBuffer {
         case 1: return .BadResponse(
             `msg`: try FfiConverterString.read(from: &buf)
             )
-        case 2: return .RequestGeneratorHasNotBeenInitialized(
+        case 2: return .BuildMissingField(
             `msg`: try FfiConverterString.read(from: &buf)
             )
-        case 3: return .CannotModifyRanges(
+        case 3: return .RequestGeneratorHasNotBeenInitialized(
             `msg`: try FfiConverterString.read(from: &buf)
             )
-        case 4: return .InvalidRange(
+        case 4: return .CannotModifyRanges(
+            `msg`: try FfiConverterString.read(from: &buf)
+            )
+        case 5: return .InvalidRange(
             `start`: try FfiConverterUInt32.read(from: &buf), 
             `end`: try FfiConverterUInt32.read(from: &buf)
             )
-        case 5: return .Unknown(
+        case 6: return .InternalChannelIsBroken
+        case 7: return .Unknown(
             `error`: try FfiConverterString.read(from: &buf)
             )
 
@@ -9370,24 +9348,33 @@ public struct FfiConverterTypeSlidingSyncError: FfiConverterRustBuffer {
             FfiConverterString.write(`msg`, into: &buf)
             
         
-        case let .RequestGeneratorHasNotBeenInitialized(`msg`):
+        case let .BuildMissingField(`msg`):
             writeInt(&buf, Int32(2))
             FfiConverterString.write(`msg`, into: &buf)
             
         
-        case let .CannotModifyRanges(`msg`):
+        case let .RequestGeneratorHasNotBeenInitialized(`msg`):
             writeInt(&buf, Int32(3))
             FfiConverterString.write(`msg`, into: &buf)
             
         
-        case let .InvalidRange(`start`,`end`):
+        case let .CannotModifyRanges(`msg`):
             writeInt(&buf, Int32(4))
+            FfiConverterString.write(`msg`, into: &buf)
+            
+        
+        case let .InvalidRange(`start`,`end`):
+            writeInt(&buf, Int32(5))
             FfiConverterUInt32.write(`start`, into: &buf)
             FfiConverterUInt32.write(`end`, into: &buf)
             
         
+        case .InternalChannelIsBroken:
+            writeInt(&buf, Int32(6))
+        
+        
         case let .Unknown(`error`):
-            writeInt(&buf, Int32(5))
+            writeInt(&buf, Int32(7))
             FfiConverterString.write(`error`, into: &buf)
             
         }
@@ -9934,6 +9921,116 @@ fileprivate struct FfiConverterCallbackInterfaceSessionVerificationControllerDel
 
 extension FfiConverterCallbackInterfaceSessionVerificationControllerDelegate : FfiConverter {
     typealias SwiftType = SessionVerificationControllerDelegate
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+// Declaration and FfiConverters for SlidingSyncListOnceBuilt Callback Interface
+
+public protocol SlidingSyncListOnceBuilt : AnyObject {
+    func `updateList`(`list`: SlidingSyncList)  -> SlidingSyncList
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceSlidingSyncListOnceBuilt : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func `invokeUpdateList`(_ swiftCallbackInterface: SlidingSyncListOnceBuilt, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            let result = try swiftCallbackInterface.`updateList`(
+                    `list`:  try FfiConverterTypeSlidingSyncList.read(from: &reader)
+                    )
+            var writer = [UInt8]()
+            FfiConverterTypeSlidingSyncList.write(result, into: &writer)
+            out_buf.pointee = RustBuffer(bytes: writer)
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceSlidingSyncListOnceBuilt.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: SlidingSyncListOnceBuilt
+            do {
+                cb = try FfiConverterCallbackInterfaceSlidingSyncListOnceBuilt.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("SlidingSyncListOnceBuilt: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeUpdateList`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceSlidingSyncListOnceBuilt {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_slidingsynclistoncebuilt(foreignCallbackCallbackInterfaceSlidingSyncListOnceBuilt, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<SlidingSyncListOnceBuilt>()
+}
+
+extension FfiConverterCallbackInterfaceSlidingSyncListOnceBuilt : FfiConverter {
+    typealias SwiftType = SlidingSyncListOnceBuilt
     // We can use Handle as the FfiType because it's a typealias to UInt64
     typealias FfiType = UniFFICallbackHandle
 
@@ -10833,27 +10930,6 @@ fileprivate struct FfiConverterOptionTypeRoomMember: FfiConverterRustBuffer {
     }
 }
 
-fileprivate struct FfiConverterOptionTypeSlidingSyncList: FfiConverterRustBuffer {
-    typealias SwiftType = SlidingSyncList?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeSlidingSyncList.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeSlidingSyncList.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 fileprivate struct FfiConverterOptionTypeSlidingSyncRoom: FfiConverterRustBuffer {
     typealias SwiftType = SlidingSyncRoom?
 
@@ -11707,6 +11783,39 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 3671) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_add_range() != 57863) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_count() != 28445) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_list() != 28978) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_get_timeline_limit() != 6712) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_rooms_count() != 62225) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_room_list() != 12987) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_state() != 12538) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_reset_ranges() != 46679) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_range() != 48586) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_timeline_limit() != 43302) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_unset_timeline_limit() != 15719) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 37308) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -11848,9 +11957,6 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_batch_size() != 18730) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_build() != 39230) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_filters() != 29583) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -11861,6 +11967,9 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_timeline_limit() != 21616) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_once_built() != 52827) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_required_state() != 43471) {
@@ -12199,10 +12308,7 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_common_extensions() != 62767) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 58480) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_list() != 6339) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 22753) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_room() != 60249) {
@@ -12211,10 +12317,7 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_rooms() != 19799) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_pop_list() != 12290) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_reset_lists() != 53833) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_reset_lists() != 54195) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 53265) {
@@ -12229,7 +12332,7 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe() != 61859) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_list() != 63769) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_list() != 61859) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_build() != 65391) {
@@ -12263,39 +12366,6 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_common_extensions() != 65139) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_add_range() != 57863) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_count() != 28445) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_list() != 28978) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_get_timeline_limit() != 6712) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_rooms_count() != 62225) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_room_list() != 12987) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_state() != 12538) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_reset_ranges() != 46679) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_range() != 48586) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_timeline_limit() != 43302) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_unset_timeline_limit() != 15719) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_add_timeline_listener() != 31138) {
