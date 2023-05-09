@@ -1752,6 +1752,7 @@ public protocol RoomProtocol {
     func `fetchMembers`()  
     func `id`()   -> String
     func `ignoreUser`(`userId`: String)  throws
+    func `invitedMembersCount`()   -> UInt64
     func `inviter`()   -> RoomMember?
     func `inviteUserById`(`userId`: String)  throws
     func `isDirect`()   -> Bool
@@ -1759,6 +1760,7 @@ public protocol RoomProtocol {
     func `isPublic`()   -> Bool
     func `isSpace`()   -> Bool
     func `isTombstoned`()   -> Bool
+    func `joinedMembersCount`()   -> UInt64
     func `leave`()  throws
     func `members`()  throws -> [RoomMember]
     func `membership`()   -> Membership
@@ -1929,6 +1931,17 @@ public class Room: RoomProtocol {
 }
     }
 
+    public func `invitedMembersCount`()  -> UInt64 {
+        return try!  FfiConverterUInt64.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_invited_members_count(self.pointer, $0
+    )
+}
+        )
+    }
+
     public func `inviter`()  -> RoomMember? {
         return try!  FfiConverterOptionTypeRoomMember.lift(
             try! 
@@ -1998,6 +2011,17 @@ public class Room: RoomProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_room_is_tombstoned(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `joinedMembersCount`()  -> UInt64 {
+        return try!  FfiConverterUInt64.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_joined_members_count(self.pointer, $0
     )
 }
         )
@@ -12188,6 +12212,9 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 7010) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_invited_members_count() != 52986) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 9854) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -12207,6 +12234,9 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_is_tombstoned() != 8174) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_joined_members_count() != 29103) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 32484) {
