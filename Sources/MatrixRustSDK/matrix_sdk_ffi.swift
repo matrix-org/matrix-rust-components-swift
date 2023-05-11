@@ -544,7 +544,6 @@ public func FfiConverterTypeAuthenticationService_lower(_ value: AuthenticationS
 
 
 public protocol ClientProtocol {
-    func `slidingSync`()   -> SlidingSyncBuilder
     func `accountData`(`eventType`: String)  throws -> String?
     func `avatarUrl`()  throws -> String?
     func `cachedAvatarUrl`()  throws -> String?
@@ -571,6 +570,7 @@ public protocol ClientProtocol {
     func `setDisplayName`(`name`: String)  throws
     func `setNotificationDelegate`(`notificationDelegate`: NotificationDelegate?)  
     func `setPusher`(`identifiers`: PusherIdentifiers, `kind`: PusherKind, `appDisplayName`: String, `deviceDisplayName`: String, `profileTag`: String?, `lang`: String)  throws
+    func `slidingSync`()   -> SlidingSyncBuilder
     func `unignoreUser`(`userId`: String)  throws
     func `uploadMedia`(`mimeType`: String, `data`: [UInt8])  throws -> String
     func `userId`()  throws -> String
@@ -595,17 +595,6 @@ public class Client: ClientProtocol {
 
     
     
-
-    public func `slidingSync`()  -> SlidingSyncBuilder {
-        return try!  FfiConverterTypeSlidingSyncBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_client_sliding_sync(self.pointer, $0
-    )
-}
-        )
-    }
 
     public func `accountData`(`eventType`: String) throws -> String? {
         return try  FfiConverterOptionString.lift(
@@ -883,6 +872,17 @@ public class Client: ClientProtocol {
         FfiConverterString.lower(`lang`), $0
     )
 }
+    }
+
+    public func `slidingSync`()  -> SlidingSyncBuilder {
+        return try!  FfiConverterTypeSlidingSyncBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_client_sliding_sync(self.pointer, $0
+    )
+}
+        )
     }
 
     public func `unignoreUser`(`userId`: String) throws {
@@ -5521,11 +5521,11 @@ public struct NotificationItem {
     public var `roomCanonicalAlias`: String?
     public var `isNoisy`: Bool
     public var `isDirect`: Bool
-    public var `isEncrypted`: Bool
+    public var `isEncrypted`: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`event`: TimelineEvent, `roomId`: String, `senderDisplayName`: String?, `senderAvatarUrl`: String?, `roomDisplayName`: String, `roomAvatarUrl`: String?, `roomCanonicalAlias`: String?, `isNoisy`: Bool, `isDirect`: Bool, `isEncrypted`: Bool) {
+    public init(`event`: TimelineEvent, `roomId`: String, `senderDisplayName`: String?, `senderAvatarUrl`: String?, `roomDisplayName`: String, `roomAvatarUrl`: String?, `roomCanonicalAlias`: String?, `isNoisy`: Bool, `isDirect`: Bool, `isEncrypted`: Bool?) {
         self.`event` = `event`
         self.`roomId` = `roomId`
         self.`senderDisplayName` = `senderDisplayName`
@@ -5553,7 +5553,7 @@ public struct FfiConverterTypeNotificationItem: FfiConverterRustBuffer {
             `roomCanonicalAlias`: FfiConverterOptionString.read(from: &buf), 
             `isNoisy`: FfiConverterBool.read(from: &buf), 
             `isDirect`: FfiConverterBool.read(from: &buf), 
-            `isEncrypted`: FfiConverterBool.read(from: &buf)
+            `isEncrypted`: FfiConverterOptionBool.read(from: &buf)
         )
     }
 
@@ -5567,7 +5567,7 @@ public struct FfiConverterTypeNotificationItem: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.`roomCanonicalAlias`, into: &buf)
         FfiConverterBool.write(value.`isNoisy`, into: &buf)
         FfiConverterBool.write(value.`isDirect`, into: &buf)
-        FfiConverterBool.write(value.`isEncrypted`, into: &buf)
+        FfiConverterOptionBool.write(value.`isEncrypted`, into: &buf)
     }
 }
 
@@ -11786,23 +11786,23 @@ fileprivate struct FfiConverterDictionaryStringTypeReceipt: FfiConverterRustBuff
     }
 }
 
-public func `setupOtlpTracing`(`filter`: String, `clientName`: String, `user`: String, `password`: String, `otlpEndpoint`: String)  {
-    try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_setup_otlp_tracing(
-        FfiConverterString.lower(`filter`), 
-        FfiConverterString.lower(`clientName`), 
-        FfiConverterString.lower(`user`), 
-        FfiConverterString.lower(`password`), 
-        FfiConverterString.lower(`otlpEndpoint`), $0)
+public func `genTransactionId`()  -> String {
+    return try!  FfiConverterString.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_gen_transaction_id($0)
 }
+    )
 }
 
-
-
-public func `setupTracing`(`filter`: String)  {
+public func `logEvent`(`file`: String, `line`: UInt32, `column`: UInt32, `level`: LogLevel, `target`: String, `message`: String)  {
     try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_setup_tracing(
-        FfiConverterString.lower(`filter`), $0)
+    uniffi_matrix_sdk_ffi_fn_func_log_event(
+        FfiConverterString.lower(`file`), 
+        FfiConverterUInt32.lower(`line`), 
+        FfiConverterUInt32.lower(`column`), 
+        FfiConverterTypeLogLevel.lower(`level`), 
+        FfiConverterString.lower(`target`), 
+        FfiConverterString.lower(`message`), $0)
 }
 }
 
@@ -11826,23 +11826,23 @@ public func `messageEventContentFromMarkdown`(`md`: String)  -> RoomMessageEvent
     )
 }
 
-public func `genTransactionId`()  -> String {
-    return try!  FfiConverterString.lift(
-        try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_gen_transaction_id($0)
+public func `setupOtlpTracing`(`filter`: String, `clientName`: String, `user`: String, `password`: String, `otlpEndpoint`: String)  {
+    try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_setup_otlp_tracing(
+        FfiConverterString.lower(`filter`), 
+        FfiConverterString.lower(`clientName`), 
+        FfiConverterString.lower(`user`), 
+        FfiConverterString.lower(`password`), 
+        FfiConverterString.lower(`otlpEndpoint`), $0)
 }
-    )
 }
 
-public func `logEvent`(`file`: String, `line`: UInt32, `column`: UInt32, `level`: LogLevel, `target`: String, `message`: String)  {
+
+
+public func `setupTracing`(`filter`: String)  {
     try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_log_event(
-        FfiConverterString.lower(`file`), 
-        FfiConverterUInt32.lower(`line`), 
-        FfiConverterUInt32.lower(`column`), 
-        FfiConverterTypeLogLevel.lower(`level`), 
-        FfiConverterString.lower(`target`), 
-        FfiConverterString.lower(`message`), $0)
+    uniffi_matrix_sdk_ffi_fn_func_setup_tracing(
+        FfiConverterString.lower(`filter`), $0)
 }
 }
 
@@ -11863,10 +11863,10 @@ private var checkVersionResult: CheckVersionResult {
     if bindings_contract_version != scaffolding_contract_version {
         return CheckVersionResult.contractVersionMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 53941) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 65533) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 13500) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 62033) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 48238) {
@@ -11875,10 +11875,10 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 35040) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 65533) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 53941) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 62033) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 13500) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_id() != 25195) {
@@ -12022,6 +12022,18 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_symbol() != 18234) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 39753) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_homeserver_details() != 34256) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 51598) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_restore_with_access_token() != 36575) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 7444) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -12088,121 +12100,13 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_timeline_limit() != 28972) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_common_extensions() != 62767) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 35904) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 22753) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 16758) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_room() != 60249) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_rooms() != 19799) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_reset_lists() != 54195) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 53265) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe() != 52937) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_sync() != 20224) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe() != 61859) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_list() != 61859) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_build() != 65391) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_bump_event_types() != 65312) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_homeserver() != 62399) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_storage_key() != 49501) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_account_data_extension() != 2317) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_e2ee_extension() != 52211) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_receipt_extension() != 25777) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_to_device_extension() != 17246) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_typing_extension() != 43128) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_all_extensions() != 40377) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_common_extensions() != 65139) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_add_timeline_listener() != 31138) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_avatar_url() != 47248) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_full_room() != 32352) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_has_unread_notifications() != 35130) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_dm() != 38395) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_initial() != 63464) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_loading_more() != 14088) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_latest_room_message() != 23437) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_name() != 24035) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_room_id() != 37051) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_and_add_timeline_listener() != 30415) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unread_notifications() != 44389) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 3024) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 56466) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 17684) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 15002) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 52564) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_sliding_sync() != 26936) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 36602) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 35305) {
@@ -12283,6 +12187,9 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 46648) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_sliding_sync() != 26936) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 735) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -12334,6 +12241,18 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_unique_identifier() != 18285) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_authentication_issuer() != 37548) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 25425) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 40876) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 34298) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_message_body() != 36716) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -12344,36 +12263,6 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 52820) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_as_message() != 21743) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_kind() != 61737) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 34298) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 46152) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 8903) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 29945) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 35678) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 3645) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 52241) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 22085) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_accept_invitation() != 1594) {
@@ -12514,34 +12403,148 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 17140) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 35904) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 46152) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 16758) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 8903) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 36602) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 29945) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 39753) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 35678) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_homeserver_details() != 34256) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 3645) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 51598) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 52241) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_restore_with_access_token() != 36575) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 22085) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_authentication_issuer() != 37548) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_common_extensions() != 62767) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 25425) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 22753) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 40876) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_room() != 60249) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_rooms() != 19799) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_reset_lists() != 54195) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 53265) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe() != 52937) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_sync() != 20224) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe() != 61859) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_list() != 61859) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_build() != 65391) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_bump_event_types() != 65312) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_homeserver() != 62399) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_storage_key() != 49501) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_account_data_extension() != 2317) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_e2ee_extension() != 52211) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_receipt_extension() != 25777) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_to_device_extension() != 17246) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_typing_extension() != 43128) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_all_extensions() != 40377) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_common_extensions() != 65139) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_add_timeline_listener() != 31138) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_avatar_url() != 47248) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_full_room() != 32352) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_has_unread_notifications() != 35130) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_dm() != 38395) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_initial() != 63464) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_loading_more() != 14088) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_latest_room_message() != 23437) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_name() != 24035) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_room_id() != 37051) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_and_add_timeline_listener() != 30415) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unread_notifications() != 44389) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 3024) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 56466) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_as_message() != 21743) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_kind() != 61737) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 17684) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 15002) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 52564) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 51213) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 54066) {
@@ -12554,9 +12557,6 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 43592) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 51213) {
         return CheckVersionResult.apiChecksumMismatch
     }
     return CheckVersionResult.ok
