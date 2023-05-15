@@ -1560,6 +1560,7 @@ public func FfiConverterTypeMediaFileHandle_lower(_ value: MediaFileHandle) -> U
 
 
 public protocol MediaSourceProtocol {
+    func `toJson`()   -> String
     func `url`()   -> String
     
 }
@@ -1580,8 +1581,28 @@ public class MediaSource: MediaSourceProtocol {
 
     
 
+    public static func `fromJson`(`json`: String) throws -> MediaSource {
+        return MediaSource(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeClientError.self) {
+    uniffi_matrix_sdk_ffi_fn_constructor_mediasource_from_json(
+        FfiConverterString.lower(`json`), $0)
+})
+    }
+
+    
+
     
     
+
+    public func `toJson`()  -> String {
+        return try!  FfiConverterString.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_mediasource_to_json(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func `url`()  -> String {
         return try!  FfiConverterString.lift(
@@ -1774,6 +1795,7 @@ public protocol RoomProtocol {
     func `isTombstoned`()   -> Bool
     func `joinedMembersCount`()   -> UInt64
     func `leave`()  throws
+    func `member`(`userId`: String)  throws -> RoomMember
     func `members`()  throws -> [RoomMember]
     func `membership`()   -> Membership
     func `memberAvatarUrl`(`userId`: String)  throws -> String?
@@ -2045,6 +2067,17 @@ public class Room: RoomProtocol {
     uniffi_matrix_sdk_ffi_fn_method_room_leave(self.pointer, $0
     )
 }
+    }
+
+    public func `member`(`userId`: String) throws -> RoomMember {
+        return try  FfiConverterTypeRoomMember.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    uniffi_matrix_sdk_ffi_fn_method_room_member(self.pointer, 
+        FfiConverterString.lower(`userId`), $0
+    )
+}
+        )
     }
 
     public func `members`() throws -> [RoomMember] {
@@ -3471,7 +3504,7 @@ public func FfiConverterTypeSlidingSyncList_lower(_ value: SlidingSyncList) -> U
 
 
 public protocol SlidingSyncListBuilderProtocol {
-    func `addRange`(`from`: UInt32, `to`: UInt32)   -> SlidingSyncListBuilder
+    func `addRange`(`from`: UInt32, `toIncluded`: UInt32)   -> SlidingSyncListBuilder
     func `batchSize`(`batchSize`: UInt32)   -> SlidingSyncListBuilder
     func `filters`(`filters`: SlidingSyncRequestListFilters)   -> SlidingSyncListBuilder
     func `noFilters`()   -> SlidingSyncListBuilder
@@ -3512,14 +3545,14 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
     
     
 
-    public func `addRange`(`from`: UInt32, `to`: UInt32)  -> SlidingSyncListBuilder {
+    public func `addRange`(`from`: UInt32, `toIncluded`: UInt32)  -> SlidingSyncListBuilder {
         return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
             try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_add_range(self.pointer, 
         FfiConverterUInt32.lower(`from`), 
-        FfiConverterUInt32.lower(`to`), $0
+        FfiConverterUInt32.lower(`toIncluded`), $0
     )
 }
         )
@@ -3715,7 +3748,6 @@ public protocol SlidingSyncRoomProtocol {
     func `hasUnreadNotifications`()   -> Bool
     func `isDm`()   -> Bool?
     func `isInitial`()   -> Bool?
-    func `isLoadingMore`()   -> Bool
     func `latestRoomMessage`()   -> EventTimelineItem?
     func `name`()   -> String?
     func `roomId`()   -> String
@@ -3804,17 +3836,6 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_is_initial(self.pointer, $0
-    )
-}
-        )
-    }
-
-    public func `isLoadingMore`()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_is_loading_more(self.pointer, $0
     )
 }
         )
@@ -11826,6 +11847,14 @@ public func `messageEventContentFromMarkdown`(`md`: String)  -> RoomMessageEvent
     )
 }
 
+public func `sdkGitSha`()  -> String {
+    return try!  FfiConverterString.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_sdk_git_sha($0)
+}
+    )
+}
+
 public func `setupOtlpTracing`(`filter`: String, `clientName`: String, `user`: String, `password`: String, `otlpEndpoint`: String)  {
     try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_setup_otlp_tracing(
@@ -11873,6 +11902,9 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 35040) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 11183) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 53941) {
@@ -12013,6 +12045,9 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_set() != 879) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_to_json() != 44584) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_url() != 8330) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -12061,7 +12096,7 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 3669) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_add_range() != 52420) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_add_range() != 31001) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_batch_size() != 18730) {
@@ -12331,6 +12366,9 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 32484) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 63311) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 28201) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -12505,9 +12543,6 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_initial() != 63464) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_loading_more() != 14088) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_latest_room_message() != 23437) {
         return CheckVersionResult.apiChecksumMismatch
     }
@@ -12542,6 +12577,9 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 52564) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 36478) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 51213) {
