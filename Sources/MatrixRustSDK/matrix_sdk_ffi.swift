@@ -2935,15 +2935,16 @@ public func FfiConverterTypeSessionVerificationEmoji_lower(_ value: SessionVerif
 
 
 public protocol SlidingSyncProtocol {
+    func `addCachedList`(`listBuilder`: SlidingSyncListBuilder)  throws -> SlidingSyncList?
     func `addCommonExtensions`()  
-    func `addList`(`listBuilder`: SlidingSyncListBuilder)  
+    func `addList`(`listBuilder`: SlidingSyncListBuilder)   -> TaskHandle
     func `getRoom`(`roomId`: String)  throws -> SlidingSyncRoom?
     func `getRooms`(`roomIds`: [String])  throws -> [SlidingSyncRoom?]
     func `resetLists`()  throws
     func `setObserver`(`observer`: SlidingSyncObserver?)  
-    func `subscribe`(`roomId`: String, `settings`: RoomSubscription?)  throws
+    func `subscribeToRoom`(`roomId`: String, `settings`: RoomSubscription?)  throws -> TaskHandle
     func `sync`()   -> TaskHandle
-    func `unsubscribe`(`roomId`: String)  throws
+    func `unsubscribeFromRoom`(`roomId`: String)  throws -> TaskHandle
     
 }
 
@@ -2966,6 +2967,17 @@ public class SlidingSync: SlidingSyncProtocol {
     
     
 
+    public func `addCachedList`(`listBuilder`: SlidingSyncListBuilder) throws -> SlidingSyncList? {
+        return try  FfiConverterOptionTypeSlidingSyncList.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    uniffi_matrix_sdk_ffi_fn_method_slidingsync_add_cached_list(self.pointer, 
+        FfiConverterTypeSlidingSyncListBuilder.lower(`listBuilder`), $0
+    )
+}
+        )
+    }
+
     public func `addCommonExtensions`()  {
         try! 
     rustCall() {
@@ -2975,14 +2987,16 @@ public class SlidingSync: SlidingSyncProtocol {
 }
     }
 
-    public func `addList`(`listBuilder`: SlidingSyncListBuilder)  {
-        try! 
+    public func `addList`(`listBuilder`: SlidingSyncListBuilder)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsync_add_list(self.pointer, 
         FfiConverterTypeSlidingSyncListBuilder.lower(`listBuilder`), $0
     )
 }
+        )
     }
 
     public func `getRoom`(`roomId`: String) throws -> SlidingSyncRoom? {
@@ -3025,14 +3039,16 @@ public class SlidingSync: SlidingSyncProtocol {
 }
     }
 
-    public func `subscribe`(`roomId`: String, `settings`: RoomSubscription?) throws {
-        try 
+    public func `subscribeToRoom`(`roomId`: String, `settings`: RoomSubscription?) throws -> TaskHandle {
+        return try  FfiConverterTypeTaskHandle.lift(
+            try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsync_subscribe(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_slidingsync_subscribe_to_room(self.pointer, 
         FfiConverterString.lower(`roomId`), 
         FfiConverterOptionTypeRoomSubscription.lower(`settings`), $0
     )
 }
+        )
     }
 
     public func `sync`()  -> TaskHandle {
@@ -3046,13 +3062,15 @@ public class SlidingSync: SlidingSyncProtocol {
         )
     }
 
-    public func `unsubscribe`(`roomId`: String) throws {
-        try 
+    public func `unsubscribeFromRoom`(`roomId`: String) throws -> TaskHandle {
+        return try  FfiConverterTypeTaskHandle.lift(
+            try 
     rustCallWithError(FfiConverterTypeClientError.self) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsync_unsubscribe(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_slidingsync_unsubscribe_from_room(self.pointer, 
         FfiConverterString.lower(`roomId`), $0
     )
 }
+        )
     }
 }
 
@@ -3099,6 +3117,7 @@ public func FfiConverterTypeSlidingSync_lower(_ value: SlidingSync) -> UnsafeMut
 
 
 public protocol SlidingSyncBuilderProtocol {
+    func `addCachedList`(`listBuilder`: SlidingSyncListBuilder)  throws -> SlidingSyncBuilder
     func `addList`(`listBuilder`: SlidingSyncListBuilder)   -> SlidingSyncBuilder
     func `build`()  throws -> SlidingSync
     func `bumpEventTypes`(`bumpEventTypes`: [String])   -> SlidingSyncBuilder
@@ -3132,6 +3151,17 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
 
     
     
+
+    public func `addCachedList`(`listBuilder`: SlidingSyncListBuilder) throws -> SlidingSyncBuilder {
+        return try  FfiConverterTypeSlidingSyncBuilder.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_add_cached_list(self.pointer, 
+        FfiConverterTypeSlidingSyncListBuilder.lower(`listBuilder`), $0
+    )
+}
+        )
+    }
 
     public func `addList`(`listBuilder`: SlidingSyncListBuilder)  -> SlidingSyncBuilder {
         return try!  FfiConverterTypeSlidingSyncBuilder.lift(
@@ -3742,7 +3772,7 @@ public func FfiConverterTypeSlidingSyncListBuilder_lower(_ value: SlidingSyncLis
 
 
 public protocol SlidingSyncRoomProtocol {
-    func `addTimelineListener`(`listener`: TimelineListener)  throws -> SlidingSyncSubscribeResult
+    func `addTimelineListener`(`listener`: TimelineListener)  throws -> SlidingSyncAddTimelineListenerResult
     func `avatarUrl`()   -> String?
     func `fullRoom`()   -> Room?
     func `hasUnreadNotifications`()   -> Bool
@@ -3751,8 +3781,9 @@ public protocol SlidingSyncRoomProtocol {
     func `latestRoomMessage`()   -> EventTimelineItem?
     func `name`()   -> String?
     func `roomId`()   -> String
-    func `subscribeAndAddTimelineListener`(`listener`: TimelineListener, `settings`: RoomSubscription?)  throws -> SlidingSyncSubscribeResult
+    func `subscribeToRoom`(`settings`: RoomSubscription?)   -> TaskHandle
     func `unreadNotifications`()   -> UnreadNotificationsCount
+    func `unsubscribeFromRoom`()   -> TaskHandle
     
 }
 
@@ -3775,8 +3806,8 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
     
     
 
-    public func `addTimelineListener`(`listener`: TimelineListener) throws -> SlidingSyncSubscribeResult {
-        return try  FfiConverterTypeSlidingSyncSubscribeResult.lift(
+    public func `addTimelineListener`(`listener`: TimelineListener) throws -> SlidingSyncAddTimelineListenerResult {
+        return try  FfiConverterTypeSlidingSyncAddTimelineListenerResult.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.self) {
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_add_timeline_listener(self.pointer, 
@@ -3874,12 +3905,12 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
         )
     }
 
-    public func `subscribeAndAddTimelineListener`(`listener`: TimelineListener, `settings`: RoomSubscription?) throws -> SlidingSyncSubscribeResult {
-        return try  FfiConverterTypeSlidingSyncSubscribeResult.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.self) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_subscribe_and_add_timeline_listener(self.pointer, 
-        FfiConverterCallbackInterfaceTimelineListener.lower(`listener`), 
+    public func `subscribeToRoom`(`settings`: RoomSubscription?)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_subscribe_to_room(self.pointer, 
         FfiConverterOptionTypeRoomSubscription.lower(`settings`), $0
     )
 }
@@ -3892,6 +3923,17 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_unread_notifications(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `unsubscribeFromRoom`()  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_unsubscribe_from_room(self.pointer, $0
     )
 }
         )
@@ -6049,6 +6091,44 @@ public func FfiConverterTypeSetData_lower(_ value: SetData) -> RustBuffer {
 }
 
 
+public struct SlidingSyncAddTimelineListenerResult {
+    public var `items`: [TimelineItem]
+    public var `taskHandle`: TaskHandle
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`items`: [TimelineItem], `taskHandle`: TaskHandle) {
+        self.`items` = `items`
+        self.`taskHandle` = `taskHandle`
+    }
+}
+
+
+
+public struct FfiConverterTypeSlidingSyncAddTimelineListenerResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SlidingSyncAddTimelineListenerResult {
+        return try SlidingSyncAddTimelineListenerResult(
+            `items`: FfiConverterSequenceTypeTimelineItem.read(from: &buf), 
+            `taskHandle`: FfiConverterTypeTaskHandle.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SlidingSyncAddTimelineListenerResult, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeTimelineItem.write(value.`items`, into: &buf)
+        FfiConverterTypeTaskHandle.write(value.`taskHandle`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeSlidingSyncAddTimelineListenerResult_lift(_ buf: RustBuffer) throws -> SlidingSyncAddTimelineListenerResult {
+    return try FfiConverterTypeSlidingSyncAddTimelineListenerResult.lift(buf)
+}
+
+public func FfiConverterTypeSlidingSyncAddTimelineListenerResult_lower(_ value: SlidingSyncAddTimelineListenerResult) -> RustBuffer {
+    return FfiConverterTypeSlidingSyncAddTimelineListenerResult.lower(value)
+}
+
+
 public struct SlidingSyncRequestListFilters {
     public var `isDm`: Bool?
     public var `spaces`: [String]
@@ -6165,44 +6245,6 @@ public func FfiConverterTypeSlidingSyncRequestListFilters_lift(_ buf: RustBuffer
 
 public func FfiConverterTypeSlidingSyncRequestListFilters_lower(_ value: SlidingSyncRequestListFilters) -> RustBuffer {
     return FfiConverterTypeSlidingSyncRequestListFilters.lower(value)
-}
-
-
-public struct SlidingSyncSubscribeResult {
-    public var `items`: [TimelineItem]
-    public var `taskHandle`: TaskHandle
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(`items`: [TimelineItem], `taskHandle`: TaskHandle) {
-        self.`items` = `items`
-        self.`taskHandle` = `taskHandle`
-    }
-}
-
-
-
-public struct FfiConverterTypeSlidingSyncSubscribeResult: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SlidingSyncSubscribeResult {
-        return try SlidingSyncSubscribeResult(
-            `items`: FfiConverterSequenceTypeTimelineItem.read(from: &buf), 
-            `taskHandle`: FfiConverterTypeTaskHandle.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: SlidingSyncSubscribeResult, into buf: inout [UInt8]) {
-        FfiConverterSequenceTypeTimelineItem.write(value.`items`, into: &buf)
-        FfiConverterTypeTaskHandle.write(value.`taskHandle`, into: &buf)
-    }
-}
-
-
-public func FfiConverterTypeSlidingSyncSubscribeResult_lift(_ buf: RustBuffer) throws -> SlidingSyncSubscribeResult {
-    return try FfiConverterTypeSlidingSyncSubscribeResult.lift(buf)
-}
-
-public func FfiConverterTypeSlidingSyncSubscribeResult_lower(_ value: SlidingSyncSubscribeResult) -> RustBuffer {
-    return FfiConverterTypeSlidingSyncSubscribeResult.lower(value)
 }
 
 
@@ -6621,7 +6663,7 @@ extension EncryptedMessage: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum EventSendState {
     
-    case `notSendYet`
+    case `notSentYet`
     case `sendingFailed`(`error`: String)
     case `sent`(`eventId`: String)
 }
@@ -6633,7 +6675,7 @@ public struct FfiConverterTypeEventSendState: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .`notSendYet`
+        case 1: return .`notSentYet`
         
         case 2: return .`sendingFailed`(
             `error`: try FfiConverterString.read(from: &buf)
@@ -6651,7 +6693,7 @@ public struct FfiConverterTypeEventSendState: FfiConverterRustBuffer {
         switch value {
         
         
-        case .`notSendYet`:
+        case .`notSentYet`:
             writeInt(&buf, Int32(1))
         
         
@@ -11038,6 +11080,27 @@ fileprivate struct FfiConverterOptionTypeRoomMember: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeSlidingSyncList: FfiConverterRustBuffer {
+    typealias SwiftType = SlidingSyncList?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeSlidingSyncList.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeSlidingSyncList.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeSlidingSyncRoom: FfiConverterRustBuffer {
     typealias SwiftType = SlidingSyncRoom?
 
@@ -12462,10 +12525,13 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 22085) {
         return CheckVersionResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_cached_list() != 57064) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_common_extensions() != 62767) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 22753) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 41315) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_room() != 60249) {
@@ -12480,13 +12546,16 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 53265) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe() != 52937) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe_to_room() != 48253) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_sync() != 20224) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe() != 61859) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe_from_room() != 58275) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_cached_list() != 49932) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_list() != 61859) {
@@ -12525,7 +12594,7 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_common_extensions() != 65139) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_add_timeline_listener() != 31138) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_add_timeline_listener() != 32754) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_avatar_url() != 47248) {
@@ -12552,10 +12621,13 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_room_id() != 37051) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_and_add_timeline_listener() != 30415) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_to_room() != 28121) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unread_notifications() != 44389) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unsubscribe_from_room() != 47022) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 3024) {
