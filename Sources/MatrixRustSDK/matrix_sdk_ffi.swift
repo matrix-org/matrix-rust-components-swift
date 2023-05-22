@@ -3535,17 +3535,16 @@ public func FfiConverterTypeSlidingSyncList_lower(_ value: SlidingSyncList) -> U
 
 public protocol SlidingSyncListBuilderProtocol {
     func `addRange`(`from`: UInt32, `toIncluded`: UInt32)   -> SlidingSyncListBuilder
-    func `batchSize`(`batchSize`: UInt32)   -> SlidingSyncListBuilder
     func `filters`(`filters`: SlidingSyncRequestListFilters)   -> SlidingSyncListBuilder
     func `noFilters`()   -> SlidingSyncListBuilder
-    func `noRoomLimit`()   -> SlidingSyncListBuilder
     func `noTimelineLimit`()   -> SlidingSyncListBuilder
     func `onceBuilt`(`callback`: SlidingSyncListOnceBuilt)   -> SlidingSyncListBuilder
     func `requiredState`(`requiredState`: [RequiredState])   -> SlidingSyncListBuilder
     func `resetRanges`()   -> SlidingSyncListBuilder
-    func `roomLimit`(`limit`: UInt32)   -> SlidingSyncListBuilder
     func `sort`(`sort`: [String])   -> SlidingSyncListBuilder
-    func `syncMode`(`mode`: SlidingSyncMode)   -> SlidingSyncListBuilder
+    func `syncModeGrowing`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)   -> SlidingSyncListBuilder
+    func `syncModePaging`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)   -> SlidingSyncListBuilder
+    func `syncModeSelective`()   -> SlidingSyncListBuilder
     func `timelineLimit`(`limit`: UInt32)   -> SlidingSyncListBuilder
     
 }
@@ -3588,18 +3587,6 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
         )
     }
 
-    public func `batchSize`(`batchSize`: UInt32)  -> SlidingSyncListBuilder {
-        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_batch_size(self.pointer, 
-        FfiConverterUInt32.lower(`batchSize`), $0
-    )
-}
-        )
-    }
-
     public func `filters`(`filters`: SlidingSyncRequestListFilters)  -> SlidingSyncListBuilder {
         return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
             try! 
@@ -3618,17 +3605,6 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_no_filters(self.pointer, $0
-    )
-}
-        )
-    }
-
-    public func `noRoomLimit`()  -> SlidingSyncListBuilder {
-        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_no_room_limit(self.pointer, $0
     )
 }
         )
@@ -3680,18 +3656,6 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
         )
     }
 
-    public func `roomLimit`(`limit`: UInt32)  -> SlidingSyncListBuilder {
-        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_room_limit(self.pointer, 
-        FfiConverterUInt32.lower(`limit`), $0
-    )
-}
-        )
-    }
-
     public func `sort`(`sort`: [String])  -> SlidingSyncListBuilder {
         return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
             try! 
@@ -3704,13 +3668,38 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
         )
     }
 
-    public func `syncMode`(`mode`: SlidingSyncMode)  -> SlidingSyncListBuilder {
+    public func `syncModeGrowing`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)  -> SlidingSyncListBuilder {
         return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_sync_mode(self.pointer, 
-        FfiConverterTypeSlidingSyncMode.lower(`mode`), $0
+    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_sync_mode_growing(self.pointer, 
+        FfiConverterUInt32.lower(`batchSize`), 
+        FfiConverterOptionUInt32.lower(`maximumNumberOfRoomsToFetch`), $0
+    )
+}
+        )
+    }
+
+    public func `syncModePaging`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)  -> SlidingSyncListBuilder {
+        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_sync_mode_paging(self.pointer, 
+        FfiConverterUInt32.lower(`batchSize`), 
+        FfiConverterOptionUInt32.lower(`maximumNumberOfRoomsToFetch`), $0
+    )
+}
+        )
+    }
+
+    public func `syncModeSelective`()  -> SlidingSyncListBuilder {
+        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_sync_mode_selective(self.pointer, $0
     )
 }
         )
@@ -8350,64 +8339,6 @@ extension SlidingSyncListRoomsListDiff: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-public enum SlidingSyncMode {
-    
-    case `paging`
-    case `growing`
-    case `selective`
-}
-
-public struct FfiConverterTypeSlidingSyncMode: FfiConverterRustBuffer {
-    typealias SwiftType = SlidingSyncMode
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SlidingSyncMode {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .`paging`
-        
-        case 2: return .`growing`
-        
-        case 3: return .`selective`
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SlidingSyncMode, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .`paging`:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .`growing`:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .`selective`:
-            writeInt(&buf, Int32(3))
-        
-        }
-    }
-}
-
-
-public func FfiConverterTypeSlidingSyncMode_lift(_ buf: RustBuffer) throws -> SlidingSyncMode {
-    return try FfiConverterTypeSlidingSyncMode.lift(buf)
-}
-
-public func FfiConverterTypeSlidingSyncMode_lower(_ value: SlidingSyncMode) -> RustBuffer {
-    return FfiConverterTypeSlidingSyncMode.lower(value)
-}
-
-
-extension SlidingSyncMode: Equatable, Hashable {}
-
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum SlidingSyncState {
     
     case `notLoaded`
@@ -12162,16 +12093,10 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_add_range() != 31001) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_batch_size() != 18730) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_filters() != 29583) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_filters() != 29534) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_room_limit() != 41973) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_no_timeline_limit() != 21616) {
@@ -12186,13 +12111,16 @@ private var checkVersionResult: CheckVersionResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_reset_ranges() != 31691) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_room_limit() != 23246) {
-        return CheckVersionResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sort() != 50198) {
         return CheckVersionResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode() != 11241) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode_growing() != 16525) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode_paging() != 34951) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode_selective() != 48936) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_timeline_limit() != 28972) {
