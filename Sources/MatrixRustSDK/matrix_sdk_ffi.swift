@@ -1817,6 +1817,7 @@ public protocol RoomProtocol {
     func `sendReadReceipt`(`eventId`: String)  throws
     func `sendReply`(`msg`: String, `inReplyToEventId`: String, `txnId`: String?)  throws
     func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo)  throws
+    func `setName`(`name`: String?)  throws
     func `setTopic`(`topic`: String)  throws
     func `topic`()   -> String?
     func `uploadAvatar`(`mimeType`: String, `data`: [UInt8])  throws
@@ -2289,6 +2290,15 @@ public class Room: RoomProtocol {
         FfiConverterString.lower(`url`), 
         FfiConverterString.lower(`thumbnailUrl`), 
         FfiConverterTypeVideoInfo.lower(`videoInfo`), $0
+    )
+}
+    }
+
+    public func `setName`(`name`: String?) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.self) {
+    uniffi_matrix_sdk_ffi_fn_method_room_set_name(self.pointer, 
+        FfiConverterOptionString.lower(`name`), $0
     )
 }
     }
@@ -12421,6 +12431,9 @@ private var checkVersionResult: CheckVersionResult {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 33883) {
+        return CheckVersionResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 35415) {
         return CheckVersionResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 9114) {
