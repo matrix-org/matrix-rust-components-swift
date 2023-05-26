@@ -3012,11 +3012,9 @@ public func FfiConverterTypeSessionVerificationEmoji_lower(_ value: SessionVerif
 
 public protocol SlidingSyncProtocol {
     func `addCachedList`(`listBuilder`: SlidingSyncListBuilder)  throws -> SlidingSyncList?
-    func `addCommonExtensions`()  
     func `addList`(`listBuilder`: SlidingSyncListBuilder)   -> TaskHandle
     func `getRoom`(`roomId`: String)  throws -> SlidingSyncRoom?
     func `getRooms`(`roomIds`: [String])  throws -> [SlidingSyncRoom?]
-    func `resetLists`()  throws
     func `setObserver`(`observer`: SlidingSyncObserver?)  
     func `stopSync`()  
     func `subscribeToRoom`(`roomId`: String, `settings`: RoomSubscription?)  throws -> TaskHandle
@@ -3055,15 +3053,6 @@ public class SlidingSync: SlidingSyncProtocol {
         )
     }
 
-    public func `addCommonExtensions`()  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsync_add_common_extensions(self.pointer, $0
-    )
-}
-    }
-
     public func `addList`(`listBuilder`: SlidingSyncListBuilder)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
@@ -3096,14 +3085,6 @@ public class SlidingSync: SlidingSyncProtocol {
     )
 }
         )
-    }
-
-    public func `resetLists`() throws {
-        try 
-    rustCallWithError(FfiConverterTypeSlidingSyncError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsync_reset_lists(self.pointer, $0
-    )
-}
     }
 
     public func `setObserver`(`observer`: SlidingSyncObserver?)  {
@@ -3620,7 +3601,6 @@ public protocol SlidingSyncListBuilderProtocol {
     func `noTimelineLimit`()   -> SlidingSyncListBuilder
     func `onceBuilt`(`callback`: SlidingSyncListOnceBuilt)   -> SlidingSyncListBuilder
     func `requiredState`(`requiredState`: [RequiredState])   -> SlidingSyncListBuilder
-    func `resetRanges`()   -> SlidingSyncListBuilder
     func `sort`(`sort`: [String])   -> SlidingSyncListBuilder
     func `syncModeGrowing`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)   -> SlidingSyncListBuilder
     func `syncModePaging`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)   -> SlidingSyncListBuilder
@@ -3720,17 +3700,6 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_required_state(self.pointer, 
         FfiConverterSequenceTypeRequiredState.lower(`requiredState`),$0
-    )
-}
-        )
-    }
-
-    public func `resetRanges`()  -> SlidingSyncListBuilder {
-        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_reset_ranges(self.pointer, $0
     )
 }
         )
@@ -3845,7 +3814,7 @@ public protocol SlidingSyncRoomProtocol {
     func `hasUnreadNotifications`()   -> Bool
     func `isDm`()   -> Bool?
     func `isInitial`()   -> Bool?
-    func `latestRoomMessage`() async  -> EventTimelineItem?
+    func `latestRoomMessage`()   -> EventTimelineItem?
     func `name`()   -> String?
     func `roomId`()   -> String
     func `subscribeToRoom`(`settings`: RoomSubscription?)   -> TaskHandle
@@ -3939,29 +3908,16 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
         )
     }
 
-    public func `latestRoomMessage`() async  -> EventTimelineItem? {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<EventTimelineItem?, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
-                uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_latest_room_message(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerOptionalTypeEventTimelineItem,
-                    &continuation,
-                    $0
-                )
-            }
-        }
-    }
-
+    public func `latestRoomMessage`()  -> EventTimelineItem? {
+        return try!  FfiConverterOptionTypeEventTimelineItem.lift(
+            try! 
+    rustCall() {
     
+    uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_latest_room_message(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func `name`()  -> String? {
         return try!  FfiConverterOptionString.lift(
@@ -13480,9 +13436,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_required_state() != 43471) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_reset_ranges() != 31691) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sort() != 50198) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -13831,9 +13784,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_cached_list() != 57064) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_common_extensions() != 62767) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_add_list() != 41315) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -13841,9 +13791,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_get_rooms() != 19799) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_reset_lists() != 54195) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 53265) {
@@ -13918,7 +13865,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_is_initial() != 63464) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_latest_room_message() != 16233) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_latest_room_message() != 23437) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_name() != 24035) {
