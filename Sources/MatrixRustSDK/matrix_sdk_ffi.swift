@@ -3404,15 +3404,12 @@ public func FfiConverterTypeSlidingSyncBuilder_lower(_ value: SlidingSyncBuilder
 
 
 public protocol SlidingSyncListProtocol {
-    func `addRange`(`start`: UInt32, `end`: UInt32)  throws
     func `currentRoomCount`()   -> UInt32?
     func `currentRoomList`()   -> [RoomListEntry]
     func `getTimelineLimit`()   -> UInt32?
     func `observeRoomsCount`(`observer`: SlidingSyncListRoomsCountObserver)   -> TaskHandle
     func `observeRoomList`(`observer`: SlidingSyncListRoomListObserver)   -> TaskHandle
     func `observeState`(`observer`: SlidingSyncListStateObserver)   -> TaskHandle
-    func `resetRanges`()  throws
-    func `setRange`(`start`: UInt32, `end`: UInt32)  throws
     func `setTimelineLimit`(`value`: UInt32)  
     func `unsetTimelineLimit`()  
     
@@ -3436,16 +3433,6 @@ public class SlidingSyncList: SlidingSyncListProtocol {
 
     
     
-
-    public func `addRange`(`start`: UInt32, `end`: UInt32) throws {
-        try 
-    rustCallWithError(FfiConverterTypeSlidingSyncError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclist_add_range(self.pointer, 
-        FfiConverterUInt32.lower(`start`),
-        FfiConverterUInt32.lower(`end`),$0
-    )
-}
-    }
 
     public func `currentRoomCount`()  -> UInt32? {
         return try!  FfiConverterOptionUInt32.lift(
@@ -3516,24 +3503,6 @@ public class SlidingSyncList: SlidingSyncListProtocol {
         )
     }
 
-    public func `resetRanges`() throws {
-        try 
-    rustCallWithError(FfiConverterTypeSlidingSyncError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclist_reset_ranges(self.pointer, $0
-    )
-}
-    }
-
-    public func `setRange`(`start`: UInt32, `end`: UInt32) throws {
-        try 
-    rustCallWithError(FfiConverterTypeSlidingSyncError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclist_set_range(self.pointer, 
-        FfiConverterUInt32.lower(`start`),
-        FfiConverterUInt32.lower(`end`),$0
-    )
-}
-    }
-
     public func `setTimelineLimit`(`value`: UInt32)  {
         try! 
     rustCall() {
@@ -3595,7 +3564,6 @@ public func FfiConverterTypeSlidingSyncList_lower(_ value: SlidingSyncList) -> U
 
 
 public protocol SlidingSyncListBuilderProtocol {
-    func `addRange`(`from`: UInt32, `toIncluded`: UInt32)   -> SlidingSyncListBuilder
     func `filters`(`filters`: SlidingSyncRequestListFilters)   -> SlidingSyncListBuilder
     func `noFilters`()   -> SlidingSyncListBuilder
     func `noTimelineLimit`()   -> SlidingSyncListBuilder
@@ -3604,7 +3572,7 @@ public protocol SlidingSyncListBuilderProtocol {
     func `sort`(`sort`: [String])   -> SlidingSyncListBuilder
     func `syncModeGrowing`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)   -> SlidingSyncListBuilder
     func `syncModePaging`(`batchSize`: UInt32, `maximumNumberOfRoomsToFetch`: UInt32?)   -> SlidingSyncListBuilder
-    func `syncModeSelective`()   -> SlidingSyncListBuilder
+    func `syncModeSelective`(`selectiveModeBuilder`: SlidingSyncSelectiveModeBuilder)   -> SlidingSyncListBuilder
     func `timelineLimit`(`limit`: UInt32)   -> SlidingSyncListBuilder
     
 }
@@ -3633,19 +3601,6 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
 
     
     
-
-    public func `addRange`(`from`: UInt32, `toIncluded`: UInt32)  -> SlidingSyncListBuilder {
-        return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_add_range(self.pointer, 
-        FfiConverterUInt32.lower(`from`),
-        FfiConverterUInt32.lower(`toIncluded`),$0
-    )
-}
-        )
-    }
 
     public func `filters`(`filters`: SlidingSyncRequestListFilters)  -> SlidingSyncListBuilder {
         return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
@@ -3743,12 +3698,13 @@ public class SlidingSyncListBuilder: SlidingSyncListBuilderProtocol {
         )
     }
 
-    public func `syncModeSelective`()  -> SlidingSyncListBuilder {
+    public func `syncModeSelective`(`selectiveModeBuilder`: SlidingSyncSelectiveModeBuilder)  -> SlidingSyncListBuilder {
         return try!  FfiConverterTypeSlidingSyncListBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_sync_mode_selective(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_slidingsynclistbuilder_sync_mode_selective(self.pointer, 
+        FfiConverterTypeSlidingSyncSelectiveModeBuilder.lower(`selectiveModeBuilder`),$0
     )
 }
         )
@@ -4013,6 +3969,89 @@ public func FfiConverterTypeSlidingSyncRoom_lift(_ pointer: UnsafeMutableRawPoin
 
 public func FfiConverterTypeSlidingSyncRoom_lower(_ value: SlidingSyncRoom) -> UnsafeMutableRawPointer {
     return FfiConverterTypeSlidingSyncRoom.lower(value)
+}
+
+
+public protocol SlidingSyncSelectiveModeBuilderProtocol {
+    func `addRange`(`start`: UInt32, `endInclusive`: UInt32)   -> SlidingSyncSelectiveModeBuilder
+    
+}
+
+public class SlidingSyncSelectiveModeBuilder: SlidingSyncSelectiveModeBuilderProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+    public convenience init()  {
+        self.init(unsafeFromRawPointer: try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_constructor_slidingsyncselectivemodebuilder_new($0)
+})
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_slidingsyncselectivemodebuilder(pointer, $0) }
+    }
+
+    
+
+    
+    
+
+    public func `addRange`(`start`: UInt32, `endInclusive`: UInt32)  -> SlidingSyncSelectiveModeBuilder {
+        return try!  FfiConverterTypeSlidingSyncSelectiveModeBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_slidingsyncselectivemodebuilder_add_range(self.pointer, 
+        FfiConverterUInt32.lower(`start`),
+        FfiConverterUInt32.lower(`endInclusive`),$0
+    )
+}
+        )
+    }
+}
+
+public struct FfiConverterTypeSlidingSyncSelectiveModeBuilder: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = SlidingSyncSelectiveModeBuilder
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SlidingSyncSelectiveModeBuilder {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: SlidingSyncSelectiveModeBuilder, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> SlidingSyncSelectiveModeBuilder {
+        return SlidingSyncSelectiveModeBuilder(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: SlidingSyncSelectiveModeBuilder) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+
+public func FfiConverterTypeSlidingSyncSelectiveModeBuilder_lift(_ pointer: UnsafeMutableRawPointer) throws -> SlidingSyncSelectiveModeBuilder {
+    return try FfiConverterTypeSlidingSyncSelectiveModeBuilder.lift(pointer)
+}
+
+public func FfiConverterTypeSlidingSyncSelectiveModeBuilder_lower(_ value: SlidingSyncSelectiveModeBuilder) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeSlidingSyncSelectiveModeBuilder.lower(value)
 }
 
 
@@ -9469,7 +9508,6 @@ public enum SlidingSyncError {
     case BadResponse(`msg`: String)
     case BuildMissingField(`msg`: String)
     case RequestGeneratorHasNotBeenInitialized(`msg`: String)
-    case CannotModifyRanges(`msg`: String)
     case InvalidRange(`start`: UInt32, `end`: UInt32)
     case InternalChannelIsBroken
     case Unknown(`error`: String)
@@ -9499,15 +9537,12 @@ public struct FfiConverterTypeSlidingSyncError: FfiConverterRustBuffer {
         case 3: return .RequestGeneratorHasNotBeenInitialized(
             `msg`: try FfiConverterString.read(from: &buf)
             )
-        case 4: return .CannotModifyRanges(
-            `msg`: try FfiConverterString.read(from: &buf)
-            )
-        case 5: return .InvalidRange(
+        case 4: return .InvalidRange(
             `start`: try FfiConverterUInt32.read(from: &buf), 
             `end`: try FfiConverterUInt32.read(from: &buf)
             )
-        case 6: return .InternalChannelIsBroken
-        case 7: return .Unknown(
+        case 5: return .InternalChannelIsBroken
+        case 6: return .Unknown(
             `error`: try FfiConverterString.read(from: &buf)
             )
 
@@ -9537,23 +9572,18 @@ public struct FfiConverterTypeSlidingSyncError: FfiConverterRustBuffer {
             FfiConverterString.write(`msg`, into: &buf)
             
         
-        case let .CannotModifyRanges(`msg`):
-            writeInt(&buf, Int32(4))
-            FfiConverterString.write(`msg`, into: &buf)
-            
-        
         case let .InvalidRange(`start`,`end`):
-            writeInt(&buf, Int32(5))
+            writeInt(&buf, Int32(4))
             FfiConverterUInt32.write(`start`, into: &buf)
             FfiConverterUInt32.write(`end`, into: &buf)
             
         
         case .InternalChannelIsBroken:
-            writeInt(&buf, Int32(6))
+            writeInt(&buf, Int32(5))
         
         
         case let .Unknown(`error`):
-            writeInt(&buf, Int32(7))
+            writeInt(&buf, Int32(6))
             FfiConverterString.write(`error`, into: &buf)
             
         }
@@ -11972,23 +12002,6 @@ fileprivate func uniffiFutureCallbackHandlerVoidTypeRoomError(
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerVoidTypeSlidingSyncError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<(), Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeSlidingSyncError.lift)
-        continuation.pointee.resume(returning: ())
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
 fileprivate func uniffiFutureCallbackHandleru32(
     rawContinutation: UnsafeRawPointer,
     returnValue: UInt32,
@@ -12342,6 +12355,23 @@ fileprivate func uniffiFutureCallbackHandlerTypeSlidingSyncListBuilder(
     do {
         try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
         continuation.pointee.resume(returning: try FfiConverterTypeSlidingSyncListBuilder.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
+fileprivate func uniffiFutureCallbackHandlerTypeSlidingSyncSelectiveModeBuilder(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: UnsafeMutableRawPointer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<SlidingSyncSelectiveModeBuilder, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
+        continuation.pointee.resume(returning: try FfiConverterTypeSlidingSyncSelectiveModeBuilder.lift(returnValue))
     } catch let error {
         continuation.pointee.resume(throwing: error)
     }
@@ -13247,9 +13277,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 3671) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_add_range() != 57863) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_current_room_count() != 28445) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -13266,12 +13293,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_state() != 12538) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_reset_ranges() != 46679) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_range() != 48586) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_timeline_limit() != 43302) {
@@ -13418,9 +13439,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 3669) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_add_range() != 31001) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_filters() != 29583) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -13445,10 +13463,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode_paging() != 34951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode_selective() != 48936) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_sync_mode_selective() != 27349) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclistbuilder_timeline_limit() != 28972) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncselectivemodebuilder_add_range() != 20870) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 35904) {
@@ -13914,6 +13935,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_slidingsynclistbuilder_new() != 14792) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_slidingsyncselectivemodebuilder_new() != 4664) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 63785) {
