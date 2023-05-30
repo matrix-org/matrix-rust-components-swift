@@ -3410,6 +3410,7 @@ public protocol SlidingSyncListProtocol {
     func `observeRoomsCount`(`observer`: SlidingSyncListRoomsCountObserver)   -> TaskHandle
     func `observeRoomList`(`observer`: SlidingSyncListRoomListObserver)   -> TaskHandle
     func `observeState`(`observer`: SlidingSyncListStateObserver)   -> TaskHandle
+    func `setSyncMode`(`builder`: SlidingSyncSelectiveModeBuilder)  throws
     func `setTimelineLimit`(`value`: UInt32)  
     func `unsetTimelineLimit`()  
     
@@ -3501,6 +3502,15 @@ public class SlidingSyncList: SlidingSyncListProtocol {
     )
 }
         )
+    }
+
+    public func `setSyncMode`(`builder`: SlidingSyncSelectiveModeBuilder) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_slidingsynclist_set_sync_mode(self.pointer, 
+        FfiConverterTypeSlidingSyncSelectiveModeBuilder.lower(`builder`),$0
+    )
+}
     }
 
     public func `setTimelineLimit`(`value`: UInt32)  {
@@ -13293,6 +13303,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_state() != 12538) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_sync_mode() != 27237) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_timeline_limit() != 43302) {
