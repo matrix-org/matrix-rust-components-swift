@@ -3016,10 +3016,10 @@ public protocol SlidingSyncProtocol {
     func `getRoom`(`roomId`: String)  throws -> SlidingSyncRoom?
     func `getRooms`(`roomIds`: [String])  throws -> [SlidingSyncRoom?]
     func `setObserver`(`observer`: SlidingSyncObserver?)  
-    func `stopSync`()  
-    func `subscribeToRoom`(`roomId`: String, `settings`: RoomSubscription?)  throws -> TaskHandle
+    func `stopSync`()  throws
+    func `subscribeToRoom`(`roomId`: String, `settings`: RoomSubscription?)  throws
     func `sync`()   -> TaskHandle
-    func `unsubscribeFromRoom`(`roomId`: String)  throws -> TaskHandle
+    func `unsubscribeFromRoom`(`roomId`: String)  throws
     
 }
 
@@ -3097,25 +3097,22 @@ public class SlidingSync: SlidingSyncProtocol {
 }
     }
 
-    public func `stopSync`()  {
-        try! 
-    rustCall() {
-    
+    public func `stopSync`() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_slidingsync_stop_sync(self.pointer, $0
     )
 }
     }
 
-    public func `subscribeToRoom`(`roomId`: String, `settings`: RoomSubscription?) throws -> TaskHandle {
-        return try  FfiConverterTypeTaskHandle.lift(
-            try 
+    public func `subscribeToRoom`(`roomId`: String, `settings`: RoomSubscription?) throws {
+        try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_slidingsync_subscribe_to_room(self.pointer, 
         FfiConverterString.lower(`roomId`),
         FfiConverterOptionTypeRoomSubscription.lower(`settings`),$0
     )
 }
-        )
     }
 
     public func `sync`()  -> TaskHandle {
@@ -3129,15 +3126,13 @@ public class SlidingSync: SlidingSyncProtocol {
         )
     }
 
-    public func `unsubscribeFromRoom`(`roomId`: String) throws -> TaskHandle {
-        return try  FfiConverterTypeTaskHandle.lift(
-            try 
+    public func `unsubscribeFromRoom`(`roomId`: String) throws {
+        try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_slidingsync_unsubscribe_from_room(self.pointer, 
         FfiConverterString.lower(`roomId`),$0
     )
 }
-        )
     }
 }
 
@@ -3410,7 +3405,7 @@ public protocol SlidingSyncListProtocol {
     func `observeRoomsCount`(`observer`: SlidingSyncListRoomsCountObserver)   -> TaskHandle
     func `observeRoomList`(`observer`: SlidingSyncListRoomListObserver)   -> TaskHandle
     func `observeState`(`observer`: SlidingSyncListStateObserver)   -> TaskHandle
-    func `setSyncMode`(`builder`: SlidingSyncSelectiveModeBuilder)  throws
+    func `setSyncMode`(`builder`: SlidingSyncSelectiveModeBuilder)  
     func `setTimelineLimit`(`value`: UInt32)  
     func `unsetTimelineLimit`()  
     
@@ -3504,9 +3499,10 @@ public class SlidingSyncList: SlidingSyncListProtocol {
         )
     }
 
-    public func `setSyncMode`(`builder`: SlidingSyncSelectiveModeBuilder) throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
+    public func `setSyncMode`(`builder`: SlidingSyncSelectiveModeBuilder)  {
+        try! 
+    rustCall() {
+    
     uniffi_matrix_sdk_ffi_fn_method_slidingsynclist_set_sync_mode(self.pointer, 
         FfiConverterTypeSlidingSyncSelectiveModeBuilder.lower(`builder`),$0
     )
@@ -3783,9 +3779,9 @@ public protocol SlidingSyncRoomProtocol {
     func `latestRoomMessage`()   -> EventTimelineItem?
     func `name`()   -> String?
     func `roomId`()   -> String
-    func `subscribeToRoom`(`settings`: RoomSubscription?)   -> TaskHandle
+    func `subscribeToRoom`(`settings`: RoomSubscription?)  
     func `unreadNotifications`()   -> UnreadNotificationsCount
-    func `unsubscribeFromRoom`()   -> TaskHandle
+    func `unsubscribeFromRoom`()  
     
 }
 
@@ -3907,16 +3903,14 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
         )
     }
 
-    public func `subscribeToRoom`(`settings`: RoomSubscription?)  -> TaskHandle {
-        return try!  FfiConverterTypeTaskHandle.lift(
-            try! 
+    public func `subscribeToRoom`(`settings`: RoomSubscription?)  {
+        try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_subscribe_to_room(self.pointer, 
         FfiConverterOptionTypeRoomSubscription.lower(`settings`),$0
     )
 }
-        )
     }
 
     public func `unreadNotifications`()  -> UnreadNotificationsCount {
@@ -3930,15 +3924,13 @@ public class SlidingSyncRoom: SlidingSyncRoomProtocol {
         )
     }
 
-    public func `unsubscribeFromRoom`()  -> TaskHandle {
-        return try!  FfiConverterTypeTaskHandle.lift(
-            try! 
+    public func `unsubscribeFromRoom`()  {
+        try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncroom_unsubscribe_from_room(self.pointer, $0
     )
 }
-        )
     }
 }
 
@@ -12420,23 +12412,6 @@ fileprivate func uniffiFutureCallbackHandlerTypeTaskHandle(
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerTypeTaskHandleTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TaskHandle, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeTaskHandle.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
 fileprivate func uniffiFutureCallbackHandlerTypeTimelineItemContent(
     rawContinutation: UnsafeRawPointer,
     returnValue: UnsafeMutableRawPointer,
@@ -13305,7 +13280,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_observe_state() != 12538) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_sync_mode() != 27237) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_sync_mode() != 56901) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsynclist_set_timeline_limit() != 43302) {
@@ -13830,16 +13805,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_set_observer() != 53265) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_stop_sync() != 64338) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_stop_sync() != 51510) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe_to_room() != 48253) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_subscribe_to_room() != 25451) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_sync() != 20224) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe_from_room() != 58275) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsync_unsubscribe_from_room() != 54157) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_add_cached_list() != 49932) {
@@ -13908,13 +13883,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_room_id() != 37051) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_to_room() != 28121) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_subscribe_to_room() != 46555) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unread_notifications() != 44389) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unsubscribe_from_room() != 47022) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncroom_unsubscribe_from_room() != 27126) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 3024) {
