@@ -1166,6 +1166,7 @@ public protocol EventTimelineItemProtocol {
     func `sender`()   -> String
     func `senderProfile`()   -> ProfileDetails
     func `timestamp`()   -> UInt64
+    func `transactionId`()   -> String?
     func `uniqueIdentifier`()   -> String
     
 }
@@ -1327,6 +1328,17 @@ public class EventTimelineItem: EventTimelineItemProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_timestamp(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `transactionId`()  -> String? {
+        return try!  FfiConverterOptionString.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_transaction_id(self.pointer, $0
     )
 }
         )
@@ -1805,6 +1817,7 @@ public protocol RoomProtocol {
     func `removeTimeline`()  
     func `reportContent`(`eventId`: String, `score`: Int32?, `reason`: String?)  throws
     func `retryDecryption`(`sessionIds`: [String])  
+    func `retrySend`(`txnId`: String)  
     func `send`(`msg`: RoomMessageEventContent, `txnId`: String?)  
     func `sendAudio`(`url`: String, `audioInfo`: AudioInfo)  throws
     func `sendFile`(`url`: String, `fileInfo`: FileInfo)  throws
@@ -2194,6 +2207,16 @@ public class Room: RoomProtocol {
     
     uniffi_matrix_sdk_ffi_fn_method_room_retry_decryption(self.pointer, 
         FfiConverterSequenceString.lower(`sessionIds`),$0
+    )
+}
+    }
+
+    public func `retrySend`(`txnId`: String)  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_retry_send(self.pointer, 
+        FfiConverterString.lower(`txnId`),$0
     )
 }
     }
@@ -3182,7 +3205,7 @@ public protocol SlidingSyncBuilderProtocol {
     func `addList`(`listBuilder`: SlidingSyncListBuilder)   -> SlidingSyncBuilder
     func `build`()  throws -> SlidingSync
     func `enableCaching`()  throws -> SlidingSyncBuilder
-    func `homeserver`(`url`: String)  throws -> SlidingSyncBuilder
+    func `slidingSyncProxy`(`url`: String)  throws -> SlidingSyncBuilder
     func `withoutAccountDataExtension`()   -> SlidingSyncBuilder
     func `withoutE2eeExtension`()   -> SlidingSyncBuilder
     func `withoutReceiptExtension`()   -> SlidingSyncBuilder
@@ -3255,11 +3278,11 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
         )
     }
 
-    public func `homeserver`(`url`: String) throws -> SlidingSyncBuilder {
+    public func `slidingSyncProxy`(`url`: String) throws -> SlidingSyncBuilder {
         return try  FfiConverterTypeSlidingSyncBuilder.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_homeserver(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_sliding_sync_proxy(self.pointer, 
         FfiConverterString.lower(`url`),$0
     )
 }
@@ -7859,8 +7882,8 @@ extension OtherState: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum PaginationOptions {
     
-    case `singleRequest`(`eventLimit`: UInt16)
-    case `untilNumItems`(`eventLimit`: UInt16, `items`: UInt16)
+    case `singleRequest`(`eventLimit`: UInt16, `waitForToken`: Bool)
+    case `untilNumItems`(`eventLimit`: UInt16, `items`: UInt16, `waitForToken`: Bool)
 }
 
 public struct FfiConverterTypePaginationOptions: FfiConverterRustBuffer {
@@ -7871,12 +7894,14 @@ public struct FfiConverterTypePaginationOptions: FfiConverterRustBuffer {
         switch variant {
         
         case 1: return .`singleRequest`(
-            `eventLimit`: try FfiConverterUInt16.read(from: &buf)
+            `eventLimit`: try FfiConverterUInt16.read(from: &buf), 
+            `waitForToken`: try FfiConverterBool.read(from: &buf)
         )
         
         case 2: return .`untilNumItems`(
             `eventLimit`: try FfiConverterUInt16.read(from: &buf), 
-            `items`: try FfiConverterUInt16.read(from: &buf)
+            `items`: try FfiConverterUInt16.read(from: &buf), 
+            `waitForToken`: try FfiConverterBool.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -7887,15 +7912,17 @@ public struct FfiConverterTypePaginationOptions: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .`singleRequest`(`eventLimit`):
+        case let .`singleRequest`(`eventLimit`,`waitForToken`):
             writeInt(&buf, Int32(1))
             FfiConverterUInt16.write(`eventLimit`, into: &buf)
+            FfiConverterBool.write(`waitForToken`, into: &buf)
             
         
-        case let .`untilNumItems`(`eventLimit`,`items`):
+        case let .`untilNumItems`(`eventLimit`,`items`,`waitForToken`):
             writeInt(&buf, Int32(2))
             FfiConverterUInt16.write(`eventLimit`, into: &buf)
             FfiConverterUInt16.write(`items`, into: &buf)
+            FfiConverterBool.write(`waitForToken`, into: &buf)
             
         }
     }
@@ -13600,6 +13627,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_timestamp() != 40228) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_transaction_id() != 43677) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_unique_identifier() != 18285) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -13732,6 +13762,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_retry_decryption() != 17743) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_retry_send() != 33250) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 60271) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -13831,7 +13864,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_enable_caching() != 52585) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_homeserver() != 62399) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_sliding_sync_proxy() != 53975) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_account_data_extension() != 2317) {
