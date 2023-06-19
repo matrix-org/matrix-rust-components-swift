@@ -596,6 +596,7 @@ public protocol ClientProtocol {
     func `ignoreUser`(`userId`: String)  throws
     func `login`(`username`: String, `password`: String, `initialDeviceName`: String?, `deviceId`: String?)  throws
     func `logout`()  throws
+    func `notificationSlidingSync`(`id`: String, `listener`: NotificationSyncListener)  throws -> NotificationSync
     func `restoreSession`(`session`: Session)  throws
     func `roomList`()  throws -> RoomList
     func `rooms`()   -> [Room]
@@ -814,6 +815,18 @@ public class Client: ClientProtocol {
     uniffi_matrix_sdk_ffi_fn_method_client_logout(self.pointer, $0
     )
 }
+    }
+
+    public func `notificationSlidingSync`(`id`: String, `listener`: NotificationSyncListener) throws -> NotificationSync {
+        return try  FfiConverterTypeNotificationSync.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_client_notification_sliding_sync(self.pointer, 
+        FfiConverterString.lower(`id`),
+        FfiConverterCallbackInterfaceNotificationSyncListener.lower(`listener`),$0
+    )
+}
+        )
     }
 
     public func `restoreSession`(`session`: Session) throws {
@@ -1814,6 +1827,70 @@ public func FfiConverterTypeMessage_lift(_ pointer: UnsafeMutableRawPointer) thr
 
 public func FfiConverterTypeMessage_lower(_ value: Message) -> UnsafeMutableRawPointer {
     return FfiConverterTypeMessage.lower(value)
+}
+
+
+public protocol NotificationSyncProtocol {
+    
+}
+
+public class NotificationSync: NotificationSyncProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationsync(pointer, $0) }
+    }
+
+    
+
+    
+    
+}
+
+public struct FfiConverterTypeNotificationSync: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = NotificationSync
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationSync {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: NotificationSync, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationSync {
+        return NotificationSync(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: NotificationSync) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+
+public func FfiConverterTypeNotificationSync_lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationSync {
+    return try FfiConverterTypeNotificationSync.lift(pointer)
+}
+
+public func FfiConverterTypeNotificationSync_lower(_ value: NotificationSync) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeNotificationSync.lower(value)
 }
 
 
@@ -10865,6 +10942,111 @@ extension FfiConverterCallbackInterfaceNotificationDelegate : FfiConverter {
 
 
 
+// Declaration and FfiConverters for NotificationSyncListener Callback Interface
+
+public protocol NotificationSyncListener : AnyObject {
+    func `didTerminate`() 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceNotificationSyncListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func `invokeDidTerminate`(_ swiftCallbackInterface: NotificationSyncListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`didTerminate`(
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceNotificationSyncListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: NotificationSyncListener
+            do {
+                cb = try FfiConverterCallbackInterfaceNotificationSyncListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("NotificationSyncListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeDidTerminate`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceNotificationSyncListener {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_notificationsynclistener(foreignCallbackCallbackInterfaceNotificationSyncListener, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<NotificationSyncListener>()
+}
+
+extension FfiConverterCallbackInterfaceNotificationSyncListener : FfiConverter {
+    typealias SwiftType = NotificationSyncListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
 // Declaration and FfiConverters for RoomListEntriesListener Callback Interface
 
 public protocol RoomListEntriesListener : AnyObject {
@@ -13338,6 +13520,23 @@ fileprivate func uniffiFutureCallbackHandlerTypeMediaSourceTypeClientError(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerTypeNotificationSyncTypeClientError(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: UnsafeMutableRawPointer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<NotificationSync, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
+        continuation.pointee.resume(returning: try FfiConverterTypeNotificationSync.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerTypeRoom(
     rawContinutation: UnsafeRawPointer,
     returnValue: UnsafeMutableRawPointer,
@@ -14535,6 +14734,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 7602) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_sliding_sync() != 57178) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 50627) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15208,6 +15410,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationdelegate_did_receive_notification() != 44798) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsynclistener_did_terminate() != 29629) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieslistener_on_update() != 47620) {
