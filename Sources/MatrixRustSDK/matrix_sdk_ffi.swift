@@ -609,7 +609,7 @@ public protocol ClientProtocol {
     func `setPusher`(`identifiers`: PusherIdentifiers, `kind`: PusherKind, `appDisplayName`: String, `deviceDisplayName`: String, `profileTag`: String?, `lang`: String)  throws
     func `slidingSync`(`id`: String)  throws -> SlidingSyncBuilder
     func `unignoreUser`(`userId`: String)  throws
-    func `uploadMedia`(`mimeType`: String, `data`: [UInt8])  throws -> String
+    func `uploadMedia`(`mimeType`: String, `data`: [UInt8], `progressWatcher`: ProgressWatcher?)  throws -> String
     func `userId`()  throws -> String
     
 }
@@ -954,13 +954,14 @@ public class Client: ClientProtocol {
 }
     }
 
-    public func `uploadMedia`(`mimeType`: String, `data`: [UInt8]) throws -> String {
+    public func `uploadMedia`(`mimeType`: String, `data`: [UInt8], `progressWatcher`: ProgressWatcher?) throws -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_upload_media(self.pointer, 
         FfiConverterString.lower(`mimeType`),
-        FfiConverterSequenceUInt8.lower(`data`),$0
+        FfiConverterSequenceUInt8.lower(`data`),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
         )
@@ -1934,14 +1935,14 @@ public protocol RoomProtocol {
     func `retryDecryption`(`sessionIds`: [String])  
     func `retrySend`(`txnId`: String)  
     func `send`(`msg`: RoomMessageEventContent, `txnId`: String?)  
-    func `sendAudio`(`url`: String, `audioInfo`: AudioInfo)  throws
-    func `sendFile`(`url`: String, `fileInfo`: FileInfo)  throws
-    func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo)  throws
+    func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?)  throws
+    func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?)  throws
+    func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?)  throws
     func `sendReaction`(`eventId`: String, `key`: String)  throws
     func `sendReadMarker`(`fullyReadEventId`: String, `readReceiptEventId`: String?)  throws
     func `sendReadReceipt`(`eventId`: String)  throws
     func `sendReply`(`msg`: String, `inReplyToEventId`: String, `txnId`: String?)  throws
-    func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo)  throws
+    func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo, `progressWatcher`: ProgressWatcher?)  throws
     func `setName`(`name`: String?)  throws
     func `setTopic`(`topic`: String)  throws
     func `topic`()   -> String?
@@ -2368,33 +2369,36 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func `sendAudio`(`url`: String, `audioInfo`: AudioInfo) throws {
+    public func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?) throws {
         try 
     rustCallWithError(FfiConverterTypeRoomError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_send_audio(self.pointer, 
         FfiConverterString.lower(`url`),
-        FfiConverterTypeAudioInfo.lower(`audioInfo`),$0
+        FfiConverterTypeAudioInfo.lower(`audioInfo`),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
     }
 
-    public func `sendFile`(`url`: String, `fileInfo`: FileInfo) throws {
+    public func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?) throws {
         try 
     rustCallWithError(FfiConverterTypeRoomError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_send_file(self.pointer, 
         FfiConverterString.lower(`url`),
-        FfiConverterTypeFileInfo.lower(`fileInfo`),$0
+        FfiConverterTypeFileInfo.lower(`fileInfo`),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
     }
 
-    public func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo) throws {
+    public func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?) throws {
         try 
     rustCallWithError(FfiConverterTypeRoomError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_send_image(self.pointer, 
         FfiConverterString.lower(`url`),
         FfiConverterString.lower(`thumbnailUrl`),
-        FfiConverterTypeImageInfo.lower(`imageInfo`),$0
+        FfiConverterTypeImageInfo.lower(`imageInfo`),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
     }
@@ -2439,13 +2443,14 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo) throws {
+    public func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo, `progressWatcher`: ProgressWatcher?) throws {
         try 
     rustCallWithError(FfiConverterTypeRoomError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_send_video(self.pointer, 
         FfiConverterString.lower(`url`),
         FfiConverterString.lower(`thumbnailUrl`),
-        FfiConverterTypeVideoInfo.lower(`videoInfo`),$0
+        FfiConverterTypeVideoInfo.lower(`videoInfo`),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
     }
@@ -2535,9 +2540,11 @@ public protocol RoomListProtocol {
     func `entries`(`listener`: RoomListEntriesListener) async throws -> RoomListEntriesResult
     func `entriesLoadingState`(`listener`: SlidingSyncListStateObserver) async throws -> RoomListEntriesLoadingStateResult
     func `invites`(`listener`: RoomListEntriesListener) async throws -> RoomListEntriesResult
+    func `isSyncing`()   -> Bool
     func `room`(`roomId`: String)  throws -> RoomListItem
     func `state`(`listener`: RoomListStateListener)   -> TaskHandle
-    func `sync`()   -> TaskHandle
+    func `stopSync`()  throws
+    func `sync`()  
     
 }
 
@@ -2660,6 +2667,17 @@ public class RoomList: RoomListProtocol {
 
     
 
+    public func `isSyncing`()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_is_syncing(self.pointer, $0
+    )
+}
+        )
+    }
+
     public func `room`(`roomId`: String) throws -> RoomListItem {
         return try  FfiConverterTypeRoomListItem.lift(
             try 
@@ -2683,15 +2701,21 @@ public class RoomList: RoomListProtocol {
         )
     }
 
-    public func `sync`()  -> TaskHandle {
-        return try!  FfiConverterTypeTaskHandle.lift(
-            try! 
+    public func `stopSync`() throws {
+        try 
+    rustCallWithError(FfiConverterTypeRoomListError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_stop_sync(self.pointer, $0
+    )
+}
+    }
+
+    public func `sync`()  {
+        try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_roomlist_sync(self.pointer, $0
     )
 }
-        )
     }
 }
 
@@ -6106,6 +6130,61 @@ public func FfiConverterTypeInsertData_lower(_ value: InsertData) -> RustBuffer 
 }
 
 
+public struct LocationContent {
+    public var `body`: String
+    public var `geoUri`: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`body`: String, `geoUri`: String) {
+        self.`body` = `body`
+        self.`geoUri` = `geoUri`
+    }
+}
+
+
+extension LocationContent: Equatable, Hashable {
+    public static func ==(lhs: LocationContent, rhs: LocationContent) -> Bool {
+        if lhs.`body` != rhs.`body` {
+            return false
+        }
+        if lhs.`geoUri` != rhs.`geoUri` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`body`)
+        hasher.combine(`geoUri`)
+    }
+}
+
+
+public struct FfiConverterTypeLocationContent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LocationContent {
+        return try LocationContent(
+            `body`: FfiConverterString.read(from: &buf), 
+            `geoUri`: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LocationContent, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.`body`, into: &buf)
+        FfiConverterString.write(value.`geoUri`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeLocationContent_lift(_ buf: RustBuffer) throws -> LocationContent {
+    return try FfiConverterTypeLocationContent.lift(buf)
+}
+
+public func FfiConverterTypeLocationContent_lower(_ value: LocationContent) -> RustBuffer {
+    return FfiConverterTypeLocationContent.lower(value)
+}
+
+
 public struct NoticeMessageContent {
     public var `body`: String
     public var `formatted`: FormattedBody?
@@ -7127,6 +7206,61 @@ public func FfiConverterTypeThumbnailInfo_lift(_ buf: RustBuffer) throws -> Thum
 
 public func FfiConverterTypeThumbnailInfo_lower(_ value: ThumbnailInfo) -> RustBuffer {
     return FfiConverterTypeThumbnailInfo.lower(value)
+}
+
+
+public struct TransmissionProgress {
+    public var `current`: UInt64
+    public var `total`: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`current`: UInt64, `total`: UInt64) {
+        self.`current` = `current`
+        self.`total` = `total`
+    }
+}
+
+
+extension TransmissionProgress: Equatable, Hashable {
+    public static func ==(lhs: TransmissionProgress, rhs: TransmissionProgress) -> Bool {
+        if lhs.`current` != rhs.`current` {
+            return false
+        }
+        if lhs.`total` != rhs.`total` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`current`)
+        hasher.combine(`total`)
+    }
+}
+
+
+public struct FfiConverterTypeTransmissionProgress: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TransmissionProgress {
+        return try TransmissionProgress(
+            `current`: FfiConverterUInt64.read(from: &buf), 
+            `total`: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TransmissionProgress, into buf: inout [UInt8]) {
+        FfiConverterUInt64.write(value.`current`, into: &buf)
+        FfiConverterUInt64.write(value.`total`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeTransmissionProgress_lift(_ buf: RustBuffer) throws -> TransmissionProgress {
+    return try FfiConverterTypeTransmissionProgress.lift(buf)
+}
+
+public func FfiConverterTypeTransmissionProgress_lower(_ value: TransmissionProgress) -> RustBuffer {
+    return FfiConverterTypeTransmissionProgress.lower(value)
 }
 
 
@@ -8351,6 +8485,7 @@ public enum MessageType {
     case `file`(`content`: FileMessageContent)
     case `notice`(`content`: NoticeMessageContent)
     case `text`(`content`: TextMessageContent)
+    case `location`(`content`: LocationContent)
 }
 
 public struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
@@ -8386,6 +8521,10 @@ public struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
         
         case 7: return .`text`(
             `content`: try FfiConverterTypeTextMessageContent.read(from: &buf)
+        )
+        
+        case 8: return .`location`(
+            `content`: try FfiConverterTypeLocationContent.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -8429,6 +8568,11 @@ public struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
         case let .`text`(`content`):
             writeInt(&buf, Int32(7))
             FfiConverterTypeTextMessageContent.write(`content`, into: &buf)
+            
+        
+        case let .`location`(`content`):
+            writeInt(&buf, Int32(8))
+            FfiConverterTypeLocationContent.write(`content`, into: &buf)
             
         }
     }
@@ -9382,9 +9526,9 @@ extension RoomListInput: Equatable, Hashable {}
 public enum RoomListState {
     
     case `init`
-    case `firstRooms`
-    case `allRooms`
-    case `carryOn`
+    case `settingUp`
+    case `running`
+    case `error`
     case `terminated`
 }
 
@@ -9397,11 +9541,11 @@ public struct FfiConverterTypeRoomListState: FfiConverterRustBuffer {
         
         case 1: return .`init`
         
-        case 2: return .`firstRooms`
+        case 2: return .`settingUp`
         
-        case 3: return .`allRooms`
+        case 3: return .`running`
         
-        case 4: return .`carryOn`
+        case 4: return .`error`
         
         case 5: return .`terminated`
         
@@ -9417,15 +9561,15 @@ public struct FfiConverterTypeRoomListState: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case .`firstRooms`:
+        case .`settingUp`:
             writeInt(&buf, Int32(2))
         
         
-        case .`allRooms`:
+        case .`running`:
             writeInt(&buf, Int32(3))
         
         
-        case .`carryOn`:
+        case .`error`:
             writeInt(&buf, Int32(4))
         
         
@@ -11017,6 +11161,113 @@ fileprivate struct FfiConverterCallbackInterfaceNotificationSyncListener {
 
 extension FfiConverterCallbackInterfaceNotificationSyncListener : FfiConverter {
     typealias SwiftType = NotificationSyncListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+// Declaration and FfiConverters for ProgressWatcher Callback Interface
+
+public protocol ProgressWatcher : AnyObject {
+    func `transmissionProgress`(`progress`: TransmissionProgress) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceProgressWatcher : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func `invokeTransmissionProgress`(_ swiftCallbackInterface: ProgressWatcher, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.`transmissionProgress`(
+                    `progress`:  try FfiConverterTypeTransmissionProgress.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceProgressWatcher.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: ProgressWatcher
+            do {
+                cb = try FfiConverterCallbackInterfaceProgressWatcher.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("ProgressWatcher: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try `invokeTransmissionProgress`(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceProgressWatcher {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_progresswatcher(foreignCallbackCallbackInterfaceProgressWatcher, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<ProgressWatcher>()
+}
+
+extension FfiConverterCallbackInterfaceProgressWatcher : FfiConverter {
+    typealias SwiftType = ProgressWatcher
     // We can use Handle as the FfiType because it's a typealias to UInt64
     typealias FfiType = UniFFICallbackHandle
 
@@ -12798,6 +13049,27 @@ fileprivate struct FfiConverterOptionCallbackInterfaceNotificationDelegate: FfiC
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterCallbackInterfaceNotificationDelegate.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionCallbackInterfaceProgressWatcher: FfiConverterRustBuffer {
+    typealias SwiftType = ProgressWatcher?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceProgressWatcher.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceProgressWatcher.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -14773,7 +15045,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 47523) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 4466) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 63074) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 63981) {
@@ -14992,13 +15264,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 62053) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 4121) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 11613) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_file() != 12626) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_file() != 25166) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 46471) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 19897) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reaction() != 11128) {
@@ -15013,7 +15285,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 15605) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 635) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 16306) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 53468) {
@@ -15040,13 +15312,19 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_invites() != 40006) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_is_syncing() != 3243) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 7581) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_state() != 56085) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_sync() != 21103) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_stop_sync() != 16419) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_sync() != 48107) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 30560) {
@@ -15413,6 +15691,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsynclistener_did_terminate() != 29629) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 64502) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieslistener_on_update() != 47620) {
