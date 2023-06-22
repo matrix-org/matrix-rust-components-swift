@@ -589,7 +589,7 @@ public protocol ClientProtocol {
     func `getMediaContent`(`mediaSource`: MediaSource)  throws -> [UInt8]
     func `getMediaFile`(`mediaSource`: MediaSource, `body`: String?, `mimeType`: String, `tempDir`: String?)  throws -> MediaFileHandle
     func `getMediaThumbnail`(`mediaSource`: MediaSource, `width`: UInt64, `height`: UInt64)  throws -> [UInt8]
-    func `getNotificationItem`(`roomId`: String, `eventId`: String)  throws -> NotificationItem
+    func `getNotificationItem`(`roomId`: String, `eventId`: String)  throws -> NotificationItem?
     func `getProfile`(`userId`: String)  throws -> UserProfile
     func `getSessionVerificationController`()  throws -> SessionVerificationController
     func `homeserver`()   -> String
@@ -744,8 +744,8 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func `getNotificationItem`(`roomId`: String, `eventId`: String) throws -> NotificationItem {
-        return try  FfiConverterTypeNotificationItem.lift(
+    public func `getNotificationItem`(`roomId`: String, `eventId`: String) throws -> NotificationItem? {
+        return try  FfiConverterOptionTypeNotificationItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_get_notification_item(self.pointer, 
@@ -12823,6 +12823,27 @@ fileprivate struct FfiConverterOptionTypeInsertData: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeNotificationItem: FfiConverterRustBuffer {
+    typealias SwiftType = NotificationItem?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeNotificationItem.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeNotificationItem.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeRoomSubscription: FfiConverterRustBuffer {
     typealias SwiftType = RoomSubscription?
 
@@ -14098,23 +14119,6 @@ fileprivate func uniffiFutureCallbackHandlerTypeEventTimelineItemDebugInfo(
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerTypeNotificationItemTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<NotificationItem, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeNotificationItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
 fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesLoadingStateResultTypeRoomListError(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -14591,6 +14595,23 @@ fileprivate func uniffiFutureCallbackHandlerOptionTypeInsertData(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerOptionTypeNotificationItemTypeClientError(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: RustBuffer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<NotificationItem?, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
+        continuation.pointee.resume(returning: try FfiConverterOptionTypeNotificationItem.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerOptionTypeSetData(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -14985,7 +15006,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 19947) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_item() != 39048) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_item() != 38987) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 4012) {
