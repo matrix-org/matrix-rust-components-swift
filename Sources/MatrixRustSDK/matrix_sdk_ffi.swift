@@ -1983,6 +1983,7 @@ public protocol RoomProtocol {
     func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?)  throws
     func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?)  throws
     func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?)  throws
+    func `sendLocation`(`body`: String, `geoUri`: String, `txnId`: String?)  
     func `sendReaction`(`eventId`: String, `key`: String)  throws
     func `sendReadMarker`(`fullyReadEventId`: String, `readReceiptEventId`: String?)  throws
     func `sendReadReceipt`(`eventId`: String)  throws
@@ -2444,6 +2445,18 @@ public class Room: RoomProtocol {
         FfiConverterString.lower(`thumbnailUrl`),
         FfiConverterTypeImageInfo.lower(`imageInfo`),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
+    )
+}
+    }
+
+    public func `sendLocation`(`body`: String, `geoUri`: String, `txnId`: String?)  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_send_location(self.pointer, 
+        FfiConverterString.lower(`body`),
+        FfiConverterString.lower(`geoUri`),
+        FfiConverterOptionString.lower(`txnId`),$0
     )
 }
     }
@@ -15672,6 +15685,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 19897) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 22324) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reaction() != 11128) {
