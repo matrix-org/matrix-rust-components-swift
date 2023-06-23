@@ -6485,12 +6485,14 @@ public func FfiConverterTypePusherIdentifiers_lower(_ value: PusherIdentifiers) 
 public struct Reaction {
     public var `key`: String
     public var `count`: UInt64
+    public var `senders`: [String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`key`: String, `count`: UInt64) {
+    public init(`key`: String, `count`: UInt64, `senders`: [String]) {
         self.`key` = `key`
         self.`count` = `count`
+        self.`senders` = `senders`
     }
 }
 
@@ -6503,12 +6505,16 @@ extension Reaction: Equatable, Hashable {
         if lhs.`count` != rhs.`count` {
             return false
         }
+        if lhs.`senders` != rhs.`senders` {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(`key`)
         hasher.combine(`count`)
+        hasher.combine(`senders`)
     }
 }
 
@@ -6517,13 +6523,15 @@ public struct FfiConverterTypeReaction: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Reaction {
         return try Reaction(
             `key`: FfiConverterString.read(from: &buf), 
-            `count`: FfiConverterUInt64.read(from: &buf)
+            `count`: FfiConverterUInt64.read(from: &buf), 
+            `senders`: FfiConverterSequenceString.read(from: &buf)
         )
     }
 
     public static func write(_ value: Reaction, into buf: inout [UInt8]) {
         FfiConverterString.write(value.`key`, into: &buf)
         FfiConverterUInt64.write(value.`count`, into: &buf)
+        FfiConverterSequenceString.write(value.`senders`, into: &buf)
     }
 }
 
@@ -7866,6 +7874,7 @@ public enum EventSendState {
     
     case `notSentYet`
     case `sendingFailed`(`error`: String)
+    case `cancelled`
     case `sent`(`eventId`: String)
 }
 
@@ -7882,7 +7891,9 @@ public struct FfiConverterTypeEventSendState: FfiConverterRustBuffer {
             `error`: try FfiConverterString.read(from: &buf)
         )
         
-        case 3: return .`sent`(
+        case 3: return .`cancelled`
+        
+        case 4: return .`sent`(
             `eventId`: try FfiConverterString.read(from: &buf)
         )
         
@@ -7903,8 +7914,12 @@ public struct FfiConverterTypeEventSendState: FfiConverterRustBuffer {
             FfiConverterString.write(`error`, into: &buf)
             
         
-        case let .`sent`(`eventId`):
+        case .`cancelled`:
             writeInt(&buf, Int32(3))
+        
+        
+        case let .`sent`(`eventId`):
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(`eventId`, into: &buf)
             
         }
