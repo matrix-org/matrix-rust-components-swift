@@ -1985,13 +1985,13 @@ public protocol RoomProtocol {
     func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?)  throws
     func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?)  throws
     func `sendLocation`(`body`: String, `geoUri`: String, `txnId`: String?)  
-    func `sendReaction`(`eventId`: String, `key`: String)  throws
     func `sendReadMarker`(`fullyReadEventId`: String, `readReceiptEventId`: String?)  throws
     func `sendReadReceipt`(`eventId`: String)  throws
     func `sendReply`(`msg`: String, `inReplyToEventId`: String, `txnId`: String?)  throws
     func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo, `progressWatcher`: ProgressWatcher?)  throws
     func `setName`(`name`: String?)  throws
     func `setTopic`(`topic`: String)  throws
+    func `toggleReaction`(`eventId`: String, `key`: String)  throws
     func `topic`()   -> String?
     func `uploadAvatar`(`mimeType`: String, `data`: [UInt8])  throws
     
@@ -2462,16 +2462,6 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func `sendReaction`(`eventId`: String, `key`: String) throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_send_reaction(self.pointer, 
-        FfiConverterString.lower(`eventId`),
-        FfiConverterString.lower(`key`),$0
-    )
-}
-    }
-
     public func `sendReadMarker`(`fullyReadEventId`: String, `readReceiptEventId`: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -2528,6 +2518,16 @@ public class Room: RoomProtocol {
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_set_topic(self.pointer, 
         FfiConverterString.lower(`topic`),$0
+    )
+}
+    }
+
+    public func `toggleReaction`(`eventId`: String, `key`: String) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_toggle_reaction(self.pointer, 
+        FfiConverterString.lower(`eventId`),
+        FfiConverterString.lower(`key`),$0
     )
 }
     }
@@ -15680,9 +15680,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 22324) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reaction() != 11128) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_marker() != 23927) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15699,6 +15696,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 41368) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_toggle_reaction() != 45308) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 23413) {
