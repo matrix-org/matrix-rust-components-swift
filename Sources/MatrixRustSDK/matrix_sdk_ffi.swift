@@ -589,7 +589,7 @@ public protocol ClientProtocol {
     func `getMediaContent`(`mediaSource`: MediaSource)  throws -> [UInt8]
     func `getMediaFile`(`mediaSource`: MediaSource, `body`: String?, `mimeType`: String, `tempDir`: String?)  throws -> MediaFileHandle
     func `getMediaThumbnail`(`mediaSource`: MediaSource, `width`: UInt64, `height`: UInt64)  throws -> [UInt8]
-    func `getNotificationItem`(`roomId`: String, `eventId`: String)  throws -> NotificationItem?
+    func `getNotificationItem`(`roomId`: String, `eventId`: String, `filterByPushRules`: Bool)  throws -> NotificationItem?
     func `getProfile`(`userId`: String)  throws -> UserProfile
     func `getSessionVerificationController`()  throws -> SessionVerificationController
     func `homeserver`()   -> String
@@ -746,13 +746,14 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func `getNotificationItem`(`roomId`: String, `eventId`: String) throws -> NotificationItem? {
+    public func `getNotificationItem`(`roomId`: String, `eventId`: String, `filterByPushRules`: Bool) throws -> NotificationItem? {
         return try  FfiConverterOptionTypeNotificationItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_get_notification_item(self.pointer, 
         FfiConverterString.lower(`roomId`),
-        FfiConverterString.lower(`eventId`),$0
+        FfiConverterString.lower(`eventId`),
+        FfiConverterBool.lower(`filterByPushRules`),$0
     )
 }
         )
@@ -3856,7 +3857,6 @@ public protocol SlidingSyncBuilderProtocol {
     func `addCachedList`(`listBuilder`: SlidingSyncListBuilder)  throws -> SlidingSyncBuilder
     func `addList`(`listBuilder`: SlidingSyncListBuilder)   -> SlidingSyncBuilder
     func `build`()  throws -> SlidingSync
-    func `enableCaching`()  throws -> SlidingSyncBuilder
     func `slidingSyncProxy`(`url`: String)  throws -> SlidingSyncBuilder
     func `withAllExtensions`()   -> SlidingSyncBuilder
     func `withCommonExtensions`()   -> SlidingSyncBuilder
@@ -3915,16 +3915,6 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_build(self.pointer, $0
-    )
-}
-        )
-    }
-
-    public func `enableCaching`() throws -> SlidingSyncBuilder {
-        return try  FfiConverterTypeSlidingSyncBuilder.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_enable_caching(self.pointer, $0
     )
 }
         )
@@ -15387,7 +15377,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 19947) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_item() != 38987) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_item() != 11170) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 4012) {
@@ -15883,9 +15873,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_build() != 59903) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_enable_caching() != 13880) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_sliding_sync_proxy() != 8922) {
