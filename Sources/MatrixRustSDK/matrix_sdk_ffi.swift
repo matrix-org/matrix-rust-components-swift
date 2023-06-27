@@ -473,11 +473,12 @@ public class AuthenticationService: AuthenticationServiceProtocol {
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
-    public convenience init(`basePath`: String, `passphrase`: String?, `customSlidingSyncProxy`: String?)  {
+    public convenience init(`basePath`: String, `passphrase`: String?, `userAgent`: String?, `customSlidingSyncProxy`: String?)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_authenticationservice_new(
         FfiConverterString.lower(`basePath`),
         FfiConverterOptionString.lower(`passphrase`),
+        FfiConverterOptionString.lower(`userAgent`),
         FfiConverterOptionString.lower(`customSlidingSyncProxy`),$0)
 })
     }
@@ -16076,7 +16077,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 64601) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 51213) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 11073) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 54066) {
