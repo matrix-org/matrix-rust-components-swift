@@ -1982,14 +1982,14 @@ public protocol RoomProtocol {
     func `retryDecryption`(`sessionIds`: [String])  
     func `retrySend`(`txnId`: String)  
     func `send`(`msg`: RoomMessageEventContent, `txnId`: String?)  
-    func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?)  throws
-    func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?)  throws
-    func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?)  throws
+    func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?)   -> SendAttachmentJoinHandle
+    func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?)   -> SendAttachmentJoinHandle
+    func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func `sendLocation`(`body`: String, `geoUri`: String, `txnId`: String?)  
     func `sendReadMarker`(`fullyReadEventId`: String, `readReceiptEventId`: String?)  throws
     func `sendReadReceipt`(`eventId`: String)  throws
     func `sendReply`(`msg`: String, `inReplyToEventId`: String, `txnId`: String?)  throws
-    func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo, `progressWatcher`: ProgressWatcher?)  throws
+    func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo, `progressWatcher`: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func `setName`(`name`: String?)  throws
     func `setTopic`(`topic`: String)  throws
     func `toggleReaction`(`eventId`: String, `key`: String)  throws
@@ -2417,31 +2417,39 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?) throws {
-        try 
-    rustCallWithError(FfiConverterTypeRoomError.lift) {
+    public func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
     uniffi_matrix_sdk_ffi_fn_method_room_send_audio(self.pointer, 
         FfiConverterString.lower(`url`),
         FfiConverterTypeAudioInfo.lower(`audioInfo`),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
+        )
     }
 
-    public func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?) throws {
-        try 
-    rustCallWithError(FfiConverterTypeRoomError.lift) {
+    public func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
     uniffi_matrix_sdk_ffi_fn_method_room_send_file(self.pointer, 
         FfiConverterString.lower(`url`),
         FfiConverterTypeFileInfo.lower(`fileInfo`),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
+        )
     }
 
-    public func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?) throws {
-        try 
-    rustCallWithError(FfiConverterTypeRoomError.lift) {
+    public func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
     uniffi_matrix_sdk_ffi_fn_method_room_send_image(self.pointer, 
         FfiConverterString.lower(`url`),
         FfiConverterString.lower(`thumbnailUrl`),
@@ -2449,6 +2457,7 @@ public class Room: RoomProtocol {
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
+        )
     }
 
     public func `sendLocation`(`body`: String, `geoUri`: String, `txnId`: String?)  {
@@ -2493,9 +2502,11 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo, `progressWatcher`: ProgressWatcher?) throws {
-        try 
-    rustCallWithError(FfiConverterTypeRoomError.lift) {
+    public func `sendVideo`(`url`: String, `thumbnailUrl`: String, `videoInfo`: VideoInfo, `progressWatcher`: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
     uniffi_matrix_sdk_ffi_fn_method_room_send_video(self.pointer, 
         FfiConverterString.lower(`url`),
         FfiConverterString.lower(`thumbnailUrl`),
@@ -2503,6 +2514,7 @@ public class Room: RoomProtocol {
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(`progressWatcher`),$0
     )
 }
+        )
     }
 
     public func `setName`(`name`: String?) throws {
@@ -3385,6 +3397,105 @@ public func FfiConverterTypeRoomMessageEventContent_lift(_ pointer: UnsafeMutabl
 
 public func FfiConverterTypeRoomMessageEventContent_lower(_ value: RoomMessageEventContent) -> UnsafeMutableRawPointer {
     return FfiConverterTypeRoomMessageEventContent.lower(value)
+}
+
+
+public protocol SendAttachmentJoinHandleProtocol {
+    func `cancel`()  
+    func `join`() async throws
+    
+}
+
+public class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sendattachmentjoinhandle(pointer, $0) }
+    }
+
+    
+
+    
+    
+
+    public func `cancel`()  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_cancel(self.pointer, $0
+    )
+}
+    }
+
+    public func `join`() async throws {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<(), Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerVoidTypeRoomError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+}
+
+public struct FfiConverterTypeSendAttachmentJoinHandle: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = SendAttachmentJoinHandle
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SendAttachmentJoinHandle {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: SendAttachmentJoinHandle, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> SendAttachmentJoinHandle {
+        return SendAttachmentJoinHandle(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: SendAttachmentJoinHandle) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+
+public func FfiConverterTypeSendAttachmentJoinHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> SendAttachmentJoinHandle {
+    return try FfiConverterTypeSendAttachmentJoinHandle.lift(pointer)
+}
+
+public func FfiConverterTypeSendAttachmentJoinHandle_lower(_ value: SendAttachmentJoinHandle) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeSendAttachmentJoinHandle.lower(value)
 }
 
 
@@ -14304,6 +14415,23 @@ fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContentTypeClien
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerTypeSendAttachmentJoinHandle(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: UnsafeMutableRawPointer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<SendAttachmentJoinHandle, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
+        continuation.pointee.resume(returning: try FfiConverterTypeSendAttachmentJoinHandle.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerTypeSessionVerificationControllerTypeClientError(
     rawContinutation: UnsafeRawPointer,
     returnValue: UnsafeMutableRawPointer,
@@ -15669,13 +15797,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 62053) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 11613) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 57011) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_file() != 25166) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_file() != 29649) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 19897) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 62045) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 22324) {
@@ -15690,7 +15818,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 15605) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 16306) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 7243) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 53468) {
@@ -15817,6 +15945,12 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_user_id() != 19498) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 58929) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 52249) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 901) {
