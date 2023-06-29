@@ -1945,7 +1945,7 @@ public func FfiConverterTypeMessage_lower(_ value: Message) -> UnsafeMutableRawP
 public protocol RoomProtocol {
     func `acceptInvitation`()  throws
     func `activeMembersCount`()   -> UInt64
-    func `addTimelineListener`(`listener`: TimelineListener)   -> RoomTimelineListenerResult
+    func `addTimelineListener`(`listener`: TimelineListener) async  -> RoomTimelineListenerResult
     func `alternativeAliases`()   -> [String]
     func `avatarUrl`()   -> String?
     func `cancelSend`(`txnId`: String)  
@@ -2036,17 +2036,30 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func `addTimelineListener`(`listener`: TimelineListener)  -> RoomTimelineListenerResult {
-        return try!  FfiConverterTypeRoomTimelineListenerResult.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(self.pointer, 
-        FfiConverterCallbackInterfaceTimelineListener.lower(`listener`),$0
-    )
-}
-        )
+    public func `addTimelineListener`(`listener`: TimelineListener) async  -> RoomTimelineListenerResult {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomTimelineListenerResult, Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(
+                    self.pointer,
+                    
+        FfiConverterCallbackInterfaceTimelineListener.lower(`listener`),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoomTimelineListenerResult,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 
     public func `alternativeAliases`()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
@@ -2708,9 +2721,12 @@ public func FfiConverterTypeRoomList_lower(_ value: RoomList) -> UnsafeMutableRa
 
 
 public protocol RoomListItemProtocol {
+    func `avatarUrl`()   -> String?
+    func `canonicalAlias`()   -> String?
     func `fullRoom`()   -> Room
     func `hasUnreadNotifications`()   -> Bool
     func `id`()   -> String
+    func `isDirect`()   -> Bool
     func `latestEvent`()   -> EventTimelineItem?
     func `name`()   -> String?
     func `subscribe`(`settings`: RoomSubscription?)  
@@ -2737,6 +2753,28 @@ public class RoomListItem: RoomListItemProtocol {
 
     
     
+
+    public func `avatarUrl`()  -> String? {
+        return try!  FfiConverterOptionString.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_avatar_url(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `canonicalAlias`()  -> String? {
+        return try!  FfiConverterOptionString.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_canonical_alias(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func `fullRoom`()  -> Room {
         return try!  FfiConverterTypeRoom.lift(
@@ -2766,6 +2804,17 @@ public class RoomListItem: RoomListItemProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_roomlistitem_id(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `isDirect`()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_is_direct(self.pointer, $0
     )
 }
         )
@@ -9698,7 +9747,7 @@ public enum RoomListError {
     
     case SlidingSync(`error`: String)
     case UnknownList(`listName`: String)
-    case InputHasNotBeenApplied
+    case InputCannotBeApplied
     case RoomNotFound(`roomName`: String)
     case InvalidRoomId(`error`: String)
 
@@ -9724,7 +9773,7 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
         case 2: return .UnknownList(
             `listName`: try FfiConverterString.read(from: &buf)
             )
-        case 3: return .InputHasNotBeenApplied
+        case 3: return .InputCannotBeApplied
         case 4: return .RoomNotFound(
             `roomName`: try FfiConverterString.read(from: &buf)
             )
@@ -9753,7 +9802,7 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
             FfiConverterString.write(`listName`, into: &buf)
             
         
-        case .InputHasNotBeenApplied:
+        case .InputCannotBeApplied:
             writeInt(&buf, Int32(3))
         
         
@@ -15686,7 +15735,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 62367) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 52510) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 40193) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 25219) {
@@ -15845,6 +15894,12 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 7581) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_avatar_url() != 23609) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_canonical_alias() != 56187) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 30560) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15852,6 +15907,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_id() != 35737) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_is_direct() != 24829) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_latest_event() != 3205) {
