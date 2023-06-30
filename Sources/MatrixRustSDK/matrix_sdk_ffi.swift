@@ -1230,7 +1230,6 @@ public func FfiConverterTypeClientBuilder_lower(_ value: ClientBuilder) -> Unsaf
 
 
 public protocol EncryptionSyncProtocol {
-    func `reloadCaches`()  
     func `stop`()  
     
 }
@@ -1253,15 +1252,6 @@ public class EncryptionSync: EncryptionSyncProtocol {
 
     
     
-
-    public func `reloadCaches`()  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_encryptionsync_reload_caches(self.pointer, $0
-    )
-}
-    }
 
     public func `stop`()  {
         try! 
@@ -4020,7 +4010,6 @@ public protocol SlidingSyncBuilderProtocol {
     func `build`()  throws -> SlidingSync
     func `slidingSyncProxy`(`url`: String)  throws -> SlidingSyncBuilder
     func `withAllExtensions`()   -> SlidingSyncBuilder
-    func `withCommonExtensions`()   -> SlidingSyncBuilder
     func `withoutAccountDataExtension`()   -> SlidingSyncBuilder
     func `withoutE2eeExtension`()   -> SlidingSyncBuilder
     func `withoutReceiptExtension`()   -> SlidingSyncBuilder
@@ -4098,17 +4087,6 @@ public class SlidingSyncBuilder: SlidingSyncBuilderProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_with_all_extensions(self.pointer, $0
-    )
-}
-        )
-    }
-
-    public func `withCommonExtensions`()  -> SlidingSyncBuilder {
-        return try!  FfiConverterTypeSlidingSyncBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_slidingsyncbuilder_with_common_extensions(self.pointer, $0
     )
 }
         )
@@ -15654,9 +15632,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 20902) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryptionsync_reload_caches() != 31680) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryptionsync_stop() != 45414) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -16072,9 +16047,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_all_extensions() != 54545) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_with_common_extensions() != 59340) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_slidingsyncbuilder_without_account_data_extension() != 35464) {
