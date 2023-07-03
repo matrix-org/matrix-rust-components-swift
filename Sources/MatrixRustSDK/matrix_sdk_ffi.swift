@@ -1048,8 +1048,10 @@ public func FfiConverterTypeClient_lower(_ value: Client) -> UnsafeMutableRawPoi
 public protocol ClientBuilderProtocol {
     func `basePath`(`path`: String)   -> ClientBuilder
     func `build`()  throws -> Client
+    func `disableSslVerification`()   -> ClientBuilder
     func `homeserverUrl`(`url`: String)   -> ClientBuilder
     func `passphrase`(`passphrase`: String?)   -> ClientBuilder
+    func `proxy`(`url`: String)   -> ClientBuilder
     func `serverName`(`serverName`: String)   -> ClientBuilder
     func `serverVersions`(`versions`: [String])   -> ClientBuilder
     func `slidingSyncProxy`(`slidingSyncProxy`: String?)   -> ClientBuilder
@@ -1104,6 +1106,17 @@ public class ClientBuilder: ClientBuilderProtocol {
         )
     }
 
+    public func `disableSslVerification`()  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_disable_ssl_verification(self.pointer, $0
+    )
+}
+        )
+    }
+
     public func `homeserverUrl`(`url`: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
@@ -1123,6 +1136,18 @@ public class ClientBuilder: ClientBuilderProtocol {
     
     uniffi_matrix_sdk_ffi_fn_method_clientbuilder_passphrase(self.pointer, 
         FfiConverterOptionString.lower(`passphrase`),$0
+    )
+}
+        )
+    }
+
+    public func `proxy`(`url`: String)  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_proxy(self.pointer, 
+        FfiConverterString.lower(`url`),$0
     )
 }
         )
@@ -1975,7 +2000,7 @@ public protocol RoomProtocol {
     func `sendAudio`(`url`: String, `audioInfo`: AudioInfo, `progressWatcher`: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func `sendFile`(`url`: String, `fileInfo`: FileInfo, `progressWatcher`: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func `sendImage`(`url`: String, `thumbnailUrl`: String, `imageInfo`: ImageInfo, `progressWatcher`: ProgressWatcher?)   -> SendAttachmentJoinHandle
-    func `sendLocation`(`body`: String, `geoUri`: String, `txnId`: String?)  
+    func `sendLocation`(`body`: String, `geoUri`: String, `description`: String?, `zoomLevel`: UInt8?, `assetType`: AssetType?, `txnId`: String?)  
     func `sendReadMarker`(`fullyReadEventId`: String, `readReceiptEventId`: String?)  throws
     func `sendReadReceipt`(`eventId`: String)  throws
     func `sendReply`(`msg`: String, `inReplyToEventId`: String, `txnId`: String?)  throws
@@ -2463,13 +2488,16 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func `sendLocation`(`body`: String, `geoUri`: String, `txnId`: String?)  {
+    public func `sendLocation`(`body`: String, `geoUri`: String, `description`: String?, `zoomLevel`: UInt8?, `assetType`: AssetType?, `txnId`: String?)  {
         try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_room_send_location(self.pointer, 
         FfiConverterString.lower(`body`),
         FfiConverterString.lower(`geoUri`),
+        FfiConverterOptionString.lower(`description`),
+        FfiConverterOptionUInt8.lower(`zoomLevel`),
+        FfiConverterOptionTypeAssetType.lower(`assetType`),
         FfiConverterOptionString.lower(`txnId`),$0
     )
 }
@@ -6392,12 +6420,18 @@ public func FfiConverterTypeInsertData_lower(_ value: InsertData) -> RustBuffer 
 public struct LocationContent {
     public var `body`: String
     public var `geoUri`: String
+    public var `description`: String?
+    public var `zoomLevel`: UInt8?
+    public var `asset`: AssetType?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`body`: String, `geoUri`: String) {
+    public init(`body`: String, `geoUri`: String, `description`: String?, `zoomLevel`: UInt8?, `asset`: AssetType?) {
         self.`body` = `body`
         self.`geoUri` = `geoUri`
+        self.`description` = `description`
+        self.`zoomLevel` = `zoomLevel`
+        self.`asset` = `asset`
     }
 }
 
@@ -6410,12 +6444,24 @@ extension LocationContent: Equatable, Hashable {
         if lhs.`geoUri` != rhs.`geoUri` {
             return false
         }
+        if lhs.`description` != rhs.`description` {
+            return false
+        }
+        if lhs.`zoomLevel` != rhs.`zoomLevel` {
+            return false
+        }
+        if lhs.`asset` != rhs.`asset` {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(`body`)
         hasher.combine(`geoUri`)
+        hasher.combine(`description`)
+        hasher.combine(`zoomLevel`)
+        hasher.combine(`asset`)
     }
 }
 
@@ -6424,13 +6470,19 @@ public struct FfiConverterTypeLocationContent: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LocationContent {
         return try LocationContent(
             `body`: FfiConverterString.read(from: &buf), 
-            `geoUri`: FfiConverterString.read(from: &buf)
+            `geoUri`: FfiConverterString.read(from: &buf), 
+            `description`: FfiConverterOptionString.read(from: &buf), 
+            `zoomLevel`: FfiConverterOptionUInt8.read(from: &buf), 
+            `asset`: FfiConverterOptionTypeAssetType.read(from: &buf)
         )
     }
 
     public static func write(_ value: LocationContent, into buf: inout [UInt8]) {
         FfiConverterString.write(value.`body`, into: &buf)
         FfiConverterString.write(value.`geoUri`, into: &buf)
+        FfiConverterOptionString.write(value.`description`, into: &buf)
+        FfiConverterOptionUInt8.write(value.`zoomLevel`, into: &buf)
+        FfiConverterOptionTypeAssetType.write(value.`asset`, into: &buf)
     }
 }
 
@@ -7751,6 +7803,58 @@ public func FfiConverterTypeVideoMessageContent_lift(_ buf: RustBuffer) throws -
 public func FfiConverterTypeVideoMessageContent_lower(_ value: VideoMessageContent) -> RustBuffer {
     return FfiConverterTypeVideoMessageContent.lower(value)
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum AssetType {
+    
+    case `sender`
+    case `pin`
+}
+
+public struct FfiConverterTypeAssetType: FfiConverterRustBuffer {
+    typealias SwiftType = AssetType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AssetType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`sender`
+        
+        case 2: return .`pin`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AssetType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`sender`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .`pin`:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeAssetType_lift(_ buf: RustBuffer) throws -> AssetType {
+    return try FfiConverterTypeAssetType.lift(buf)
+}
+
+public func FfiConverterTypeAssetType_lower(_ value: AssetType) -> RustBuffer {
+    return FfiConverterTypeAssetType.lower(value)
+}
+
+
+extension AssetType: Equatable, Hashable {}
+
+
 
 public enum AuthenticationError {
 
@@ -12875,6 +12979,27 @@ extension FfiConverterCallbackInterfaceTimelineListener : FfiConverter {
     }
 }
 
+fileprivate struct FfiConverterOptionUInt8: FfiConverterRustBuffer {
+    typealias SwiftType = UInt8?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt8.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt8.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
     typealias SwiftType = UInt32?
 
@@ -13416,6 +13541,27 @@ fileprivate struct FfiConverterOptionTypeVideoInfo: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeVideoInfo.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypeAssetType: FfiConverterRustBuffer {
+    typealias SwiftType = AssetType?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeAssetType.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeAssetType.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -15611,10 +15757,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 7707) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_ssl_verification() != 12746) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 35787) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_passphrase() != 56152) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_proxy() != 26553) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 25279) {
@@ -15830,7 +15982,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 62045) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 22324) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 26829) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_marker() != 23927) {
