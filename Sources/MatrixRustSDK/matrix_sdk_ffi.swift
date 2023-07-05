@@ -1337,6 +1337,7 @@ public protocol EventTimelineItemProtocol {
     func `isOwn`()   -> Bool
     func `isRemote`()   -> Bool
     func `localSendState`()   -> EventSendState?
+    func `origin`()   -> EventItemOrigin?
     func `reactions`()   -> [Reaction]
     func `readReceipts`()   -> [String: Receipt]
     func `sender`()   -> String
@@ -1449,6 +1450,17 @@ public class EventTimelineItem: EventTimelineItemProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_local_send_state(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func `origin`()  -> EventItemOrigin? {
+        return try!  FfiConverterOptionTypeEventItemOrigin.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_origin(self.pointer, $0
     )
 }
         )
@@ -6553,29 +6565,17 @@ public func FfiConverterTypeNoticeMessageContent_lower(_ value: NoticeMessageCon
 
 public struct NotificationItem {
     public var `event`: TimelineEvent
-    public var `roomId`: String
-    public var `senderDisplayName`: String?
-    public var `senderAvatarUrl`: String?
-    public var `roomDisplayName`: String
-    public var `roomAvatarUrl`: String?
-    public var `roomCanonicalAlias`: String?
+    public var `senderInfo`: NotificationSenderInfo
+    public var `roomInfo`: NotificationRoomInfo
     public var `isNoisy`: Bool
-    public var `isDirect`: Bool
-    public var `isEncrypted`: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`event`: TimelineEvent, `roomId`: String, `senderDisplayName`: String?, `senderAvatarUrl`: String?, `roomDisplayName`: String, `roomAvatarUrl`: String?, `roomCanonicalAlias`: String?, `isNoisy`: Bool, `isDirect`: Bool, `isEncrypted`: Bool?) {
+    public init(`event`: TimelineEvent, `senderInfo`: NotificationSenderInfo, `roomInfo`: NotificationRoomInfo, `isNoisy`: Bool) {
         self.`event` = `event`
-        self.`roomId` = `roomId`
-        self.`senderDisplayName` = `senderDisplayName`
-        self.`senderAvatarUrl` = `senderAvatarUrl`
-        self.`roomDisplayName` = `roomDisplayName`
-        self.`roomAvatarUrl` = `roomAvatarUrl`
-        self.`roomCanonicalAlias` = `roomCanonicalAlias`
+        self.`senderInfo` = `senderInfo`
+        self.`roomInfo` = `roomInfo`
         self.`isNoisy` = `isNoisy`
-        self.`isDirect` = `isDirect`
-        self.`isEncrypted` = `isEncrypted`
     }
 }
 
@@ -6585,29 +6585,17 @@ public struct FfiConverterTypeNotificationItem: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationItem {
         return try NotificationItem(
             `event`: FfiConverterTypeTimelineEvent.read(from: &buf), 
-            `roomId`: FfiConverterString.read(from: &buf), 
-            `senderDisplayName`: FfiConverterOptionString.read(from: &buf), 
-            `senderAvatarUrl`: FfiConverterOptionString.read(from: &buf), 
-            `roomDisplayName`: FfiConverterString.read(from: &buf), 
-            `roomAvatarUrl`: FfiConverterOptionString.read(from: &buf), 
-            `roomCanonicalAlias`: FfiConverterOptionString.read(from: &buf), 
-            `isNoisy`: FfiConverterBool.read(from: &buf), 
-            `isDirect`: FfiConverterBool.read(from: &buf), 
-            `isEncrypted`: FfiConverterOptionBool.read(from: &buf)
+            `senderInfo`: FfiConverterTypeNotificationSenderInfo.read(from: &buf), 
+            `roomInfo`: FfiConverterTypeNotificationRoomInfo.read(from: &buf), 
+            `isNoisy`: FfiConverterBool.read(from: &buf)
         )
     }
 
     public static func write(_ value: NotificationItem, into buf: inout [UInt8]) {
         FfiConverterTypeTimelineEvent.write(value.`event`, into: &buf)
-        FfiConverterString.write(value.`roomId`, into: &buf)
-        FfiConverterOptionString.write(value.`senderDisplayName`, into: &buf)
-        FfiConverterOptionString.write(value.`senderAvatarUrl`, into: &buf)
-        FfiConverterString.write(value.`roomDisplayName`, into: &buf)
-        FfiConverterOptionString.write(value.`roomAvatarUrl`, into: &buf)
-        FfiConverterOptionString.write(value.`roomCanonicalAlias`, into: &buf)
+        FfiConverterTypeNotificationSenderInfo.write(value.`senderInfo`, into: &buf)
+        FfiConverterTypeNotificationRoomInfo.write(value.`roomInfo`, into: &buf)
         FfiConverterBool.write(value.`isNoisy`, into: &buf)
-        FfiConverterBool.write(value.`isDirect`, into: &buf)
-        FfiConverterOptionBool.write(value.`isEncrypted`, into: &buf)
     }
 }
 
@@ -6618,6 +6606,156 @@ public func FfiConverterTypeNotificationItem_lift(_ buf: RustBuffer) throws -> N
 
 public func FfiConverterTypeNotificationItem_lower(_ value: NotificationItem) -> RustBuffer {
     return FfiConverterTypeNotificationItem.lower(value)
+}
+
+
+public struct NotificationRoomInfo {
+    public var `id`: String
+    public var `displayName`: String
+    public var `avatarUrl`: String?
+    public var `canonicalAlias`: String?
+    public var `joinedMembersCount`: UInt64
+    public var `isEncrypted`: Bool?
+    public var `isDirect`: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`id`: String, `displayName`: String, `avatarUrl`: String?, `canonicalAlias`: String?, `joinedMembersCount`: UInt64, `isEncrypted`: Bool?, `isDirect`: Bool) {
+        self.`id` = `id`
+        self.`displayName` = `displayName`
+        self.`avatarUrl` = `avatarUrl`
+        self.`canonicalAlias` = `canonicalAlias`
+        self.`joinedMembersCount` = `joinedMembersCount`
+        self.`isEncrypted` = `isEncrypted`
+        self.`isDirect` = `isDirect`
+    }
+}
+
+
+extension NotificationRoomInfo: Equatable, Hashable {
+    public static func ==(lhs: NotificationRoomInfo, rhs: NotificationRoomInfo) -> Bool {
+        if lhs.`id` != rhs.`id` {
+            return false
+        }
+        if lhs.`displayName` != rhs.`displayName` {
+            return false
+        }
+        if lhs.`avatarUrl` != rhs.`avatarUrl` {
+            return false
+        }
+        if lhs.`canonicalAlias` != rhs.`canonicalAlias` {
+            return false
+        }
+        if lhs.`joinedMembersCount` != rhs.`joinedMembersCount` {
+            return false
+        }
+        if lhs.`isEncrypted` != rhs.`isEncrypted` {
+            return false
+        }
+        if lhs.`isDirect` != rhs.`isDirect` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`id`)
+        hasher.combine(`displayName`)
+        hasher.combine(`avatarUrl`)
+        hasher.combine(`canonicalAlias`)
+        hasher.combine(`joinedMembersCount`)
+        hasher.combine(`isEncrypted`)
+        hasher.combine(`isDirect`)
+    }
+}
+
+
+public struct FfiConverterTypeNotificationRoomInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationRoomInfo {
+        return try NotificationRoomInfo(
+            `id`: FfiConverterString.read(from: &buf), 
+            `displayName`: FfiConverterString.read(from: &buf), 
+            `avatarUrl`: FfiConverterOptionString.read(from: &buf), 
+            `canonicalAlias`: FfiConverterOptionString.read(from: &buf), 
+            `joinedMembersCount`: FfiConverterUInt64.read(from: &buf), 
+            `isEncrypted`: FfiConverterOptionBool.read(from: &buf), 
+            `isDirect`: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NotificationRoomInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.`id`, into: &buf)
+        FfiConverterString.write(value.`displayName`, into: &buf)
+        FfiConverterOptionString.write(value.`avatarUrl`, into: &buf)
+        FfiConverterOptionString.write(value.`canonicalAlias`, into: &buf)
+        FfiConverterUInt64.write(value.`joinedMembersCount`, into: &buf)
+        FfiConverterOptionBool.write(value.`isEncrypted`, into: &buf)
+        FfiConverterBool.write(value.`isDirect`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeNotificationRoomInfo_lift(_ buf: RustBuffer) throws -> NotificationRoomInfo {
+    return try FfiConverterTypeNotificationRoomInfo.lift(buf)
+}
+
+public func FfiConverterTypeNotificationRoomInfo_lower(_ value: NotificationRoomInfo) -> RustBuffer {
+    return FfiConverterTypeNotificationRoomInfo.lower(value)
+}
+
+
+public struct NotificationSenderInfo {
+    public var `displayName`: String?
+    public var `avatarUrl`: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`displayName`: String?, `avatarUrl`: String?) {
+        self.`displayName` = `displayName`
+        self.`avatarUrl` = `avatarUrl`
+    }
+}
+
+
+extension NotificationSenderInfo: Equatable, Hashable {
+    public static func ==(lhs: NotificationSenderInfo, rhs: NotificationSenderInfo) -> Bool {
+        if lhs.`displayName` != rhs.`displayName` {
+            return false
+        }
+        if lhs.`avatarUrl` != rhs.`avatarUrl` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`displayName`)
+        hasher.combine(`avatarUrl`)
+    }
+}
+
+
+public struct FfiConverterTypeNotificationSenderInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationSenderInfo {
+        return try NotificationSenderInfo(
+            `displayName`: FfiConverterOptionString.read(from: &buf), 
+            `avatarUrl`: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NotificationSenderInfo, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.`displayName`, into: &buf)
+        FfiConverterOptionString.write(value.`avatarUrl`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeNotificationSenderInfo_lift(_ buf: RustBuffer) throws -> NotificationSenderInfo {
+    return try FfiConverterTypeNotificationSenderInfo.lift(buf)
+}
+
+public func FfiConverterTypeNotificationSenderInfo_lower(_ value: NotificationSenderInfo) -> RustBuffer {
+    return FfiConverterTypeNotificationSenderInfo.lower(value)
 }
 
 
@@ -8111,6 +8249,65 @@ public func FfiConverterTypeEncryptionSyncTerminationReason_lower(_ value: Encry
 
 
 extension EncryptionSyncTerminationReason: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum EventItemOrigin {
+    
+    case `local`
+    case `sync`
+    case `pagination`
+}
+
+public struct FfiConverterTypeEventItemOrigin: FfiConverterRustBuffer {
+    typealias SwiftType = EventItemOrigin
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EventItemOrigin {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`local`
+        
+        case 2: return .`sync`
+        
+        case 3: return .`pagination`
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: EventItemOrigin, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`local`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .`sync`:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .`pagination`:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeEventItemOrigin_lift(_ buf: RustBuffer) throws -> EventItemOrigin {
+    return try FfiConverterTypeEventItemOrigin.lift(buf)
+}
+
+public func FfiConverterTypeEventItemOrigin_lower(_ value: EventItemOrigin) -> RustBuffer {
+    return FfiConverterTypeEventItemOrigin.lower(value)
+}
+
+
+extension EventItemOrigin: Equatable, Hashable {}
 
 
 
@@ -13567,6 +13764,27 @@ fileprivate struct FfiConverterOptionTypeAssetType: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeEventItemOrigin: FfiConverterRustBuffer {
+    typealias SwiftType = EventItemOrigin?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEventItemOrigin.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEventItemOrigin.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeEventSendState: FfiConverterRustBuffer {
     typealias SwiftType = EventSendState?
 
@@ -15302,6 +15520,23 @@ fileprivate func uniffiFutureCallbackHandlerOptionTypeSetData(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerOptionTypeEventItemOrigin(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: RustBuffer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<EventItemOrigin?, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
+        continuation.pointee.resume(returning: try FfiConverterOptionTypeEventItemOrigin.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerOptionTypeEventSendState(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -15809,6 +16044,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_local_send_state() != 49067) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_origin() != 16282) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_reactions() != 26217) {
