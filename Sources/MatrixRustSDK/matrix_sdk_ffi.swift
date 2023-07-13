@@ -459,7 +459,7 @@ fileprivate struct FfiConverterDuration: FfiConverterRustBuffer {
 public protocol AppProtocol {
     func `pause`()  throws
     func `roomListService`()   -> RoomListService
-    func `start`()  throws
+    func `start`() async throws
     func `state`(`listener`: AppStateObserver)   -> TaskHandle
     
 }
@@ -502,13 +502,29 @@ public class App: AppProtocol {
         )
     }
 
-    public func `start`() throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_app_start(self.pointer, $0
-    )
-}
+    public func `start`() async throws {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<(), Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_app_start(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerVoidTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 
     public func `state`(`listener`: AppStateObserver)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
@@ -564,7 +580,7 @@ public func FfiConverterTypeApp_lower(_ value: App) -> UnsafeMutableRawPointer {
 
 
 public protocol AppBuilderProtocol {
-    func `finish`()  throws -> App
+    func `finish`() async throws -> App
     func `withEncryptionSync`(`withCrossProcessLock`: Bool, `appIdentifier`: String?)   -> AppBuilder
     
 }
@@ -588,15 +604,29 @@ public class AppBuilder: AppBuilderProtocol {
     
     
 
-    public func `finish`() throws -> App {
-        return try  FfiConverterTypeApp.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_appbuilder_finish(self.pointer, $0
-    )
-}
-        )
+    public func `finish`() async throws -> App {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<App, Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_appbuilder_finish(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeAppTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 
     public func `withEncryptionSync`(`withCrossProcessLock`: Bool, `appIdentifier`: String?)  -> AppBuilder {
         return try!  FfiConverterTypeAppBuilder.lift(
@@ -14780,13 +14810,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_app_room_list_service() != 52365) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_app_start() != 14433) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_app_start() != 34827) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_app_state() != 56623) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_appbuilder_finish() != 28676) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_appbuilder_finish() != 19033) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_appbuilder_with_encryption_sync() != 20669) {
