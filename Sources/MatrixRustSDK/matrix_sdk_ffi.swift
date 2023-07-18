@@ -2413,7 +2413,6 @@ public func FfiConverterTypeNotificationSettings_lower(_ value: NotificationSett
 
 
 public protocol RoomProtocol {
-    func `acceptInvitation`()  throws
     func `activeMembersCount`()   -> UInt64
     func `addTimelineListener`(`listener`: TimelineListener) async  -> RoomTimelineListenerResult
     func `alternativeAliases`()   -> [String]
@@ -2442,6 +2441,7 @@ public protocol RoomProtocol {
     func `isPublic`()   -> Bool
     func `isSpace`()   -> Bool
     func `isTombstoned`()   -> Bool
+    func `join`()  throws
     func `joinedMembersCount`()   -> UInt64
     func `leave`()  throws
     func `member`(`userId`: String)  throws -> RoomMember
@@ -2453,7 +2453,6 @@ public protocol RoomProtocol {
     func `ownUserId`()   -> String
     func `paginateBackwards`(`opts`: PaginationOptions)  throws
     func `redact`(`eventId`: String, `reason`: String?, `txnId`: String?)  throws
-    func `rejectInvitation`()  throws
     func `removeAvatar`()  throws
     func `removeTimeline`()  
     func `reportContent`(`eventId`: String, `score`: Int32?, `reason`: String?)  throws
@@ -2495,14 +2494,6 @@ public class Room: RoomProtocol {
 
     
     
-
-    public func `acceptInvitation`() throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_accept_invitation(self.pointer, $0
-    )
-}
-    }
 
     public func `activeMembersCount`()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
@@ -2915,6 +2906,14 @@ public class Room: RoomProtocol {
         )
     }
 
+    public func `join`() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_join(self.pointer, $0
+    )
+}
+    }
+
     public func `joinedMembersCount`()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
@@ -3026,14 +3025,6 @@ public class Room: RoomProtocol {
         FfiConverterString.lower(`eventId`),
         FfiConverterOptionString.lower(`reason`),
         FfiConverterOptionString.lower(`txnId`),$0
-    )
-}
-    }
-
-    public func `rejectInvitation`() throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_reject_invitation(self.pointer, $0
     )
 }
     }
@@ -15282,9 +15273,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 58029) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_accept_invitation() != 25703) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 62367) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15369,6 +15357,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_is_tombstoned() != 55887) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_join() != 4883) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_joined_members_count() != 44345) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15400,9 +15391,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 61747) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_reject_invitation() != 16778) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 24698) {
