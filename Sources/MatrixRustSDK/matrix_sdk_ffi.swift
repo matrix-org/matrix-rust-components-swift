@@ -2427,7 +2427,7 @@ public func FfiConverterTypeNotificationSettings_lower(_ value: NotificationSett
 
 public protocol RoomProtocol {
     func `activeMembersCount`()   -> UInt64
-    func `addTimelineListener`(`listener`: TimelineListener) async  -> RoomTimelineListenerResult
+    func `addTimelineListener`(`listener`: TimelineListener)   -> RoomTimelineListenerResult
     func `alternativeAliases`()   -> [String]
     func `avatarUrl`()   -> String?
     func `canUserBan`(`userId`: String) async throws -> Bool
@@ -2519,30 +2519,17 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func `addTimelineListener`(`listener`: TimelineListener) async  -> RoomTimelineListenerResult {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomTimelineListenerResult, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
-                uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(
-                    self.pointer,
-                    
-        FfiConverterCallbackInterfaceTimelineListener.lower(`listener`),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomTimelineListenerResult,
-                    &continuation,
-                    $0
-                )
-            }
-        }
-    }
-
+    public func `addTimelineListener`(`listener`: TimelineListener)  -> RoomTimelineListenerResult {
+        return try!  FfiConverterTypeRoomTimelineListenerResult.lift(
+            try! 
+    rustCall() {
     
+    uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(self.pointer, 
+        FfiConverterCallbackInterfaceTimelineListener.lower(`listener`),$0
+    )
+}
+        )
+    }
 
     public func `alternativeAliases`()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
@@ -4119,7 +4106,7 @@ public func FfiConverterTypeRoomMessageEventContent_lower(_ value: RoomMessageEv
 
 public protocol SendAttachmentJoinHandleProtocol {
     func `cancel`()  
-    func `join`() async throws
+    func `join`()  throws
     
 }
 
@@ -4151,29 +4138,13 @@ public class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol {
 }
     }
 
-    public func `join`() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
-                uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeRoomError,
-                    &continuation,
-                    $0
-                )
-            }
-        }
+    public func `join`() throws {
+        try 
+    rustCallWithError(FfiConverterTypeRoomError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(self.pointer, $0
+    )
+}
     }
-
-    
 }
 
 public struct FfiConverterTypeSendAttachmentJoinHandle: FfiConverter {
@@ -15578,7 +15549,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 62367) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 43137) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 2158) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 25219) {
@@ -15869,7 +15840,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 58929) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 25237) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 31788) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 468) {
