@@ -1833,9 +1833,7 @@ public func FfiConverterTypeMessage_lower(_ value: Message) -> UnsafeMutableRawP
 
 
 public protocol NotificationClientProtocol {
-    func `getNotificationWithContext`(`roomId`: String, `eventId`: String)  throws -> NotificationItem?
-    func `getNotificationWithSlidingSync`(`roomId`: String, `eventId`: String)  throws -> NotificationItem?
-    func `legacyGetNotification`(`roomId`: String, `eventId`: String)  throws -> NotificationItem?
+    func `getNotification`(`roomId`: String, `eventId`: String)  throws -> NotificationItem?
     
 }
 
@@ -1858,35 +1856,11 @@ public class NotificationClient: NotificationClientProtocol {
     
     
 
-    public func `getNotificationWithContext`(`roomId`: String, `eventId`: String) throws -> NotificationItem? {
+    public func `getNotification`(`roomId`: String, `eventId`: String) throws -> NotificationItem? {
         return try  FfiConverterOptionTypeNotificationItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_notificationclient_get_notification_with_context(self.pointer, 
-        FfiConverterString.lower(`roomId`),
-        FfiConverterString.lower(`eventId`),$0
-    )
-}
-        )
-    }
-
-    public func `getNotificationWithSlidingSync`(`roomId`: String, `eventId`: String) throws -> NotificationItem? {
-        return try  FfiConverterOptionTypeNotificationItem.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_notificationclient_get_notification_with_sliding_sync(self.pointer, 
-        FfiConverterString.lower(`roomId`),
-        FfiConverterString.lower(`eventId`),$0
-    )
-}
-        )
-    }
-
-    public func `legacyGetNotification`(`roomId`: String, `eventId`: String) throws -> NotificationItem? {
-        return try  FfiConverterOptionTypeNotificationItem.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_notificationclient_legacy_get_notification(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_notificationclient_get_notification(self.pointer, 
         FfiConverterString.lower(`roomId`),
         FfiConverterString.lower(`eventId`),$0
     )
@@ -6534,14 +6508,12 @@ public func FfiConverterTypeNotificationRoomInfo_lower(_ value: NotificationRoom
 
 
 public struct NotificationSenderInfo {
-    public var `userId`: String
     public var `displayName`: String?
     public var `avatarUrl`: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`userId`: String, `displayName`: String?, `avatarUrl`: String?) {
-        self.`userId` = `userId`
+    public init(`displayName`: String?, `avatarUrl`: String?) {
         self.`displayName` = `displayName`
         self.`avatarUrl` = `avatarUrl`
     }
@@ -6550,9 +6522,6 @@ public struct NotificationSenderInfo {
 
 extension NotificationSenderInfo: Equatable, Hashable {
     public static func ==(lhs: NotificationSenderInfo, rhs: NotificationSenderInfo) -> Bool {
-        if lhs.`userId` != rhs.`userId` {
-            return false
-        }
         if lhs.`displayName` != rhs.`displayName` {
             return false
         }
@@ -6563,7 +6532,6 @@ extension NotificationSenderInfo: Equatable, Hashable {
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(`userId`)
         hasher.combine(`displayName`)
         hasher.combine(`avatarUrl`)
     }
@@ -6573,14 +6541,12 @@ extension NotificationSenderInfo: Equatable, Hashable {
 public struct FfiConverterTypeNotificationSenderInfo: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationSenderInfo {
         return try NotificationSenderInfo(
-            `userId`: FfiConverterString.read(from: &buf), 
             `displayName`: FfiConverterOptionString.read(from: &buf), 
             `avatarUrl`: FfiConverterOptionString.read(from: &buf)
         )
     }
 
     public static func write(_ value: NotificationSenderInfo, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.`userId`, into: &buf)
         FfiConverterOptionString.write(value.`displayName`, into: &buf)
         FfiConverterOptionString.write(value.`avatarUrl`, into: &buf)
     }
@@ -9019,7 +8985,7 @@ public func FfiConverterTypeMessageType_lower(_ value: MessageType) -> RustBuffe
 public enum NotificationEvent {
     
     case `timeline`(`event`: TimelineEvent)
-    case `invite`(`senderId`: String)
+    case `invite`(`sender`: String)
 }
 
 public struct FfiConverterTypeNotificationEvent: FfiConverterRustBuffer {
@@ -9034,7 +9000,7 @@ public struct FfiConverterTypeNotificationEvent: FfiConverterRustBuffer {
         )
         
         case 2: return .`invite`(
-            `senderId`: try FfiConverterString.read(from: &buf)
+            `sender`: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -9050,9 +9016,9 @@ public struct FfiConverterTypeNotificationEvent: FfiConverterRustBuffer {
             FfiConverterTypeTimelineEvent.write(`event`, into: &buf)
             
         
-        case let .`invite`(`senderId`):
+        case let .`invite`(`sender`):
             writeInt(&buf, Int32(2))
-            FfiConverterString.write(`senderId`, into: &buf)
+            FfiConverterString.write(`sender`, into: &buf)
             
         }
     }
@@ -12506,7 +12472,7 @@ extension FfiConverterCallbackInterfaceSyncServiceStateObserver : FfiConverter {
 // Declaration and FfiConverters for TimelineListener Callback Interface
 
 public protocol TimelineListener : AnyObject {
-    func `onUpdate`(`diff`: TimelineDiff) 
+    func `onUpdate`(`diff`: [TimelineDiff]) 
     
 }
 
@@ -12519,7 +12485,7 @@ fileprivate let foreignCallbackCallbackInterfaceTimelineListener : ForeignCallba
         var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
         func makeCall() throws -> Int32 {
             try swiftCallbackInterface.`onUpdate`(
-                    `diff`:  try FfiConverterTypeTimelineDiff.read(from: &reader)
+                    `diff`:  try FfiConverterSequenceTypeTimelineDiff.read(from: &reader)
                     )
             return UNIFFI_CALLBACK_SUCCESS
         }
@@ -13532,6 +13498,28 @@ fileprivate struct FfiConverterSequenceTypeSessionVerificationEmoji: FfiConverte
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeSessionVerificationEmoji.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+fileprivate struct FfiConverterSequenceTypeTimelineDiff: FfiConverterRustBuffer {
+    typealias SwiftType = [TimelineDiff]
+
+    public static func write(_ value: [TimelineDiff], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTimelineDiff.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TimelineDiff] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TimelineDiff]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTimelineDiff.read(from: &buf))
         }
         return seq
     }
@@ -15489,13 +15477,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 50686) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification_with_context() != 64399) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification_with_sliding_sync() != 45569) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_legacy_get_notification() != 12969) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification() != 9907) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_filter_by_push_rules() != 10529) {
@@ -16026,7 +16008,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicestateobserver_on_update() != 52830) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 30798) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 974) {
         return InitializationResult.apiChecksumMismatch
     }
 
