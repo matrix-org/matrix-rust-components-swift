@@ -2019,6 +2019,7 @@ public protocol NotificationSettingsProtocol {
     func `isUserMentionEnabled`() async throws -> Bool
     func `restoreDefaultRoomNotificationMode`(`roomId`: String) async throws
     func `setCallEnabled`(`enabled`: Bool) async throws
+    func `setDefaultRoomNotificationMode`(`isEncrypted`: Bool, `isOneToOne`: Bool, `mode`: RoomNotificationMode) async throws
     func `setDelegate`(`delegate`: NotificationSettingsDelegate?)  
     func `setRoomMentionEnabled`(`enabled`: Bool) async throws
     func `setRoomNotificationMode`(`roomId`: String, `mode`: RoomNotificationMode) async throws
@@ -2245,6 +2246,33 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func `setDefaultRoomNotificationMode`(`isEncrypted`: Bool, `isOneToOne`: Bool, `mode`: RoomNotificationMode) async throws {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<(), Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_default_room_notification_mode(
+                    self.pointer,
+                    
+        FfiConverterBool.lower(`isEncrypted`),
+        FfiConverterBool.lower(`isOneToOne`),
+        FfiConverterTypeRoomNotificationMode.lower(`mode`),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+
     public func `setDelegate`(`delegate`: NotificationSettingsDelegate?)  {
         try! 
     rustCall() {
@@ -2401,7 +2429,7 @@ public func FfiConverterTypeNotificationSettings_lower(_ value: NotificationSett
 
 public protocol RoomProtocol {
     func `activeMembersCount`()   -> UInt64
-    func `addTimelineListener`(`listener`: TimelineListener)   -> RoomTimelineListenerResult
+    func `addTimelineListener`(`listener`: TimelineListener) async  -> RoomTimelineListenerResult
     func `alternativeAliases`()   -> [String]
     func `avatarUrl`()   -> String?
     func `canUserBan`(`userId`: String) async throws -> Bool
@@ -2493,17 +2521,30 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func `addTimelineListener`(`listener`: TimelineListener)  -> RoomTimelineListenerResult {
-        return try!  FfiConverterTypeRoomTimelineListenerResult.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(self.pointer, 
-        FfiConverterCallbackInterfaceTimelineListener.lower(`listener`),$0
-    )
-}
-        )
+    public func `addTimelineListener`(`listener`: TimelineListener) async  -> RoomTimelineListenerResult {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomTimelineListenerResult, Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(
+                    self.pointer,
+                    
+        FfiConverterCallbackInterfaceTimelineListener.lower(`listener`),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoomTimelineListenerResult,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 
     public func `alternativeAliases`()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
@@ -4080,7 +4121,7 @@ public func FfiConverterTypeRoomMessageEventContent_lower(_ value: RoomMessageEv
 
 public protocol SendAttachmentJoinHandleProtocol {
     func `cancel`()  
-    func `join`()  throws
+    func `join`() async throws
     
 }
 
@@ -4112,13 +4153,29 @@ public class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol {
 }
     }
 
-    public func `join`() throws {
-        try 
-    rustCallWithError(FfiConverterTypeRoomError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(self.pointer, $0
-    )
-}
+    public func `join`() async throws {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<(), Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerVoidTypeRoomError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 }
 
 public struct FfiConverterTypeSendAttachmentJoinHandle: FfiConverter {
@@ -6562,6 +6619,101 @@ public func FfiConverterTypeNotificationSenderInfo_lower(_ value: NotificationSe
 }
 
 
+public struct OtlpTracingConfiguration {
+    public var `clientName`: String
+    public var `user`: String
+    public var `password`: String
+    public var `otlpEndpoint`: String
+    public var `filter`: String
+    public var `writeToStdoutOrSystem`: Bool
+    public var `writeToFiles`: TracingFileConfiguration?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`clientName`: String, `user`: String, `password`: String, `otlpEndpoint`: String, `filter`: String, `writeToStdoutOrSystem`: Bool, `writeToFiles`: TracingFileConfiguration?) {
+        self.`clientName` = `clientName`
+        self.`user` = `user`
+        self.`password` = `password`
+        self.`otlpEndpoint` = `otlpEndpoint`
+        self.`filter` = `filter`
+        self.`writeToStdoutOrSystem` = `writeToStdoutOrSystem`
+        self.`writeToFiles` = `writeToFiles`
+    }
+}
+
+
+extension OtlpTracingConfiguration: Equatable, Hashable {
+    public static func ==(lhs: OtlpTracingConfiguration, rhs: OtlpTracingConfiguration) -> Bool {
+        if lhs.`clientName` != rhs.`clientName` {
+            return false
+        }
+        if lhs.`user` != rhs.`user` {
+            return false
+        }
+        if lhs.`password` != rhs.`password` {
+            return false
+        }
+        if lhs.`otlpEndpoint` != rhs.`otlpEndpoint` {
+            return false
+        }
+        if lhs.`filter` != rhs.`filter` {
+            return false
+        }
+        if lhs.`writeToStdoutOrSystem` != rhs.`writeToStdoutOrSystem` {
+            return false
+        }
+        if lhs.`writeToFiles` != rhs.`writeToFiles` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`clientName`)
+        hasher.combine(`user`)
+        hasher.combine(`password`)
+        hasher.combine(`otlpEndpoint`)
+        hasher.combine(`filter`)
+        hasher.combine(`writeToStdoutOrSystem`)
+        hasher.combine(`writeToFiles`)
+    }
+}
+
+
+public struct FfiConverterTypeOtlpTracingConfiguration: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OtlpTracingConfiguration {
+        return try OtlpTracingConfiguration(
+            `clientName`: FfiConverterString.read(from: &buf), 
+            `user`: FfiConverterString.read(from: &buf), 
+            `password`: FfiConverterString.read(from: &buf), 
+            `otlpEndpoint`: FfiConverterString.read(from: &buf), 
+            `filter`: FfiConverterString.read(from: &buf), 
+            `writeToStdoutOrSystem`: FfiConverterBool.read(from: &buf), 
+            `writeToFiles`: FfiConverterOptionTypeTracingFileConfiguration.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: OtlpTracingConfiguration, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.`clientName`, into: &buf)
+        FfiConverterString.write(value.`user`, into: &buf)
+        FfiConverterString.write(value.`password`, into: &buf)
+        FfiConverterString.write(value.`otlpEndpoint`, into: &buf)
+        FfiConverterString.write(value.`filter`, into: &buf)
+        FfiConverterBool.write(value.`writeToStdoutOrSystem`, into: &buf)
+        FfiConverterOptionTypeTracingFileConfiguration.write(value.`writeToFiles`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeOtlpTracingConfiguration_lift(_ buf: RustBuffer) throws -> OtlpTracingConfiguration {
+    return try FfiConverterTypeOtlpTracingConfiguration.lift(buf)
+}
+
+public func FfiConverterTypeOtlpTracingConfiguration_lower(_ value: OtlpTracingConfiguration) -> RustBuffer {
+    return FfiConverterTypeOtlpTracingConfiguration.lower(value)
+}
+
+
 public struct PollAnswer {
     public var `id`: String
     public var `text`: String
@@ -7474,6 +7626,124 @@ public func FfiConverterTypeThumbnailInfo_lift(_ buf: RustBuffer) throws -> Thum
 
 public func FfiConverterTypeThumbnailInfo_lower(_ value: ThumbnailInfo) -> RustBuffer {
     return FfiConverterTypeThumbnailInfo.lower(value)
+}
+
+
+public struct TracingConfiguration {
+    public var `filter`: String
+    public var `writeToStdoutOrSystem`: Bool
+    public var `writeToFiles`: TracingFileConfiguration?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`filter`: String, `writeToStdoutOrSystem`: Bool, `writeToFiles`: TracingFileConfiguration?) {
+        self.`filter` = `filter`
+        self.`writeToStdoutOrSystem` = `writeToStdoutOrSystem`
+        self.`writeToFiles` = `writeToFiles`
+    }
+}
+
+
+extension TracingConfiguration: Equatable, Hashable {
+    public static func ==(lhs: TracingConfiguration, rhs: TracingConfiguration) -> Bool {
+        if lhs.`filter` != rhs.`filter` {
+            return false
+        }
+        if lhs.`writeToStdoutOrSystem` != rhs.`writeToStdoutOrSystem` {
+            return false
+        }
+        if lhs.`writeToFiles` != rhs.`writeToFiles` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`filter`)
+        hasher.combine(`writeToStdoutOrSystem`)
+        hasher.combine(`writeToFiles`)
+    }
+}
+
+
+public struct FfiConverterTypeTracingConfiguration: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TracingConfiguration {
+        return try TracingConfiguration(
+            `filter`: FfiConverterString.read(from: &buf), 
+            `writeToStdoutOrSystem`: FfiConverterBool.read(from: &buf), 
+            `writeToFiles`: FfiConverterOptionTypeTracingFileConfiguration.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TracingConfiguration, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.`filter`, into: &buf)
+        FfiConverterBool.write(value.`writeToStdoutOrSystem`, into: &buf)
+        FfiConverterOptionTypeTracingFileConfiguration.write(value.`writeToFiles`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeTracingConfiguration_lift(_ buf: RustBuffer) throws -> TracingConfiguration {
+    return try FfiConverterTypeTracingConfiguration.lift(buf)
+}
+
+public func FfiConverterTypeTracingConfiguration_lower(_ value: TracingConfiguration) -> RustBuffer {
+    return FfiConverterTypeTracingConfiguration.lower(value)
+}
+
+
+public struct TracingFileConfiguration {
+    public var `path`: String
+    public var `filePrefix`: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`path`: String, `filePrefix`: String) {
+        self.`path` = `path`
+        self.`filePrefix` = `filePrefix`
+    }
+}
+
+
+extension TracingFileConfiguration: Equatable, Hashable {
+    public static func ==(lhs: TracingFileConfiguration, rhs: TracingFileConfiguration) -> Bool {
+        if lhs.`path` != rhs.`path` {
+            return false
+        }
+        if lhs.`filePrefix` != rhs.`filePrefix` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(`path`)
+        hasher.combine(`filePrefix`)
+    }
+}
+
+
+public struct FfiConverterTypeTracingFileConfiguration: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TracingFileConfiguration {
+        return try TracingFileConfiguration(
+            `path`: FfiConverterString.read(from: &buf), 
+            `filePrefix`: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TracingFileConfiguration, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.`path`, into: &buf)
+        FfiConverterString.write(value.`filePrefix`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeTracingFileConfiguration_lift(_ buf: RustBuffer) throws -> TracingFileConfiguration {
+    return try FfiConverterTypeTracingFileConfiguration.lift(buf)
+}
+
+public func FfiConverterTypeTracingFileConfiguration_lower(_ value: TracingFileConfiguration) -> RustBuffer {
+    return FfiConverterTypeTracingFileConfiguration.lower(value)
 }
 
 
@@ -13078,6 +13348,27 @@ fileprivate struct FfiConverterOptionTypeThumbnailInfo: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeTracingFileConfiguration: FfiConverterRustBuffer {
+    typealias SwiftType = TracingFileConfiguration?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeTracingFileConfiguration.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeTracingFileConfiguration.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeVideoInfo: FfiConverterRustBuffer {
     typealias SwiftType = VideoInfo?
 
@@ -15206,23 +15497,19 @@ public func `sdkGitSha`()  -> String {
     )
 }
 
-public func `setupOtlpTracing`(`filter`: String, `clientName`: String, `user`: String, `password`: String, `otlpEndpoint`: String)  {
+public func `setupOtlpTracing`(`config`: OtlpTracingConfiguration)  {
     try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_setup_otlp_tracing(
-        FfiConverterString.lower(`filter`),
-        FfiConverterString.lower(`clientName`),
-        FfiConverterString.lower(`user`),
-        FfiConverterString.lower(`password`),
-        FfiConverterString.lower(`otlpEndpoint`),$0)
+        FfiConverterTypeOtlpTracingConfiguration.lower(`config`),$0)
 }
 }
 
 
 
-public func `setupTracing`(`filter`: String)  {
+public func `setupTracing`(`config`: TracingConfiguration)  {
     try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_setup_tracing(
-        FfiConverterString.lower(`filter`),$0)
+        FfiConverterTypeTracingConfiguration.lower(`config`),$0)
 }
 }
 
@@ -15261,10 +15548,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 11183) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 53941) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 57774) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 13500) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 48899) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_to_json() != 2998) {
@@ -15513,6 +15800,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_call_enabled() != 61774) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_default_room_notification_mode() != 64886) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_delegate() != 22622) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -15531,7 +15821,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 62367) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 2158) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 43137) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 25219) {
@@ -15822,7 +16112,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 58929) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 31788) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 25237) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 468) {
