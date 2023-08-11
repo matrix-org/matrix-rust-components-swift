@@ -2012,8 +2012,10 @@ public func FfiConverterTypeNotificationClientBuilder_lower(_ value: Notificatio
 
 public protocol NotificationSettingsProtocol {
     func `containsKeywordsRules`() async  -> Bool
-    func `getDefaultRoomNotificationMode`(`isEncrypted`: Bool, `activeMembersCount`: UInt64) async  -> RoomNotificationMode
-    func `getRoomNotificationSettings`(`roomId`: String, `isEncrypted`: Bool, `activeMembersCount`: UInt64) async throws -> RoomNotificationSettings
+    func `getDefaultRoomNotificationMode`(`isEncrypted`: Bool, `isOneToOne`: Bool) async  -> RoomNotificationMode
+    func `getRoomNotificationSettings`(`roomId`: String, `isEncrypted`: Bool, `isOneToOne`: Bool) async throws -> RoomNotificationSettings
+    func `getRoomsWithUserDefinedRules`(`enabled`: Bool?) async  -> [String]
+    func `getUserDefinedRoomNotificationMode`(`roomId`: String) async throws -> RoomNotificationMode?
     func `isCallEnabled`() async throws -> Bool
     func `isRoomMentionEnabled`() async throws -> Bool
     func `isUserMentionEnabled`() async throws -> Bool
@@ -2024,7 +2026,7 @@ public protocol NotificationSettingsProtocol {
     func `setRoomMentionEnabled`(`enabled`: Bool) async throws
     func `setRoomNotificationMode`(`roomId`: String, `mode`: RoomNotificationMode) async throws
     func `setUserMentionEnabled`(`enabled`: Bool) async throws
-    func `unmuteRoom`(`roomId`: String, `isEncrypted`: Bool, `membersCount`: UInt64) async throws
+    func `unmuteRoom`(`roomId`: String, `isEncrypted`: Bool, `isOneToOne`: Bool) async throws
     
 }
 
@@ -2071,7 +2073,7 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
-    public func `getDefaultRoomNotificationMode`(`isEncrypted`: Bool, `activeMembersCount`: UInt64) async  -> RoomNotificationMode {
+    public func `getDefaultRoomNotificationMode`(`isEncrypted`: Bool, `isOneToOne`: Bool) async  -> RoomNotificationMode {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
         //
@@ -2085,7 +2087,7 @@ public class NotificationSettings: NotificationSettingsProtocol {
                     self.pointer,
                     
         FfiConverterBool.lower(`isEncrypted`),
-        FfiConverterUInt64.lower(`activeMembersCount`),
+        FfiConverterBool.lower(`isOneToOne`),
                     FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
                     uniffiFutureCallbackHandlerTypeRoomNotificationMode,
                     &continuation,
@@ -2097,7 +2099,7 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
-    public func `getRoomNotificationSettings`(`roomId`: String, `isEncrypted`: Bool, `activeMembersCount`: UInt64) async throws -> RoomNotificationSettings {
+    public func `getRoomNotificationSettings`(`roomId`: String, `isEncrypted`: Bool, `isOneToOne`: Bool) async throws -> RoomNotificationSettings {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
         //
@@ -2112,9 +2114,59 @@ public class NotificationSettings: NotificationSettingsProtocol {
                     
         FfiConverterString.lower(`roomId`),
         FfiConverterBool.lower(`isEncrypted`),
-        FfiConverterUInt64.lower(`activeMembersCount`),
+        FfiConverterBool.lower(`isOneToOne`),
                     FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
                     uniffiFutureCallbackHandlerTypeRoomNotificationSettingsTypeNotificationSettingsError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+
+    public func `getRoomsWithUserDefinedRules`(`enabled`: Bool?) async  -> [String] {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<[String], Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_rooms_with_user_defined_rules(
+                    self.pointer,
+                    
+        FfiConverterOptionBool.lower(`enabled`),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerSequenceString,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+
+    public func `getUserDefinedRoomNotificationMode`(`roomId`: String) async throws -> RoomNotificationMode? {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomNotificationMode?, Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_user_defined_room_notification_mode(
+                    self.pointer,
+                    
+        FfiConverterString.lower(`roomId`),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerOptionTypeRoomNotificationModeTypeNotificationSettingsError,
                     &continuation,
                     $0
                 )
@@ -2359,7 +2411,7 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
-    public func `unmuteRoom`(`roomId`: String, `isEncrypted`: Bool, `membersCount`: UInt64) async throws {
+    public func `unmuteRoom`(`roomId`: String, `isEncrypted`: Bool, `isOneToOne`: Bool) async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
         //
@@ -2374,7 +2426,7 @@ public class NotificationSettings: NotificationSettingsProtocol {
                     
         FfiConverterString.lower(`roomId`),
         FfiConverterBool.lower(`isEncrypted`),
-        FfiConverterUInt64.lower(`membersCount`),
+        FfiConverterBool.lower(`isOneToOne`),
                     FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
                     uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
                     &continuation,
@@ -2441,6 +2493,7 @@ public protocol RoomProtocol {
     func `canUserTriggerRoomNotification`(`userId`: String) async throws -> Bool
     func `cancelSend`(`txnId`: String)  
     func `canonicalAlias`()   -> String?
+    func `createPoll`(`question`: String, `answers`: [String], `maxSelections`: UInt8, `pollKind`: PollKind, `txnId`: String?)  throws
     func `displayName`()  throws -> String
     func `edit`(`newMsg`: String, `originalEventId`: String, `txnId`: String?)  throws
     func `fetchDetailsForEvent`(`eventId`: String)  throws
@@ -2764,6 +2817,19 @@ public class Room: RoomProtocol {
     )
 }
         )
+    }
+
+    public func `createPoll`(`question`: String, `answers`: [String], `maxSelections`: UInt8, `pollKind`: PollKind, `txnId`: String?) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_create_poll(self.pointer, 
+        FfiConverterString.lower(`question`),
+        FfiConverterSequenceString.lower(`answers`),
+        FfiConverterUInt8.lower(`maxSelections`),
+        FfiConverterTypePollKind.lower(`pollKind`),
+        FfiConverterOptionString.lower(`txnId`),$0
+    )
+}
     }
 
     public func `displayName`() throws -> String {
@@ -3309,7 +3375,8 @@ public func FfiConverterTypeRoom_lower(_ value: Room) -> UnsafeMutableRawPointer
 
 
 public protocol RoomListProtocol {
-    func `entries`(`listener`: RoomListEntriesListener)  throws -> RoomListEntriesResult
+    func `entries`(`listener`: RoomListEntriesListener)   -> RoomListEntriesResult
+    func `entriesWithDynamicFilter`(`listener`: RoomListEntriesListener)   -> RoomListEntriesWithDynamicFilterResult
     func `loadingState`(`listener`: RoomListLoadingStateListener)  throws -> RoomListLoadingStateResult
     func `room`(`roomId`: String)  throws -> RoomListItem
     
@@ -3334,11 +3401,24 @@ public class RoomList: RoomListProtocol {
     
     
 
-    public func `entries`(`listener`: RoomListEntriesListener) throws -> RoomListEntriesResult {
-        return try  FfiConverterTypeRoomListEntriesResult.lift(
-            try 
-    rustCallWithError(FfiConverterTypeRoomListError.lift) {
+    public func `entries`(`listener`: RoomListEntriesListener)  -> RoomListEntriesResult {
+        return try!  FfiConverterTypeRoomListEntriesResult.lift(
+            try! 
+    rustCall() {
+    
     uniffi_matrix_sdk_ffi_fn_method_roomlist_entries(self.pointer, 
+        FfiConverterCallbackInterfaceRoomListEntriesListener.lower(`listener`),$0
+    )
+}
+        )
+    }
+
+    public func `entriesWithDynamicFilter`(`listener`: RoomListEntriesListener)  -> RoomListEntriesWithDynamicFilterResult {
+        return try!  FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_entries_with_dynamic_filter(self.pointer, 
         FfiConverterCallbackInterfaceRoomListEntriesListener.lower(`listener`),$0
     )
 }
@@ -3405,6 +3485,83 @@ public func FfiConverterTypeRoomList_lift(_ pointer: UnsafeMutableRawPointer) th
 
 public func FfiConverterTypeRoomList_lower(_ value: RoomList) -> UnsafeMutableRawPointer {
     return FfiConverterTypeRoomList.lower(value)
+}
+
+
+public protocol RoomListEntriesDynamicFilterProtocol {
+    func `set`(`kind`: RoomListEntriesDynamicFilterKind)   -> Bool
+    
+}
+
+public class RoomListEntriesDynamicFilter: RoomListEntriesDynamicFilterProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistentriesdynamicfilter(pointer, $0) }
+    }
+
+    
+
+    
+    
+
+    public func `set`(`kind`: RoomListEntriesDynamicFilterKind)  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistentriesdynamicfilter_set(self.pointer, 
+        FfiConverterTypeRoomListEntriesDynamicFilterKind.lower(`kind`),$0
+    )
+}
+        )
+    }
+}
+
+public struct FfiConverterTypeRoomListEntriesDynamicFilter: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = RoomListEntriesDynamicFilter
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListEntriesDynamicFilter {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: RoomListEntriesDynamicFilter, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListEntriesDynamicFilter {
+        return RoomListEntriesDynamicFilter(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: RoomListEntriesDynamicFilter) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+
+public func FfiConverterTypeRoomListEntriesDynamicFilter_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListEntriesDynamicFilter {
+    return try FfiConverterTypeRoomListEntriesDynamicFilter.lift(pointer)
+}
+
+public func FfiConverterTypeRoomListEntriesDynamicFilter_lower(_ value: RoomListEntriesDynamicFilter) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeRoomListEntriesDynamicFilter.lower(value)
 }
 
 
@@ -7082,6 +7239,44 @@ public func FfiConverterTypeRoomListEntriesResult_lower(_ value: RoomListEntries
 }
 
 
+public struct RoomListEntriesWithDynamicFilterResult {
+    public var `dynamicFilter`: RoomListEntriesDynamicFilter
+    public var `entriesStream`: TaskHandle
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`dynamicFilter`: RoomListEntriesDynamicFilter, `entriesStream`: TaskHandle) {
+        self.`dynamicFilter` = `dynamicFilter`
+        self.`entriesStream` = `entriesStream`
+    }
+}
+
+
+
+public struct FfiConverterTypeRoomListEntriesWithDynamicFilterResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListEntriesWithDynamicFilterResult {
+        return try RoomListEntriesWithDynamicFilterResult(
+            `dynamicFilter`: FfiConverterTypeRoomListEntriesDynamicFilter.read(from: &buf), 
+            `entriesStream`: FfiConverterTypeTaskHandle.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RoomListEntriesWithDynamicFilterResult, into buf: inout [UInt8]) {
+        FfiConverterTypeRoomListEntriesDynamicFilter.write(value.`dynamicFilter`, into: &buf)
+        FfiConverterTypeTaskHandle.write(value.`entriesStream`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeRoomListEntriesWithDynamicFilterResult_lift(_ buf: RustBuffer) throws -> RoomListEntriesWithDynamicFilterResult {
+    return try FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lift(buf)
+}
+
+public func FfiConverterTypeRoomListEntriesWithDynamicFilterResult_lower(_ value: RoomListEntriesWithDynamicFilterResult) -> RustBuffer {
+    return FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lower(value)
+}
+
+
 public struct RoomListLoadingStateResult {
     public var `state`: RoomListLoadingState
     public var `stateStream`: TaskHandle
@@ -10074,6 +10269,61 @@ public struct FfiConverterTypeRoomError: FfiConverterRustBuffer {
 extension RoomError: Equatable, Hashable {}
 
 extension RoomError: Error { }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum RoomListEntriesDynamicFilterKind {
+    
+    case `all`
+    case `fuzzyMatchRoomName`(`pattern`: String)
+}
+
+public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRustBuffer {
+    typealias SwiftType = RoomListEntriesDynamicFilterKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListEntriesDynamicFilterKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .`all`
+        
+        case 2: return .`fuzzyMatchRoomName`(
+            `pattern`: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RoomListEntriesDynamicFilterKind, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .`all`:
+            writeInt(&buf, Int32(1))
+        
+        
+        case let .`fuzzyMatchRoomName`(`pattern`):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(`pattern`, into: &buf)
+            
+        }
+    }
+}
+
+
+public func FfiConverterTypeRoomListEntriesDynamicFilterKind_lift(_ buf: RustBuffer) throws -> RoomListEntriesDynamicFilterKind {
+    return try FfiConverterTypeRoomListEntriesDynamicFilterKind.lift(buf)
+}
+
+public func FfiConverterTypeRoomListEntriesDynamicFilterKind_lower(_ value: RoomListEntriesDynamicFilterKind) -> RustBuffer {
+    return FfiConverterTypeRoomListEntriesDynamicFilterKind.lower(value)
+}
+
+
+extension RoomListEntriesDynamicFilterKind: Equatable, Hashable {}
+
+
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -13516,6 +13766,27 @@ fileprivate struct FfiConverterOptionTypePushFormat: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeRoomNotificationMode: FfiConverterRustBuffer {
+    typealias SwiftType = RoomNotificationMode?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeRoomNotificationMode.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeRoomNotificationMode.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeVirtualTimelineItem: FfiConverterRustBuffer {
     typealias SwiftType = VirtualTimelineItem?
 
@@ -14776,7 +15047,7 @@ fileprivate func uniffiFutureCallbackHandlerTypeEventTimelineItemDebugInfo(
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesResultTypeRoomListError(
+fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesResult(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
     callStatus: RustCallStatus) {
@@ -14787,8 +15058,25 @@ fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesResultTypeRoomLis
     )
 
     do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeRoomListError.lift)
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
         continuation.pointee.resume(returning: try FfiConverterTypeRoomListEntriesResult.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
+fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesWithDynamicFilterResult(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: RustBuffer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<RoomListEntriesWithDynamicFilterResult, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
+        continuation.pointee.resume(returning: try FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lift(returnValue))
     } catch let error {
         continuation.pointee.resume(throwing: error)
     }
@@ -15303,6 +15591,23 @@ fileprivate func uniffiFutureCallbackHandlerOptionTypeMessageType(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerOptionTypeRoomNotificationModeTypeNotificationSettingsError(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: RustBuffer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<RoomNotificationMode?, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeNotificationSettingsError.lift)
+        continuation.pointee.resume(returning: try FfiConverterOptionTypeRoomNotificationMode.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerOptionTypeVirtualTimelineItem(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -15779,10 +16084,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 42972) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode() != 19726) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode() != 7288) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings() != 6545) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings() != 654) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_rooms_with_user_defined_rules() != 687) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_user_defined_room_notification_mode() != 40224) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled() != 38110) {
@@ -15815,7 +16126,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_user_mention_enabled() != 63345) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 58029) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 33146) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 62367) {
@@ -15855,6 +16166,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 15084) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_create_poll() != 5532) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 38216) {
@@ -15998,13 +16312,19 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 33347) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries() != 65405) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries() != 27911) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_filter() != 18327) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_loading_state() != 54823) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 60000) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentriesdynamicfilter_set() != 41193) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_avatar_url() != 23609) {
