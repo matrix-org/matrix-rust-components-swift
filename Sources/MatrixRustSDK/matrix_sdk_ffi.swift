@@ -4691,12 +4691,11 @@ public class Span: SpanProtocol {
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
-    public convenience init(`file`: String, `line`: UInt32, `column`: UInt32, `level`: LogLevel, `target`: String, `name`: String)  {
+    public convenience init(`file`: String, `line`: UInt32?, `level`: LogLevel, `target`: String, `name`: String)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_span_new(
         FfiConverterString.lower(`file`),
-        FfiConverterUInt32.lower(`line`),
-        FfiConverterUInt32.lower(`column`),
+        FfiConverterOptionUInt32.lower(`line`),
         FfiConverterTypeLogLevel.lower(`level`),
         FfiConverterString.lower(`target`),
         FfiConverterString.lower(`name`),$0)
@@ -4791,11 +4790,10 @@ public func FfiConverterTypeSpan_lower(_ value: Span) -> UnsafeMutableRawPointer
 
 
 public protocol SyncServiceProtocol {
-    func `currentState`()   -> SyncServiceState
-    func `pause`()  throws
     func `roomListService`()   -> RoomListService
-    func `start`() async throws
+    func `start`() async 
     func `state`(`listener`: SyncServiceStateObserver)   -> TaskHandle
+    func `stop`() async throws
     
 }
 
@@ -4818,25 +4816,6 @@ public class SyncService: SyncServiceProtocol {
     
     
 
-    public func `currentState`()  -> SyncServiceState {
-        return try!  FfiConverterTypeSyncServiceState.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_syncservice_current_state(self.pointer, $0
-    )
-}
-        )
-    }
-
-    public func `pause`() throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_syncservice_pause(self.pointer, $0
-    )
-}
-    }
-
     public func `roomListService`()  -> RoomListService {
         return try!  FfiConverterTypeRoomListService.lift(
             try! 
@@ -4848,21 +4827,21 @@ public class SyncService: SyncServiceProtocol {
         )
     }
 
-    public func `start`() async throws {
+    public func `start`() async  {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
         //
         // Make sure to hold on to a reference to the continuation in the top-level scope so that
         // it's not freed before the callback is invoked.
         var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
+        return try!  await withCheckedThrowingContinuation {
             continuation = $0
             try! rustCall() {
                 uniffi_matrix_sdk_ffi_fn_method_syncservice_start(
                     self.pointer,
                     
                     FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
+                    uniffiFutureCallbackHandlerVoid,
                     &continuation,
                     $0
                 )
@@ -4883,6 +4862,30 @@ public class SyncService: SyncServiceProtocol {
 }
         )
     }
+
+    public func `stop`() async throws {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<(), Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_syncservice_stop(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerVoidTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
 }
 
 public struct FfiConverterTypeSyncService: FfiConverter {
@@ -15251,23 +15254,6 @@ fileprivate func uniffiFutureCallbackHandlerTypeRoomNotificationMode(
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerTypeSyncServiceState(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<SyncServiceState, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeSyncServiceState.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
 fileprivate func uniffiFutureCallbackHandlerTypeTimelineChange(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -15753,12 +15739,11 @@ public func `genTransactionId`()  -> String {
     )
 }
 
-public func `logEvent`(`file`: String, `line`: UInt32, `column`: UInt32, `level`: LogLevel, `target`: String, `message`: String)  {
+public func `logEvent`(`file`: String, `line`: UInt32?, `level`: LogLevel, `target`: String, `message`: String)  {
     try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_log_event(
         FfiConverterString.lower(`file`),
-        FfiConverterUInt32.lower(`line`),
-        FfiConverterUInt32.lower(`column`),
+        FfiConverterOptionUInt32.lower(`line`),
         FfiConverterTypeLogLevel.lower(`level`),
         FfiConverterString.lower(`target`),
         FfiConverterString.lower(`message`),$0)
@@ -15838,7 +15823,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 65533) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 48093) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 58164) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 28929) {
@@ -16471,19 +16456,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 23839) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_current_state() != 18935) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_pause() != 2733) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_room_list_service() != 18295) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start() != 31472) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start() != 4435) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_state() != 15048) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_stop() != 39770) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish() != 61604) {
@@ -16573,7 +16555,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 47163) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 17142) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 47854) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_backpaginationstatuslistener_on_update() != 2582) {
