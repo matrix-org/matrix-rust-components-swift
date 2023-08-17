@@ -3574,6 +3574,7 @@ public protocol RoomListItemProtocol {
     func `isDirect`()   -> Bool
     func `latestEvent`() async  -> EventTimelineItem?
     func `name`()   -> String?
+    func `roomInfo`() async throws -> RoomInfo
     func `subscribe`(`settings`: RoomSubscription?)  
     func `unreadNotifications`()   -> UnreadNotificationsCount
     func `unsubscribe`()  
@@ -3699,6 +3700,30 @@ public class RoomListItem: RoomListItemProtocol {
 }
         )
     }
+
+    public func `roomInfo`() async throws -> RoomInfo {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomInfo, Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_roomlistitem_room_info(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoomInfoTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
 
     public func `subscribe`(`settings`: RoomSubscription?)  {
         try! 
@@ -7201,6 +7226,112 @@ public func FfiConverterTypeRequiredState_lift(_ buf: RustBuffer) throws -> Requ
 
 public func FfiConverterTypeRequiredState_lower(_ value: RequiredState) -> RustBuffer {
     return FfiConverterTypeRequiredState.lower(value)
+}
+
+
+public struct RoomInfo {
+    public var `id`: String
+    public var `name`: String?
+    public var `topic`: String?
+    public var `avatarUrl`: String?
+    public var `isDirect`: Bool
+    public var `isEncrypted`: Bool?
+    public var `isPublic`: Bool
+    public var `isSpace`: Bool
+    public var `isTombstoned`: Bool
+    public var `canonicalAlias`: String?
+    public var `alternativeAliases`: [String]
+    public var `membership`: Membership
+    public var `latestEvent`: EventTimelineItem?
+    public var `inviter`: RoomMember?
+    public var `activeMembersCount`: UInt64
+    public var `invitedMembersCount`: UInt64
+    public var `joinedMembersCount`: UInt64
+    public var `highlightCount`: UInt64
+    public var `notificationCount`: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(`id`: String, `name`: String?, `topic`: String?, `avatarUrl`: String?, `isDirect`: Bool, `isEncrypted`: Bool?, `isPublic`: Bool, `isSpace`: Bool, `isTombstoned`: Bool, `canonicalAlias`: String?, `alternativeAliases`: [String], `membership`: Membership, `latestEvent`: EventTimelineItem?, `inviter`: RoomMember?, `activeMembersCount`: UInt64, `invitedMembersCount`: UInt64, `joinedMembersCount`: UInt64, `highlightCount`: UInt64, `notificationCount`: UInt64) {
+        self.`id` = `id`
+        self.`name` = `name`
+        self.`topic` = `topic`
+        self.`avatarUrl` = `avatarUrl`
+        self.`isDirect` = `isDirect`
+        self.`isEncrypted` = `isEncrypted`
+        self.`isPublic` = `isPublic`
+        self.`isSpace` = `isSpace`
+        self.`isTombstoned` = `isTombstoned`
+        self.`canonicalAlias` = `canonicalAlias`
+        self.`alternativeAliases` = `alternativeAliases`
+        self.`membership` = `membership`
+        self.`latestEvent` = `latestEvent`
+        self.`inviter` = `inviter`
+        self.`activeMembersCount` = `activeMembersCount`
+        self.`invitedMembersCount` = `invitedMembersCount`
+        self.`joinedMembersCount` = `joinedMembersCount`
+        self.`highlightCount` = `highlightCount`
+        self.`notificationCount` = `notificationCount`
+    }
+}
+
+
+
+public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomInfo {
+        return try RoomInfo(
+            `id`: FfiConverterString.read(from: &buf), 
+            `name`: FfiConverterOptionString.read(from: &buf), 
+            `topic`: FfiConverterOptionString.read(from: &buf), 
+            `avatarUrl`: FfiConverterOptionString.read(from: &buf), 
+            `isDirect`: FfiConverterBool.read(from: &buf), 
+            `isEncrypted`: FfiConverterOptionBool.read(from: &buf), 
+            `isPublic`: FfiConverterBool.read(from: &buf), 
+            `isSpace`: FfiConverterBool.read(from: &buf), 
+            `isTombstoned`: FfiConverterBool.read(from: &buf), 
+            `canonicalAlias`: FfiConverterOptionString.read(from: &buf), 
+            `alternativeAliases`: FfiConverterSequenceString.read(from: &buf), 
+            `membership`: FfiConverterTypeMembership.read(from: &buf), 
+            `latestEvent`: FfiConverterOptionTypeEventTimelineItem.read(from: &buf), 
+            `inviter`: FfiConverterOptionTypeRoomMember.read(from: &buf), 
+            `activeMembersCount`: FfiConverterUInt64.read(from: &buf), 
+            `invitedMembersCount`: FfiConverterUInt64.read(from: &buf), 
+            `joinedMembersCount`: FfiConverterUInt64.read(from: &buf), 
+            `highlightCount`: FfiConverterUInt64.read(from: &buf), 
+            `notificationCount`: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RoomInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.`id`, into: &buf)
+        FfiConverterOptionString.write(value.`name`, into: &buf)
+        FfiConverterOptionString.write(value.`topic`, into: &buf)
+        FfiConverterOptionString.write(value.`avatarUrl`, into: &buf)
+        FfiConverterBool.write(value.`isDirect`, into: &buf)
+        FfiConverterOptionBool.write(value.`isEncrypted`, into: &buf)
+        FfiConverterBool.write(value.`isPublic`, into: &buf)
+        FfiConverterBool.write(value.`isSpace`, into: &buf)
+        FfiConverterBool.write(value.`isTombstoned`, into: &buf)
+        FfiConverterOptionString.write(value.`canonicalAlias`, into: &buf)
+        FfiConverterSequenceString.write(value.`alternativeAliases`, into: &buf)
+        FfiConverterTypeMembership.write(value.`membership`, into: &buf)
+        FfiConverterOptionTypeEventTimelineItem.write(value.`latestEvent`, into: &buf)
+        FfiConverterOptionTypeRoomMember.write(value.`inviter`, into: &buf)
+        FfiConverterUInt64.write(value.`activeMembersCount`, into: &buf)
+        FfiConverterUInt64.write(value.`invitedMembersCount`, into: &buf)
+        FfiConverterUInt64.write(value.`joinedMembersCount`, into: &buf)
+        FfiConverterUInt64.write(value.`highlightCount`, into: &buf)
+        FfiConverterUInt64.write(value.`notificationCount`, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeRoomInfo_lift(_ buf: RustBuffer) throws -> RoomInfo {
+    return try FfiConverterTypeRoomInfo.lift(buf)
+}
+
+public func FfiConverterTypeRoomInfo_lower(_ value: RoomInfo) -> RustBuffer {
+    return FfiConverterTypeRoomInfo.lower(value)
 }
 
 
@@ -15050,6 +15181,23 @@ fileprivate func uniffiFutureCallbackHandlerTypeEventTimelineItemDebugInfo(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerTypeRoomInfoTypeClientError(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: RustBuffer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<RoomInfo, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
+        continuation.pointee.resume(returning: try FfiConverterTypeRoomInfo.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesResult(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -16334,6 +16482,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_name() != 5949) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_room_info() != 17731) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_subscribe() != 16638) {
