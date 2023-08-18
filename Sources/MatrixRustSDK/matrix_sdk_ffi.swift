@@ -7235,7 +7235,6 @@ public struct RoomInfo {
     public var `topic`: String?
     public var `avatarUrl`: String?
     public var `isDirect`: Bool
-    public var `isEncrypted`: Bool?
     public var `isPublic`: Bool
     public var `isSpace`: Bool
     public var `isTombstoned`: Bool
@@ -7252,13 +7251,12 @@ public struct RoomInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(`id`: String, `name`: String?, `topic`: String?, `avatarUrl`: String?, `isDirect`: Bool, `isEncrypted`: Bool?, `isPublic`: Bool, `isSpace`: Bool, `isTombstoned`: Bool, `canonicalAlias`: String?, `alternativeAliases`: [String], `membership`: Membership, `latestEvent`: EventTimelineItem?, `inviter`: RoomMember?, `activeMembersCount`: UInt64, `invitedMembersCount`: UInt64, `joinedMembersCount`: UInt64, `highlightCount`: UInt64, `notificationCount`: UInt64) {
+    public init(`id`: String, `name`: String?, `topic`: String?, `avatarUrl`: String?, `isDirect`: Bool, `isPublic`: Bool, `isSpace`: Bool, `isTombstoned`: Bool, `canonicalAlias`: String?, `alternativeAliases`: [String], `membership`: Membership, `latestEvent`: EventTimelineItem?, `inviter`: RoomMember?, `activeMembersCount`: UInt64, `invitedMembersCount`: UInt64, `joinedMembersCount`: UInt64, `highlightCount`: UInt64, `notificationCount`: UInt64) {
         self.`id` = `id`
         self.`name` = `name`
         self.`topic` = `topic`
         self.`avatarUrl` = `avatarUrl`
         self.`isDirect` = `isDirect`
-        self.`isEncrypted` = `isEncrypted`
         self.`isPublic` = `isPublic`
         self.`isSpace` = `isSpace`
         self.`isTombstoned` = `isTombstoned`
@@ -7285,7 +7283,6 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
             `topic`: FfiConverterOptionString.read(from: &buf), 
             `avatarUrl`: FfiConverterOptionString.read(from: &buf), 
             `isDirect`: FfiConverterBool.read(from: &buf), 
-            `isEncrypted`: FfiConverterOptionBool.read(from: &buf), 
             `isPublic`: FfiConverterBool.read(from: &buf), 
             `isSpace`: FfiConverterBool.read(from: &buf), 
             `isTombstoned`: FfiConverterBool.read(from: &buf), 
@@ -7308,7 +7305,6 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.`topic`, into: &buf)
         FfiConverterOptionString.write(value.`avatarUrl`, into: &buf)
         FfiConverterBool.write(value.`isDirect`, into: &buf)
-        FfiConverterOptionBool.write(value.`isEncrypted`, into: &buf)
         FfiConverterBool.write(value.`isPublic`, into: &buf)
         FfiConverterBool.write(value.`isSpace`, into: &buf)
         FfiConverterBool.write(value.`isTombstoned`, into: &buf)
