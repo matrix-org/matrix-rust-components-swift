@@ -2609,10 +2609,10 @@ public protocol RoomProtocol {
     func canonicalAlias()   -> String?
     func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, txnId: String?)  throws
     func displayName()  throws -> String
-    func edit(newMsg: String, originalEventId: String, txnId: String?)  throws
+    func edit(newMsg: RoomMessageEventContentWithoutRelation, originalEventId: String, txnId: String?)  throws
     func fetchDetailsForEvent(eventId: String)  throws
     func fetchMembers()  throws -> TaskHandle
-    func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContent
+    func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContentWithoutRelation
     func id()   -> String
     func ignoreUser(userId: String)  throws
     func inviteUserById(userId: String)  throws
@@ -2640,18 +2640,20 @@ public protocol RoomProtocol {
     func reportContent(eventId: String, score: Int32?, reason: String?)  throws
     func retryDecryption(sessionIds: [String])  
     func retrySend(txnId: String)  
-    func send(msg: RoomMessageEventContent, txnId: String?)  
+    func roomInfo() async throws -> RoomInfo
+    func send(msg: RoomMessageEventContentWithoutRelation, txnId: String?)  
     func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?, txnId: String?)  
     func sendReadMarker(fullyReadEventId: String, readReceiptEventId: String?)  throws
     func sendReadReceipt(eventId: String)  throws
-    func sendReply(msg: String, inReplyToEventId: String, txnId: String?)  throws
+    func sendReply(msg: RoomMessageEventContentWithoutRelation, inReplyToEventId: String, txnId: String?)  throws
     func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func setName(name: String?)  throws
     func setTopic(topic: String)  throws
     func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener)  throws -> TaskHandle
+    func subscribeToRoomInfoUpdates(listener: RoomInfoListener)   -> TaskHandle
     func toggleReaction(eventId: String, key: String)  throws
     func topic()   -> String?
     func uploadAvatar(mimeType: String, data: [UInt8])  throws
@@ -2956,11 +2958,11 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func edit(newMsg: String, originalEventId: String, txnId: String?) throws {
+    public func edit(newMsg: RoomMessageEventContentWithoutRelation, originalEventId: String, txnId: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_edit(self.pointer, 
-        FfiConverterString.lower(newMsg),
+        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(newMsg),
         FfiConverterString.lower(originalEventId),
         FfiConverterOptionString.lower(txnId),$0
     )
@@ -2986,8 +2988,8 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func getTimelineEventContentByEventId(eventId: String) throws -> RoomMessageEventContent {
-        return try  FfiConverterTypeRoomMessageEventContent.lift(
+    public func getTimelineEventContentByEventId(eventId: String) throws -> RoomMessageEventContentWithoutRelation {
+        return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_get_timeline_event_content_by_event_id(self.pointer, 
@@ -3273,12 +3275,36 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func send(msg: RoomMessageEventContent, txnId: String?)  {
+    public func roomInfo() async throws -> RoomInfo {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomInfo, Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_room_room_info(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoomInfoTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+
+    public func send(msg: RoomMessageEventContentWithoutRelation, txnId: String?)  {
         try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_room_send(self.pointer, 
-        FfiConverterTypeRoomMessageEventContent.lower(msg),
+        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),
         FfiConverterOptionString.lower(txnId),$0
     )
 }
@@ -3361,11 +3387,11 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func sendReply(msg: String, inReplyToEventId: String, txnId: String?) throws {
+    public func sendReply(msg: RoomMessageEventContentWithoutRelation, inReplyToEventId: String, txnId: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_send_reply(self.pointer, 
-        FfiConverterString.lower(msg),
+        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),
         FfiConverterString.lower(inReplyToEventId),
         FfiConverterOptionString.lower(txnId),$0
     )
@@ -3411,6 +3437,18 @@ public class Room: RoomProtocol {
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_back_pagination_status(self.pointer, 
         FfiConverterCallbackInterfaceBackPaginationStatusListener.lower(listener),$0
+    )
+}
+        )
+    }
+
+    public func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_room_info_updates(self.pointer, 
+        FfiConverterCallbackInterfaceRoomInfoListener.lower(listener),$0
     )
 }
         )
@@ -4351,11 +4389,11 @@ public func FfiConverterTypeRoomMember_lower(_ value: RoomMember) -> UnsafeMutab
 }
 
 
-public protocol RoomMessageEventContentProtocol {
+public protocol RoomMessageEventContentWithoutRelationProtocol {
     
 }
 
-public class RoomMessageEventContent: RoomMessageEventContentProtocol {
+public class RoomMessageEventContentWithoutRelation: RoomMessageEventContentWithoutRelationProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -4366,7 +4404,7 @@ public class RoomMessageEventContent: RoomMessageEventContentProtocol {
     }
 
     deinit {
-        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommessageeventcontent(pointer, $0) }
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommessageeventcontentwithoutrelation(pointer, $0) }
     }
 
     
@@ -4375,11 +4413,11 @@ public class RoomMessageEventContent: RoomMessageEventContentProtocol {
     
 }
 
-public struct FfiConverterTypeRoomMessageEventContent: FfiConverter {
+public struct FfiConverterTypeRoomMessageEventContentWithoutRelation: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = RoomMessageEventContent
+    typealias SwiftType = RoomMessageEventContentWithoutRelation
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMessageEventContent {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMessageEventContentWithoutRelation {
         let v: UInt64 = try readInt(&buf)
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -4390,28 +4428,28 @@ public struct FfiConverterTypeRoomMessageEventContent: FfiConverter {
         return try lift(ptr!)
     }
 
-    public static func write(_ value: RoomMessageEventContent, into buf: inout [UInt8]) {
+    public static func write(_ value: RoomMessageEventContentWithoutRelation, into buf: inout [UInt8]) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMessageEventContent {
-        return RoomMessageEventContent(unsafeFromRawPointer: pointer)
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMessageEventContentWithoutRelation {
+        return RoomMessageEventContentWithoutRelation(unsafeFromRawPointer: pointer)
     }
 
-    public static func lower(_ value: RoomMessageEventContent) -> UnsafeMutableRawPointer {
+    public static func lower(_ value: RoomMessageEventContentWithoutRelation) -> UnsafeMutableRawPointer {
         return value.pointer
     }
 }
 
 
-public func FfiConverterTypeRoomMessageEventContent_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMessageEventContent {
-    return try FfiConverterTypeRoomMessageEventContent.lift(pointer)
+public func FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMessageEventContentWithoutRelation {
+    return try FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(pointer)
 }
 
-public func FfiConverterTypeRoomMessageEventContent_lower(_ value: RoomMessageEventContent) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeRoomMessageEventContent.lower(value)
+public func FfiConverterTypeRoomMessageEventContentWithoutRelation_lower(_ value: RoomMessageEventContentWithoutRelation) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(value)
 }
 
 
@@ -13042,6 +13080,113 @@ extension FfiConverterCallbackInterfaceProgressWatcher : FfiConverter {
 
 
 
+// Declaration and FfiConverters for RoomInfoListener Callback Interface
+
+public protocol RoomInfoListener : AnyObject {
+    func call(roomInfo: RoomInfo) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceRoomInfoListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeCall(_ swiftCallbackInterface: RoomInfoListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.call(
+                    roomInfo:  try FfiConverterTypeRoomInfo.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceRoomInfoListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: RoomInfoListener
+            do {
+                cb = try FfiConverterCallbackInterfaceRoomInfoListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("RoomInfoListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeCall(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceRoomInfoListener {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_roominfolistener(foreignCallbackCallbackInterfaceRoomInfoListener, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<RoomInfoListener>()
+}
+
+extension FfiConverterCallbackInterfaceRoomInfoListener : FfiConverter {
+    typealias SwiftType = RoomInfoListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
 // Declaration and FfiConverters for RoomListEntriesListener Callback Interface
 
 public protocol RoomListEntriesListener : AnyObject {
@@ -15744,36 +15889,36 @@ fileprivate func uniffiFutureCallbackHandlerTypeRoomMemberTypeClientError(
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContent(
+fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContentWithoutRelation(
     rawContinutation: UnsafeRawPointer,
     returnValue: UnsafeMutableRawPointer,
     callStatus: RustCallStatus) {
 
     let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomMessageEventContent, Error>.self,
+        to: CheckedContinuation<RoomMessageEventContentWithoutRelation, Error>.self,
         capacity: 1
     )
 
     do {
         try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomMessageEventContent.lift(returnValue))
+        continuation.pointee.resume(returning: try FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(returnValue))
     } catch let error {
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContentTypeClientError(
+fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContentWithoutRelationTypeClientError(
     rawContinutation: UnsafeRawPointer,
     returnValue: UnsafeMutableRawPointer,
     callStatus: RustCallStatus) {
 
     let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomMessageEventContent, Error>.self,
+        to: CheckedContinuation<RoomMessageEventContentWithoutRelation, Error>.self,
         capacity: 1
     )
 
     do {
         try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomMessageEventContent.lift(returnValue))
+        continuation.pointee.resume(returning: try FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(returnValue))
     } catch let error {
         continuation.pointee.resume(throwing: error)
     }
@@ -16676,8 +16821,8 @@ public func mediaSourceFromUrl(url: String)  -> MediaSource {
     )
 }
 
-public func messageEventContentFromHtml(body: String, htmlBody: String)  -> RoomMessageEventContent {
-    return try!  FfiConverterTypeRoomMessageEventContent.lift(
+public func messageEventContentFromHtml(body: String, htmlBody: String)  -> RoomMessageEventContentWithoutRelation {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_html(
         FfiConverterString.lower(body),
@@ -16686,8 +16831,8 @@ public func messageEventContentFromHtml(body: String, htmlBody: String)  -> Room
     )
 }
 
-public func messageEventContentFromMarkdown(md: String)  -> RoomMessageEventContent {
-    return try!  FfiConverterTypeRoomMessageEventContent.lift(
+public func messageEventContentFromMarkdown(md: String)  -> RoomMessageEventContentWithoutRelation {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_markdown(
         FfiConverterString.lower(md),$0)
@@ -16695,8 +16840,8 @@ public func messageEventContentFromMarkdown(md: String)  -> RoomMessageEventCont
     )
 }
 
-public func messageEventContentNew(msgtype: MessageType)  -> RoomMessageEventContent {
-    return try!  FfiConverterTypeRoomMessageEventContent.lift(
+public func messageEventContentNew(msgtype: MessageType)  -> RoomMessageEventContentWithoutRelation {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_message_event_content_new(
         FfiConverterTypeMessageType.lower(msgtype),$0)
@@ -16780,13 +16925,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 28929) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html() != 20283) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html() != 48173) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 14647) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 5412) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 47224) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 65448) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_run_widget_api() != 39210) {
@@ -17128,7 +17273,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 38216) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 9282) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 35232) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_details_for_event() != 23233) {
@@ -17137,7 +17282,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members() != 63440) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_timeline_event_content_by_event_id() != 14169) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_timeline_event_content_by_event_id() != 4338) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 27132) {
@@ -17221,7 +17366,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_retry_send() != 39997) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 5240) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 45186) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 39033) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 19498) {
@@ -17242,7 +17390,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_receipt() != 6919) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 35692) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 58749) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 38775) {
@@ -17255,6 +17403,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_back_pagination_status() != 27757) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 43609) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_toggle_reaction() != 25672) {
@@ -17543,6 +17694,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 12165) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roominfolistener_call() != 567) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieslistener_on_update() != 36351) {
