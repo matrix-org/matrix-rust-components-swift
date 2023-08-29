@@ -7029,19 +7029,21 @@ public func FfiConverterTypeNotificationSenderInfo_lower(_ value: NotificationSe
 
 
 public struct OidcConfiguration {
-    public var clientName: String
+    public var clientName: String?
     public var redirectUri: String
-    public var clientUri: String
-    public var tosUri: String
-    public var policyUri: String
+    public var clientUri: String?
+    public var logoUri: String?
+    public var tosUri: String?
+    public var policyUri: String?
     public var staticRegistrations: [String: String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(clientName: String, redirectUri: String, clientUri: String, tosUri: String, policyUri: String, staticRegistrations: [String: String]) {
+    public init(clientName: String?, redirectUri: String, clientUri: String?, logoUri: String?, tosUri: String?, policyUri: String?, staticRegistrations: [String: String]) {
         self.clientName = clientName
         self.redirectUri = redirectUri
         self.clientUri = clientUri
+        self.logoUri = logoUri
         self.tosUri = tosUri
         self.policyUri = policyUri
         self.staticRegistrations = staticRegistrations
@@ -7060,6 +7062,9 @@ extension OidcConfiguration: Equatable, Hashable {
         if lhs.clientUri != rhs.clientUri {
             return false
         }
+        if lhs.logoUri != rhs.logoUri {
+            return false
+        }
         if lhs.tosUri != rhs.tosUri {
             return false
         }
@@ -7076,6 +7081,7 @@ extension OidcConfiguration: Equatable, Hashable {
         hasher.combine(clientName)
         hasher.combine(redirectUri)
         hasher.combine(clientUri)
+        hasher.combine(logoUri)
         hasher.combine(tosUri)
         hasher.combine(policyUri)
         hasher.combine(staticRegistrations)
@@ -7086,21 +7092,23 @@ extension OidcConfiguration: Equatable, Hashable {
 public struct FfiConverterTypeOidcConfiguration: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OidcConfiguration {
         return try OidcConfiguration(
-            clientName: FfiConverterString.read(from: &buf), 
+            clientName: FfiConverterOptionString.read(from: &buf), 
             redirectUri: FfiConverterString.read(from: &buf), 
-            clientUri: FfiConverterString.read(from: &buf), 
-            tosUri: FfiConverterString.read(from: &buf), 
-            policyUri: FfiConverterString.read(from: &buf), 
+            clientUri: FfiConverterOptionString.read(from: &buf), 
+            logoUri: FfiConverterOptionString.read(from: &buf), 
+            tosUri: FfiConverterOptionString.read(from: &buf), 
+            policyUri: FfiConverterOptionString.read(from: &buf), 
             staticRegistrations: FfiConverterDictionaryStringString.read(from: &buf)
         )
     }
 
     public static func write(_ value: OidcConfiguration, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.clientName, into: &buf)
+        FfiConverterOptionString.write(value.clientName, into: &buf)
         FfiConverterString.write(value.redirectUri, into: &buf)
-        FfiConverterString.write(value.clientUri, into: &buf)
-        FfiConverterString.write(value.tosUri, into: &buf)
-        FfiConverterString.write(value.policyUri, into: &buf)
+        FfiConverterOptionString.write(value.clientUri, into: &buf)
+        FfiConverterOptionString.write(value.logoUri, into: &buf)
+        FfiConverterOptionString.write(value.tosUri, into: &buf)
+        FfiConverterOptionString.write(value.policyUri, into: &buf)
         FfiConverterDictionaryStringString.write(value.staticRegistrations, into: &buf)
     }
 }
@@ -7559,10 +7567,11 @@ public struct RoomInfo {
     public var joinedMembersCount: UInt64
     public var highlightCount: UInt64
     public var notificationCount: UInt64
+    public var notificationMode: RoomNotificationMode?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64) {
+    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, notificationMode: RoomNotificationMode?) {
         self.id = id
         self.name = name
         self.topic = topic
@@ -7581,6 +7590,7 @@ public struct RoomInfo {
         self.joinedMembersCount = joinedMembersCount
         self.highlightCount = highlightCount
         self.notificationCount = notificationCount
+        self.notificationMode = notificationMode
     }
 }
 
@@ -7606,7 +7616,8 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
             invitedMembersCount: FfiConverterUInt64.read(from: &buf), 
             joinedMembersCount: FfiConverterUInt64.read(from: &buf), 
             highlightCount: FfiConverterUInt64.read(from: &buf), 
-            notificationCount: FfiConverterUInt64.read(from: &buf)
+            notificationCount: FfiConverterUInt64.read(from: &buf), 
+            notificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf)
         )
     }
 
@@ -7629,6 +7640,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.joinedMembersCount, into: &buf)
         FfiConverterUInt64.write(value.highlightCount, into: &buf)
         FfiConverterUInt64.write(value.notificationCount, into: &buf)
+        FfiConverterOptionTypeRoomNotificationMode.write(value.notificationMode, into: &buf)
     }
 }
 
