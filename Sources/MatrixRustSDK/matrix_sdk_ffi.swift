@@ -2610,7 +2610,6 @@ public protocol RoomProtocol {
     func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, txnId: String?)  throws
     func displayName()  throws -> String
     func edit(newMsg: RoomMessageEventContentWithoutRelation, originalEventId: String, txnId: String?)  throws
-    func endPoll(pollStartId: String, text: String, txnId: String?)  throws
     func fetchDetailsForEvent(eventId: String)  throws
     func fetchMembers()  throws -> TaskHandle
     func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContentWithoutRelation
@@ -2647,7 +2646,6 @@ public protocol RoomProtocol {
     func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?, txnId: String?)  
-    func sendPollResponse(pollStartId: String, answers: [String], txnId: String?)  throws
     func sendReadMarker(fullyReadEventId: String, readReceiptEventId: String?)  throws
     func sendReadReceipt(eventId: String)  throws
     func sendReply(msg: RoomMessageEventContentWithoutRelation, inReplyToEventId: String, txnId: String?)  throws
@@ -2966,17 +2964,6 @@ public class Room: RoomProtocol {
     uniffi_matrix_sdk_ffi_fn_method_room_edit(self.pointer, 
         FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(newMsg),
         FfiConverterString.lower(originalEventId),
-        FfiConverterOptionString.lower(txnId),$0
-    )
-}
-    }
-
-    public func endPoll(pollStartId: String, text: String, txnId: String?) throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_end_poll(self.pointer, 
-        FfiConverterString.lower(pollStartId),
-        FfiConverterString.lower(text),
         FfiConverterOptionString.lower(txnId),$0
     )
 }
@@ -3376,17 +3363,6 @@ public class Room: RoomProtocol {
         FfiConverterOptionString.lower(description),
         FfiConverterOptionUInt8.lower(zoomLevel),
         FfiConverterOptionTypeAssetType.lower(assetType),
-        FfiConverterOptionString.lower(txnId),$0
-    )
-}
-    }
-
-    public func sendPollResponse(pollStartId: String, answers: [String], txnId: String?) throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_send_poll_response(self.pointer, 
-        FfiConverterString.lower(pollStartId),
-        FfiConverterSequenceString.lower(answers),
         FfiConverterOptionString.lower(txnId),$0
     )
 }
@@ -11421,6 +11397,7 @@ public enum RoomListServiceState {
     
     case initial
     case settingUp
+    case recovering
     case running
     case error
     case terminated
@@ -11437,11 +11414,13 @@ public struct FfiConverterTypeRoomListServiceState: FfiConverterRustBuffer {
         
         case 2: return .settingUp
         
-        case 3: return .running
+        case 3: return .recovering
         
-        case 4: return .error
+        case 4: return .running
         
-        case 5: return .terminated
+        case 5: return .error
+        
+        case 6: return .terminated
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -11459,16 +11438,20 @@ public struct FfiConverterTypeRoomListServiceState: FfiConverterRustBuffer {
             writeInt(&buf, Int32(2))
         
         
-        case .running:
+        case .recovering:
             writeInt(&buf, Int32(3))
         
         
-        case .error:
+        case .running:
             writeInt(&buf, Int32(4))
         
         
-        case .terminated:
+        case .error:
             writeInt(&buf, Int32(5))
+        
+        
+        case .terminated:
+            writeInt(&buf, Int32(6))
         
         }
     }
@@ -17312,9 +17295,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 35232) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_end_poll() != 8937) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_details_for_event() != 23233) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17421,9 +17401,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 43614) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_poll_response() != 1386) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_marker() != 53306) {
