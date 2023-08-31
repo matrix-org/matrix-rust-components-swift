@@ -2610,6 +2610,7 @@ public protocol RoomProtocol {
     func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, txnId: String?)  throws
     func displayName()  throws -> String
     func edit(newMsg: RoomMessageEventContentWithoutRelation, originalEventId: String, txnId: String?)  throws
+    func endPoll(pollStartId: String, text: String, txnId: String?)  throws
     func fetchDetailsForEvent(eventId: String)  throws
     func fetchMembers()  throws -> TaskHandle
     func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContentWithoutRelation
@@ -2646,6 +2647,7 @@ public protocol RoomProtocol {
     func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?, txnId: String?)  
+    func sendPollResponse(pollStartId: String, answers: [String], txnId: String?)  throws
     func sendReadMarker(fullyReadEventId: String, readReceiptEventId: String?)  throws
     func sendReadReceipt(eventId: String)  throws
     func sendReply(msg: RoomMessageEventContentWithoutRelation, inReplyToEventId: String, txnId: String?)  throws
@@ -2964,6 +2966,17 @@ public class Room: RoomProtocol {
     uniffi_matrix_sdk_ffi_fn_method_room_edit(self.pointer, 
         FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(newMsg),
         FfiConverterString.lower(originalEventId),
+        FfiConverterOptionString.lower(txnId),$0
+    )
+}
+    }
+
+    public func endPoll(pollStartId: String, text: String, txnId: String?) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_end_poll(self.pointer, 
+        FfiConverterString.lower(pollStartId),
+        FfiConverterString.lower(text),
         FfiConverterOptionString.lower(txnId),$0
     )
 }
@@ -3363,6 +3376,17 @@ public class Room: RoomProtocol {
         FfiConverterOptionString.lower(description),
         FfiConverterOptionUInt8.lower(zoomLevel),
         FfiConverterOptionTypeAssetType.lower(assetType),
+        FfiConverterOptionString.lower(txnId),$0
+    )
+}
+    }
+
+    public func sendPollResponse(pollStartId: String, answers: [String], txnId: String?) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_send_poll_response(self.pointer, 
+        FfiConverterString.lower(pollStartId),
+        FfiConverterSequenceString.lower(answers),
         FfiConverterOptionString.lower(txnId),$0
     )
 }
@@ -8626,13 +8650,13 @@ public func FfiConverterTypeVideoMessageContent_lower(_ value: VideoMessageConte
 
 
 public struct Widget {
-    public var info: WidgetInfo
+    public var settings: WidgetSettings
     public var comm: WidgetComm
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(info: WidgetInfo, comm: WidgetComm) {
-        self.info = info
+    public init(settings: WidgetSettings, comm: WidgetComm) {
+        self.settings = settings
         self.comm = comm
     }
 }
@@ -8642,13 +8666,13 @@ public struct Widget {
 public struct FfiConverterTypeWidget: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Widget {
         return try Widget(
-            info: FfiConverterTypeWidgetInfo.read(from: &buf), 
+            settings: FfiConverterTypeWidgetSettings.read(from: &buf), 
             comm: FfiConverterTypeWidgetComm.read(from: &buf)
         )
     }
 
     public static func write(_ value: Widget, into buf: inout [UInt8]) {
-        FfiConverterTypeWidgetInfo.write(value.info, into: &buf)
+        FfiConverterTypeWidgetSettings.write(value.settings, into: &buf)
         FfiConverterTypeWidgetComm.write(value.comm, into: &buf)
     }
 }
@@ -8660,61 +8684,6 @@ public func FfiConverterTypeWidget_lift(_ buf: RustBuffer) throws -> Widget {
 
 public func FfiConverterTypeWidget_lower(_ value: Widget) -> RustBuffer {
     return FfiConverterTypeWidget.lower(value)
-}
-
-
-public struct WidgetInfo {
-    public var id: String
-    public var initOnLoad: Bool
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(id: String, initOnLoad: Bool) {
-        self.id = id
-        self.initOnLoad = initOnLoad
-    }
-}
-
-
-extension WidgetInfo: Equatable, Hashable {
-    public static func ==(lhs: WidgetInfo, rhs: WidgetInfo) -> Bool {
-        if lhs.id != rhs.id {
-            return false
-        }
-        if lhs.initOnLoad != rhs.initOnLoad {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-        hasher.combine(initOnLoad)
-    }
-}
-
-
-public struct FfiConverterTypeWidgetInfo: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetInfo {
-        return try WidgetInfo(
-            id: FfiConverterString.read(from: &buf), 
-            initOnLoad: FfiConverterBool.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: WidgetInfo, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.id, into: &buf)
-        FfiConverterBool.write(value.initOnLoad, into: &buf)
-    }
-}
-
-
-public func FfiConverterTypeWidgetInfo_lift(_ buf: RustBuffer) throws -> WidgetInfo {
-    return try FfiConverterTypeWidgetInfo.lift(buf)
-}
-
-public func FfiConverterTypeWidgetInfo_lower(_ value: WidgetInfo) -> RustBuffer {
-    return FfiConverterTypeWidgetInfo.lower(value)
 }
 
 
@@ -8770,6 +8739,61 @@ public func FfiConverterTypeWidgetPermissions_lift(_ buf: RustBuffer) throws -> 
 
 public func FfiConverterTypeWidgetPermissions_lower(_ value: WidgetPermissions) -> RustBuffer {
     return FfiConverterTypeWidgetPermissions.lower(value)
+}
+
+
+public struct WidgetSettings {
+    public var id: String
+    public var initOnLoad: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, initOnLoad: Bool) {
+        self.id = id
+        self.initOnLoad = initOnLoad
+    }
+}
+
+
+extension WidgetSettings: Equatable, Hashable {
+    public static func ==(lhs: WidgetSettings, rhs: WidgetSettings) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.initOnLoad != rhs.initOnLoad {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(initOnLoad)
+    }
+}
+
+
+public struct FfiConverterTypeWidgetSettings: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetSettings {
+        return try WidgetSettings(
+            id: FfiConverterString.read(from: &buf), 
+            initOnLoad: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: WidgetSettings, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterBool.write(value.initOnLoad, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeWidgetSettings_lift(_ buf: RustBuffer) throws -> WidgetSettings {
+    return try FfiConverterTypeWidgetSettings.lift(buf)
+}
+
+public func FfiConverterTypeWidgetSettings_lower(_ value: WidgetSettings) -> RustBuffer {
+    return FfiConverterTypeWidgetSettings.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -12526,8 +12550,10 @@ extension VirtualTimelineItem: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum WidgetEventFilter {
     
-    case messageLike(eventType: String, msgtype: String?)
-    case state(eventType: String, stateKey: String?)
+    case messageLikeWithType(eventType: String)
+    case roomMessageWithMsgtype(msgtype: String)
+    case stateWithType(eventType: String)
+    case stateWithTypeAndStateKey(eventType: String, stateKey: String)
 }
 
 public struct FfiConverterTypeWidgetEventFilter: FfiConverterRustBuffer {
@@ -12537,14 +12563,21 @@ public struct FfiConverterTypeWidgetEventFilter: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .messageLike(
-            eventType: try FfiConverterString.read(from: &buf), 
-            msgtype: try FfiConverterOptionString.read(from: &buf)
+        case 1: return .messageLikeWithType(
+            eventType: try FfiConverterString.read(from: &buf)
         )
         
-        case 2: return .state(
+        case 2: return .roomMessageWithMsgtype(
+            msgtype: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .stateWithType(
+            eventType: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .stateWithTypeAndStateKey(
             eventType: try FfiConverterString.read(from: &buf), 
-            stateKey: try FfiConverterOptionString.read(from: &buf)
+            stateKey: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -12555,16 +12588,25 @@ public struct FfiConverterTypeWidgetEventFilter: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .messageLike(eventType,msgtype):
+        case let .messageLikeWithType(eventType):
             writeInt(&buf, Int32(1))
             FfiConverterString.write(eventType, into: &buf)
-            FfiConverterOptionString.write(msgtype, into: &buf)
             
         
-        case let .state(eventType,stateKey):
+        case let .roomMessageWithMsgtype(msgtype):
             writeInt(&buf, Int32(2))
+            FfiConverterString.write(msgtype, into: &buf)
+            
+        
+        case let .stateWithType(eventType):
+            writeInt(&buf, Int32(3))
             FfiConverterString.write(eventType, into: &buf)
-            FfiConverterOptionString.write(stateKey, into: &buf)
+            
+        
+        case let .stateWithTypeAndStateKey(eventType,stateKey):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(eventType, into: &buf)
+            FfiConverterString.write(stateKey, into: &buf)
             
         }
     }
@@ -17295,6 +17337,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 35232) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_end_poll() != 8937) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_details_for_event() != 23233) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17401,6 +17446,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 43614) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_poll_response() != 1386) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_marker() != 53306) {
