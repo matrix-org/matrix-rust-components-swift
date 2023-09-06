@@ -610,7 +610,7 @@ public protocol ClientProtocol {
     func ignoreUser(userId: String)  throws
     func login(username: String, password: String, initialDeviceName: String?, deviceId: String?)  throws
     func logout()  throws -> String?
-    func notificationClient()  throws -> NotificationClientBuilder
+    func notificationClient(processSetup: NotificationProcessSetup)  throws -> NotificationClientBuilder
     func restoreSession(session: Session)  throws
     func rooms()   -> [Room]
     func searchUsers(searchTerm: String, limit: UInt64)  throws -> SearchUsersResults
@@ -841,11 +841,12 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func notificationClient() throws -> NotificationClientBuilder {
+    public func notificationClient(processSetup: NotificationProcessSetup) throws -> NotificationClientBuilder {
         return try  FfiConverterTypeNotificationClientBuilder.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_notification_client(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_notification_client(self.pointer, 
+        FfiConverterTypeNotificationProcessSetup.lower(processSetup),$0
     )
 }
         )
@@ -1950,7 +1951,6 @@ public func FfiConverterTypeNotificationClient_lower(_ value: NotificationClient
 public protocol NotificationClientBuilderProtocol {
     func filterByPushRules()   -> NotificationClientBuilder
     func finish()   -> NotificationClient
-    func retryDecryption(withCrossProcessLock: Bool)   -> NotificationClientBuilder
     
 }
 
@@ -1990,18 +1990,6 @@ public class NotificationClientBuilder: NotificationClientBuilderProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_notificationclientbuilder_finish(self.pointer, $0
-    )
-}
-        )
-    }
-
-    public func retryDecryption(withCrossProcessLock: Bool)  -> NotificationClientBuilder {
-        return try!  FfiConverterTypeNotificationClientBuilder.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_notificationclientbuilder_retry_decryption(self.pointer, 
-        FfiConverterBool.lower(withCrossProcessLock),$0
     )
 }
         )
@@ -3978,6 +3966,7 @@ public protocol RoomListServiceProtocol {
     func invites() async throws -> RoomList
     func room(roomId: String)  throws -> RoomListItem
     func state(listener: RoomListServiceStateListener)   -> TaskHandle
+    func syncIndicator(listener: RoomListServiceSyncIndicatorListener)   -> TaskHandle
     
 }
 
@@ -4091,6 +4080,18 @@ public class RoomListService: RoomListServiceProtocol {
     
     uniffi_matrix_sdk_ffi_fn_method_roomlistservice_state(self.pointer, 
         FfiConverterCallbackInterfaceRoomListServiceStateListener.lower(listener),$0
+    )
+}
+        )
+    }
+
+    public func syncIndicator(listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistservice_sync_indicator(self.pointer, 
+        FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.lower(listener),$0
     )
 }
         )
@@ -5131,7 +5132,7 @@ public func FfiConverterTypeSyncService_lower(_ value: SyncService) -> UnsafeMut
 
 public protocol SyncServiceBuilderProtocol {
     func finish() async throws -> SyncService
-    func withEncryptionSync(withCrossProcessLock: Bool, appIdentifier: String?)   -> SyncServiceBuilder
+    func withCrossProcessLock(appIdentifier: String?)   -> SyncServiceBuilder
     
 }
 
@@ -5178,13 +5179,12 @@ public class SyncServiceBuilder: SyncServiceBuilderProtocol {
 
     
 
-    public func withEncryptionSync(withCrossProcessLock: Bool, appIdentifier: String?)  -> SyncServiceBuilder {
+    public func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder {
         return try!  FfiConverterTypeSyncServiceBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_encryption_sync(self.pointer, 
-        FfiConverterBool.lower(withCrossProcessLock),
+    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_cross_process_lock(self.pointer, 
         FfiConverterOptionString.lower(appIdentifier),$0
     )
 }
@@ -10197,6 +10197,59 @@ public func FfiConverterTypeNotificationEvent_lower(_ value: NotificationEvent) 
 
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum NotificationProcessSetup {
+    
+    case multipleProcesses
+    case singleProcess(syncService: SyncService)
+}
+
+public struct FfiConverterTypeNotificationProcessSetup: FfiConverterRustBuffer {
+    typealias SwiftType = NotificationProcessSetup
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationProcessSetup {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .multipleProcesses
+        
+        case 2: return .singleProcess(
+            syncService: try FfiConverterTypeSyncService.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: NotificationProcessSetup, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .multipleProcesses:
+            writeInt(&buf, Int32(1))
+        
+        
+        case let .singleProcess(syncService):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeSyncService.write(syncService, into: &buf)
+            
+        }
+    }
+}
+
+
+public func FfiConverterTypeNotificationProcessSetup_lift(_ buf: RustBuffer) throws -> NotificationProcessSetup {
+    return try FfiConverterTypeNotificationProcessSetup.lift(buf)
+}
+
+public func FfiConverterTypeNotificationProcessSetup_lower(_ value: NotificationProcessSetup) -> RustBuffer {
+    return FfiConverterTypeNotificationProcessSetup.lower(value)
+}
+
+
+
+
 public enum NotificationSettingsError {
 
     
@@ -11492,6 +11545,58 @@ public func FfiConverterTypeRoomListServiceState_lower(_ value: RoomListServiceS
 
 
 extension RoomListServiceState: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum RoomListServiceSyncIndicator {
+    
+    case show
+    case hide
+}
+
+public struct FfiConverterTypeRoomListServiceSyncIndicator: FfiConverterRustBuffer {
+    typealias SwiftType = RoomListServiceSyncIndicator
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListServiceSyncIndicator {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .show
+        
+        case 2: return .hide
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RoomListServiceSyncIndicator, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .show:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .hide:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeRoomListServiceSyncIndicator_lift(_ buf: RustBuffer) throws -> RoomListServiceSyncIndicator {
+    return try FfiConverterTypeRoomListServiceSyncIndicator.lift(buf)
+}
+
+public func FfiConverterTypeRoomListServiceSyncIndicator_lower(_ value: RoomListServiceSyncIndicator) -> RustBuffer {
+    return FfiConverterTypeRoomListServiceSyncIndicator.lower(value)
+}
+
+
+extension RoomListServiceSyncIndicator: Equatable, Hashable {}
 
 
 
@@ -13539,6 +13644,113 @@ fileprivate struct FfiConverterCallbackInterfaceRoomListServiceStateListener {
 
 extension FfiConverterCallbackInterfaceRoomListServiceStateListener : FfiConverter {
     typealias SwiftType = RoomListServiceStateListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+// Declaration and FfiConverters for RoomListServiceSyncIndicatorListener Callback Interface
+
+public protocol RoomListServiceSyncIndicatorListener : AnyObject {
+    func onUpdate(syncIndicator: RoomListServiceSyncIndicator) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceRoomListServiceSyncIndicatorListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeOnUpdate(_ swiftCallbackInterface: RoomListServiceSyncIndicatorListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.onUpdate(
+                    syncIndicator:  try FfiConverterTypeRoomListServiceSyncIndicator.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: RoomListServiceSyncIndicatorListener
+            do {
+                cb = try FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("RoomListServiceSyncIndicatorListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_roomlistservicesyncindicatorlistener(foreignCallbackCallbackInterfaceRoomListServiceSyncIndicatorListener, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<RoomListServiceSyncIndicatorListener>()
+}
+
+extension FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener : FfiConverter {
+    typealias SwiftType = RoomListServiceSyncIndicatorListener
     // We can use Handle as the FfiType because it's a typealias to UInt64
     typealias FfiType = UniFFICallbackHandle
 
@@ -17082,7 +17294,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 16841) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 43839) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 16860) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 19558) {
@@ -17233,9 +17445,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_finish() != 12382) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_retry_decryption() != 12777) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 42972) {
@@ -17550,6 +17759,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_state() != 7038) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 1112) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 9148) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17661,7 +17873,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish() != 61604) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_encryption_sync() != 35198) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 29139) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 59047) {
@@ -17773,6 +17985,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicestatelistener_on_update() != 27905) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicesyncindicatorlistener_on_update() != 63691) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_accept_verification_request() != 59777) {
