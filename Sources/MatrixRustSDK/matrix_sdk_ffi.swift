@@ -621,6 +621,7 @@ public protocol ClientProtocol {
     func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String)  throws
     func syncService()   -> SyncServiceBuilder
     func unignoreUser(userId: String)  throws
+    func uploadAvatar(mimeType: String, data: [UInt8])  throws
     func uploadMedia(mimeType: String, data: [UInt8], progressWatcher: ProgressWatcher?)  throws -> String
     func userId()  throws -> String
     
@@ -953,6 +954,16 @@ public class Client: ClientProtocol {
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_unignore_user(self.pointer, 
         FfiConverterString.lower(userId),$0
+    )
+}
+    }
+
+    public func uploadAvatar(mimeType: String, data: [UInt8]) throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_client_upload_avatar(self.pointer, 
+        FfiConverterString.lower(mimeType),
+        FfiConverterSequenceUInt8.lower(data),$0
     )
 }
     }
@@ -1763,6 +1774,7 @@ public protocol MessageProtocol {
     func body()   -> String
     func inReplyTo()   -> InReplyToDetails?
     func isEdited()   -> Bool
+    func isThreaded()   -> Bool
     func msgtype()   -> MessageType?
     
 }
@@ -1814,6 +1826,17 @@ public class Message: MessageProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_message_is_edited(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func isThreaded()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_message_is_threaded(self.pointer, $0
     )
 }
         )
@@ -7059,17 +7082,19 @@ public struct OidcConfiguration {
     public var logoUri: String?
     public var tosUri: String?
     public var policyUri: String?
+    public var contacts: [String]?
     public var staticRegistrations: [String: String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(clientName: String?, redirectUri: String, clientUri: String?, logoUri: String?, tosUri: String?, policyUri: String?, staticRegistrations: [String: String]) {
+    public init(clientName: String?, redirectUri: String, clientUri: String?, logoUri: String?, tosUri: String?, policyUri: String?, contacts: [String]?, staticRegistrations: [String: String]) {
         self.clientName = clientName
         self.redirectUri = redirectUri
         self.clientUri = clientUri
         self.logoUri = logoUri
         self.tosUri = tosUri
         self.policyUri = policyUri
+        self.contacts = contacts
         self.staticRegistrations = staticRegistrations
     }
 }
@@ -7095,6 +7120,9 @@ extension OidcConfiguration: Equatable, Hashable {
         if lhs.policyUri != rhs.policyUri {
             return false
         }
+        if lhs.contacts != rhs.contacts {
+            return false
+        }
         if lhs.staticRegistrations != rhs.staticRegistrations {
             return false
         }
@@ -7108,6 +7136,7 @@ extension OidcConfiguration: Equatable, Hashable {
         hasher.combine(logoUri)
         hasher.combine(tosUri)
         hasher.combine(policyUri)
+        hasher.combine(contacts)
         hasher.combine(staticRegistrations)
     }
 }
@@ -7122,6 +7151,7 @@ public struct FfiConverterTypeOidcConfiguration: FfiConverterRustBuffer {
             logoUri: FfiConverterOptionString.read(from: &buf), 
             tosUri: FfiConverterOptionString.read(from: &buf), 
             policyUri: FfiConverterOptionString.read(from: &buf), 
+            contacts: FfiConverterOptionSequenceString.read(from: &buf), 
             staticRegistrations: FfiConverterDictionaryStringString.read(from: &buf)
         )
     }
@@ -7133,6 +7163,7 @@ public struct FfiConverterTypeOidcConfiguration: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.logoUri, into: &buf)
         FfiConverterOptionString.write(value.tosUri, into: &buf)
         FfiConverterOptionString.write(value.policyUri, into: &buf)
+        FfiConverterOptionSequenceString.write(value.contacts, into: &buf)
         FfiConverterDictionaryStringString.write(value.staticRegistrations, into: &buf)
     }
 }
@@ -17327,6 +17358,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 6043) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 65133) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 20769) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17433,6 +17467,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_message_is_edited() != 3402) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_is_threaded() != 29945) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 50686) {
