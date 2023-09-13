@@ -593,7 +593,7 @@ public func FfiConverterTypeAuthenticationService_lower(_ value: AuthenticationS
 
 public protocol ClientProtocol {
     func accountData(eventType: String)  throws -> String?
-    func accountUrl()   -> String?
+    func accountUrl(action: AccountManagementAction?)  throws -> String?
     func avatarUrl()  throws -> String?
     func cachedAvatarUrl()  throws -> String?
     func createRoom(request: CreateRoomParameters)  throws -> String
@@ -657,12 +657,12 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func accountUrl()  -> String? {
-        return try!  FfiConverterOptionString.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_client_account_url(self.pointer, $0
+    public func accountUrl(action: AccountManagementAction?) throws -> String? {
+        return try  FfiConverterOptionString.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_client_account_url(self.pointer, 
+        FfiConverterOptionTypeAccountManagementAction.lower(action),$0
     )
 }
         )
@@ -8829,6 +8829,78 @@ public func FfiConverterTypeWidgetSettings_lower(_ value: WidgetSettings) -> Rus
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum AccountManagementAction {
+    
+    case profile
+    case sessionsList
+    case sessionView(deviceId: String)
+    case sessionEnd(deviceId: String)
+}
+
+public struct FfiConverterTypeAccountManagementAction: FfiConverterRustBuffer {
+    typealias SwiftType = AccountManagementAction
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AccountManagementAction {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .profile
+        
+        case 2: return .sessionsList
+        
+        case 3: return .sessionView(
+            deviceId: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .sessionEnd(
+            deviceId: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AccountManagementAction, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .profile:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .sessionsList:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .sessionView(deviceId):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(deviceId, into: &buf)
+            
+        
+        case let .sessionEnd(deviceId):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(deviceId, into: &buf)
+            
+        }
+    }
+}
+
+
+public func FfiConverterTypeAccountManagementAction_lift(_ buf: RustBuffer) throws -> AccountManagementAction {
+    return try FfiConverterTypeAccountManagementAction.lift(buf)
+}
+
+public func FfiConverterTypeAccountManagementAction_lower(_ value: AccountManagementAction) -> RustBuffer {
+    return FfiConverterTypeAccountManagementAction.lower(value)
+}
+
+
+extension AccountManagementAction: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum AssetType {
     
     case sender
@@ -14928,6 +15000,27 @@ fileprivate struct FfiConverterOptionTypeVideoInfo: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeAccountManagementAction: FfiConverterRustBuffer {
+    typealias SwiftType = AccountManagementAction?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeAccountManagementAction.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeAccountManagementAction.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeAssetType: FfiConverterRustBuffer {
     typealias SwiftType = AssetType?
 
@@ -17274,7 +17367,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 37263) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 29423) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 57664) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 13474) {
