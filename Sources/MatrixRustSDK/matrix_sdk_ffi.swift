@@ -474,14 +474,16 @@ public class AuthenticationService: AuthenticationServiceProtocol {
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
-    public convenience init(basePath: String, passphrase: String?, userAgent: String?, oidcConfiguration: OidcConfiguration?, customSlidingSyncProxy: String?)  {
+    public convenience init(basePath: String, passphrase: String?, userAgent: String?, oidcConfiguration: OidcConfiguration?, customSlidingSyncProxy: String?, sessionDelegate: ClientSessionDelegate?, crossProcessRefreshLockId: String?)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_authenticationservice_new(
         FfiConverterString.lower(basePath),
         FfiConverterOptionString.lower(passphrase),
         FfiConverterOptionString.lower(userAgent),
         FfiConverterOptionTypeOidcConfiguration.lower(oidcConfiguration),
-        FfiConverterOptionString.lower(customSlidingSyncProxy),$0)
+        FfiConverterOptionString.lower(customSlidingSyncProxy),
+        FfiConverterOptionCallbackInterfaceClientSessionDelegate.lower(sessionDelegate),
+        FfiConverterOptionString.lower(crossProcessRefreshLockId),$0)
 })
     }
 
@@ -1037,11 +1039,13 @@ public protocol ClientBuilderProtocol {
     func build()  throws -> Client
     func disableAutomaticTokenRefresh()   -> ClientBuilder
     func disableSslVerification()   -> ClientBuilder
+    func enableCrossProcessRefreshLock(processId: String, sessionDelegate: ClientSessionDelegate)   -> ClientBuilder
     func homeserverUrl(url: String)   -> ClientBuilder
     func passphrase(passphrase: String?)   -> ClientBuilder
     func proxy(url: String)   -> ClientBuilder
     func serverName(serverName: String)   -> ClientBuilder
     func serverVersions(versions: [String])   -> ClientBuilder
+    func setSessionDelegate(sessionDelegate: ClientSessionDelegate)   -> ClientBuilder
     func slidingSyncProxy(slidingSyncProxy: String?)   -> ClientBuilder
     func userAgent(userAgent: String)   -> ClientBuilder
     func username(username: String)   -> ClientBuilder
@@ -1116,6 +1120,19 @@ public class ClientBuilder: ClientBuilderProtocol {
         )
     }
 
+    public func enableCrossProcessRefreshLock(processId: String, sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_enable_cross_process_refresh_lock(self.pointer, 
+        FfiConverterString.lower(processId),
+        FfiConverterCallbackInterfaceClientSessionDelegate.lower(sessionDelegate),$0
+    )
+}
+        )
+    }
+
     public func homeserverUrl(url: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
@@ -1171,6 +1188,18 @@ public class ClientBuilder: ClientBuilderProtocol {
     
     uniffi_matrix_sdk_ffi_fn_method_clientbuilder_server_versions(self.pointer, 
         FfiConverterSequenceString.lower(versions),$0
+    )
+}
+        )
+    }
+
+    public func setSessionDelegate(sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_set_session_delegate(self.pointer, 
+        FfiConverterCallbackInterfaceClientSessionDelegate.lower(sessionDelegate),$0
     )
 }
         )
@@ -7622,11 +7651,11 @@ public struct RoomInfo {
     public var joinedMembersCount: UInt64
     public var highlightCount: UInt64
     public var notificationCount: UInt64
-    public var notificationMode: RoomNotificationMode?
+    public var userDefinedNotificationMode: RoomNotificationMode?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, notificationMode: RoomNotificationMode?) {
+    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?) {
         self.id = id
         self.name = name
         self.topic = topic
@@ -7645,7 +7674,7 @@ public struct RoomInfo {
         self.joinedMembersCount = joinedMembersCount
         self.highlightCount = highlightCount
         self.notificationCount = notificationCount
-        self.notificationMode = notificationMode
+        self.userDefinedNotificationMode = userDefinedNotificationMode
     }
 }
 
@@ -7672,7 +7701,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
             joinedMembersCount: FfiConverterUInt64.read(from: &buf), 
             highlightCount: FfiConverterUInt64.read(from: &buf), 
             notificationCount: FfiConverterUInt64.read(from: &buf), 
-            notificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf)
+            userDefinedNotificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf)
         )
     }
 
@@ -7695,7 +7724,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.joinedMembersCount, into: &buf)
         FfiConverterUInt64.write(value.highlightCount, into: &buf)
         FfiConverterUInt64.write(value.notificationCount, into: &buf)
-        FfiConverterOptionTypeRoomNotificationMode.write(value.notificationMode, into: &buf)
+        FfiConverterOptionTypeRoomNotificationMode.write(value.userDefinedNotificationMode, into: &buf)
     }
 }
 
@@ -9841,7 +9870,7 @@ public enum MessageLikeEventContent {
     case keyVerificationDone
     case reactionContent(relatedEventId: String)
     case roomEncrypted
-    case roomMessage(messageType: MessageType)
+    case roomMessage(messageType: MessageType, inReplyToEventId: String?)
     case roomRedaction
     case sticker
 }
@@ -9882,7 +9911,8 @@ public struct FfiConverterTypeMessageLikeEventContent: FfiConverterRustBuffer {
         case 13: return .roomEncrypted
         
         case 14: return .roomMessage(
-            messageType: try FfiConverterTypeMessageType.read(from: &buf)
+            messageType: try FfiConverterTypeMessageType.read(from: &buf), 
+            inReplyToEventId: try FfiConverterOptionString.read(from: &buf)
         )
         
         case 15: return .roomRedaction
@@ -9950,9 +9980,10 @@ public struct FfiConverterTypeMessageLikeEventContent: FfiConverterRustBuffer {
             writeInt(&buf, Int32(13))
         
         
-        case let .roomMessage(messageType):
+        case let .roomMessage(messageType,inReplyToEventId):
             writeInt(&buf, Int32(14))
             FfiConverterTypeMessageType.write(messageType, into: &buf)
+            FfiConverterOptionString.write(inReplyToEventId, into: &buf)
             
         
         case .roomRedaction:
@@ -13137,6 +13168,147 @@ extension FfiConverterCallbackInterfaceClientDelegate : FfiConverter {
 
 
 
+// Declaration and FfiConverters for ClientSessionDelegate Callback Interface
+
+public protocol ClientSessionDelegate : AnyObject {
+    func retrieveSessionFromKeychain(userId: String) throws -> Session
+    func saveSessionInKeychain(session: Session) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceClientSessionDelegate : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeRetrieveSessionFromKeychain(_ swiftCallbackInterface: ClientSessionDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            let result =  try swiftCallbackInterface.retrieveSessionFromKeychain(
+                    userId:  try FfiConverterString.read(from: &reader)
+                    )
+            var writer = [UInt8]()
+            FfiConverterTypeSession.write(result, into: &writer)
+            out_buf.pointee = RustBuffer(bytes: writer)
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        do {
+            return try makeCall()
+        } catch let error as ClientError {
+            out_buf.pointee = FfiConverterTypeClientError.lower(error)
+            return UNIFFI_CALLBACK_ERROR
+        }
+    }
+
+    func invokeSaveSessionInKeychain(_ swiftCallbackInterface: ClientSessionDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.saveSessionInKeychain(
+                    session:  try FfiConverterTypeSession.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceClientSessionDelegate.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: ClientSessionDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceClientSessionDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("ClientSessionDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeRetrieveSessionFromKeychain(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        case 2:
+            let cb: ClientSessionDelegate
+            do {
+                cb = try FfiConverterCallbackInterfaceClientSessionDelegate.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("ClientSessionDelegate: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeSaveSessionInKeychain(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceClientSessionDelegate {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_clientsessiondelegate(foreignCallbackCallbackInterfaceClientSessionDelegate, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<ClientSessionDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceClientSessionDelegate : FfiConverter {
+    typealias SwiftType = ClientSessionDelegate
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
 // Declaration and FfiConverters for NotificationSettingsDelegate Callback Interface
 
 public protocol NotificationSettingsDelegate : AnyObject {
@@ -15205,6 +15377,27 @@ fileprivate struct FfiConverterOptionCallbackInterfaceClientDelegate: FfiConvert
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterCallbackInterfaceClientDelegate.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionCallbackInterfaceClientSessionDelegate: FfiConverterRustBuffer {
+    typealias SwiftType = ClientSessionDelegate?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceClientSessionDelegate.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceClientSessionDelegate.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -17472,6 +17665,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_ssl_verification() != 1510) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_enable_cross_process_refresh_lock() != 39606) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 43790) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17485,6 +17681,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_versions() != 64538) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_set_session_delegate() != 7269) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sliding_sync_proxy() != 37450) {
@@ -18078,7 +18277,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 31512) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 62706) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 41347) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 53567) {
@@ -18097,6 +18296,12 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_refresh_tokens() != 32841) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_retrieve_session_from_keychain() != 8049) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_save_session_in_keychain() != 30188) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 4921) {
