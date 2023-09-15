@@ -613,6 +613,7 @@ public protocol ClientProtocol {
     func login(username: String, password: String, initialDeviceName: String?, deviceId: String?)  throws
     func logout()  throws -> String?
     func notificationClient(processSetup: NotificationProcessSetup)  throws -> NotificationClientBuilder
+    func removeAvatar()  throws
     func restoreSession(session: Session)  throws
     func rooms()   -> [Room]
     func searchUsers(searchTerm: String, limit: UInt64)  throws -> SearchUsersResults
@@ -853,6 +854,14 @@ public class Client: ClientProtocol {
     )
 }
         )
+    }
+
+    public func removeAvatar() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_client_remove_avatar(self.pointer, $0
+    )
+}
     }
 
     public func restoreSession(session: Session) throws {
@@ -3791,6 +3800,7 @@ public protocol RoomListItemProtocol {
     func latestEvent() async  -> EventTimelineItem?
     func name()   -> String?
     func roomInfo() async throws -> RoomInfo
+    func roomInfoBlocking()  throws -> RoomInfo
     func subscribe(settings: RoomSubscription?)  
     func unreadNotifications()   -> UnreadNotificationsCount
     func unsubscribe()  
@@ -3940,6 +3950,16 @@ public class RoomListItem: RoomListItemProtocol {
     }
 
     
+
+    public func roomInfoBlocking() throws -> RoomInfo {
+        return try  FfiConverterTypeRoomInfo.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_room_info_blocking(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func subscribe(settings: RoomSubscription?)  {
         try! 
@@ -17614,6 +17634,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 16860) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_remove_avatar() != 41701) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 19558) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18062,6 +18085,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_room_info() != 17731) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_room_info_blocking() != 48948) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_subscribe() != 16638) {
