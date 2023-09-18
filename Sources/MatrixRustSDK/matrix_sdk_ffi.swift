@@ -2661,7 +2661,7 @@ public protocol RoomProtocol {
     func edit(newMsg: RoomMessageEventContentWithoutRelation, originalEventId: String, txnId: String?)  throws
     func endPoll(pollStartId: String, text: String, txnId: String?)  throws
     func fetchDetailsForEvent(eventId: String)  throws
-    func fetchMembers()  throws -> TaskHandle
+    func fetchMembers() async throws
     func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContentWithoutRelation
     func id()   -> String
     func ignoreUser(userId: String)  throws
@@ -2676,10 +2676,10 @@ public protocol RoomProtocol {
     func join()  throws
     func joinedMembersCount()   -> UInt64
     func leave()  throws
-    func member(userId: String)  throws -> RoomMember
+    func member(userId: String) async throws -> RoomMember
     func memberAvatarUrl(userId: String)  throws -> String?
     func memberDisplayName(userId: String)  throws -> String?
-    func members()  throws -> [RoomMember]
+    func members() async throws -> RoomMembersIterator
     func membership()   -> Membership
     func name()   -> String?
     func ownUserId()   -> String
@@ -3040,15 +3040,29 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func fetchMembers() throws -> TaskHandle {
-        return try  FfiConverterTypeTaskHandle.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_fetch_members(self.pointer, $0
-    )
-}
-        )
+    public func fetchMembers() async throws {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<(), Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_room_fetch_members(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerVoidTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 
     public func getTimelineEventContentByEventId(eventId: String) throws -> RoomMessageEventContentWithoutRelation {
         return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
@@ -3193,16 +3207,30 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func member(userId: String) throws -> RoomMember {
-        return try  FfiConverterTypeRoomMember.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_member(self.pointer, 
-        FfiConverterString.lower(userId),$0
-    )
-}
-        )
+    public func member(userId: String) async throws -> RoomMember {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomMember, Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_room_member(
+                    self.pointer,
+                    
+        FfiConverterString.lower(userId),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoomMemberTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 
     public func memberAvatarUrl(userId: String) throws -> String? {
         return try  FfiConverterOptionString.lift(
@@ -3226,15 +3254,29 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func members() throws -> [RoomMember] {
-        return try  FfiConverterSequenceTypeRoomMember.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_members(self.pointer, $0
-    )
-}
-        )
+    public func members() async throws -> RoomMembersIterator {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomMembersIterator, Error>? = nil
+        return try  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_room_members(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoomMembersIteratorTypeClientError,
+                    &continuation,
+                    $0
+                )
+            }
+        }
     }
+
+    
 
     public func membership()  -> Membership {
         return try!  FfiConverterTypeMembership.lift(
@@ -3601,7 +3643,7 @@ public func FfiConverterTypeRoom_lower(_ value: Room) -> UnsafeMutableRawPointer
 
 public protocol RoomListProtocol {
     func entries(listener: RoomListEntriesListener)   -> RoomListEntriesResult
-    func entriesWithDynamicFilter(listener: RoomListEntriesListener)   -> RoomListEntriesWithDynamicFilterResult
+    func entriesWithDynamicAdapters(pageSize: UInt32, listener: RoomListEntriesListener)   -> RoomListEntriesWithDynamicAdaptersResult
     func loadingState(listener: RoomListLoadingStateListener)  throws -> RoomListLoadingStateResult
     func room(roomId: String)  throws -> RoomListItem
     
@@ -3638,12 +3680,13 @@ public class RoomList: RoomListProtocol {
         )
     }
 
-    public func entriesWithDynamicFilter(listener: RoomListEntriesListener)  -> RoomListEntriesWithDynamicFilterResult {
-        return try!  FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lift(
+    public func entriesWithDynamicAdapters(pageSize: UInt32, listener: RoomListEntriesListener)  -> RoomListEntriesWithDynamicAdaptersResult {
+        return try!  FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlist_entries_with_dynamic_filter(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_entries_with_dynamic_adapters(self.pointer, 
+        FfiConverterUInt32.lower(pageSize),
         FfiConverterCallbackInterfaceRoomListEntriesListener.lower(listener),$0
     )
 }
@@ -3713,12 +3756,14 @@ public func FfiConverterTypeRoomList_lower(_ value: RoomList) -> UnsafeMutableRa
 }
 
 
-public protocol RoomListEntriesDynamicFilterProtocol {
-    func set(kind: RoomListEntriesDynamicFilterKind)   -> Bool
+public protocol RoomListDynamicEntriesControllerProtocol {
+    func addOnePage()  
+    func resetToOnePage()  
+    func setFilter(kind: RoomListEntriesDynamicFilterKind)   -> Bool
     
 }
 
-public class RoomListEntriesDynamicFilter: RoomListEntriesDynamicFilterProtocol {
+public class RoomListDynamicEntriesController: RoomListDynamicEntriesControllerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -3729,7 +3774,7 @@ public class RoomListEntriesDynamicFilter: RoomListEntriesDynamicFilterProtocol 
     }
 
     deinit {
-        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistentriesdynamicfilter(pointer, $0) }
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistdynamicentriescontroller(pointer, $0) }
     }
 
     
@@ -3737,12 +3782,30 @@ public class RoomListEntriesDynamicFilter: RoomListEntriesDynamicFilterProtocol 
     
     
 
-    public func set(kind: RoomListEntriesDynamicFilterKind)  -> Bool {
+    public func addOnePage()  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_add_one_page(self.pointer, $0
+    )
+}
+    }
+
+    public func resetToOnePage()  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_reset_to_one_page(self.pointer, $0
+    )
+}
+    }
+
+    public func setFilter(kind: RoomListEntriesDynamicFilterKind)  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistentriesdynamicfilter_set(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_set_filter(self.pointer, 
         FfiConverterTypeRoomListEntriesDynamicFilterKind.lower(kind),$0
     )
 }
@@ -3750,11 +3813,11 @@ public class RoomListEntriesDynamicFilter: RoomListEntriesDynamicFilterProtocol 
     }
 }
 
-public struct FfiConverterTypeRoomListEntriesDynamicFilter: FfiConverter {
+public struct FfiConverterTypeRoomListDynamicEntriesController: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = RoomListEntriesDynamicFilter
+    typealias SwiftType = RoomListDynamicEntriesController
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListEntriesDynamicFilter {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListDynamicEntriesController {
         let v: UInt64 = try readInt(&buf)
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -3765,28 +3828,28 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilter: FfiConverter {
         return try lift(ptr!)
     }
 
-    public static func write(_ value: RoomListEntriesDynamicFilter, into buf: inout [UInt8]) {
+    public static func write(_ value: RoomListDynamicEntriesController, into buf: inout [UInt8]) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListEntriesDynamicFilter {
-        return RoomListEntriesDynamicFilter(unsafeFromRawPointer: pointer)
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListDynamicEntriesController {
+        return RoomListDynamicEntriesController(unsafeFromRawPointer: pointer)
     }
 
-    public static func lower(_ value: RoomListEntriesDynamicFilter) -> UnsafeMutableRawPointer {
+    public static func lower(_ value: RoomListDynamicEntriesController) -> UnsafeMutableRawPointer {
         return value.pointer
     }
 }
 
 
-public func FfiConverterTypeRoomListEntriesDynamicFilter_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListEntriesDynamicFilter {
-    return try FfiConverterTypeRoomListEntriesDynamicFilter.lift(pointer)
+public func FfiConverterTypeRoomListDynamicEntriesController_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListDynamicEntriesController {
+    return try FfiConverterTypeRoomListDynamicEntriesController.lift(pointer)
 }
 
-public func FfiConverterTypeRoomListEntriesDynamicFilter_lower(_ value: RoomListEntriesDynamicFilter) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeRoomListEntriesDynamicFilter.lower(value)
+public func FfiConverterTypeRoomListDynamicEntriesController_lower(_ value: RoomListDynamicEntriesController) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeRoomListDynamicEntriesController.lower(value)
 }
 
 
@@ -4038,7 +4101,7 @@ public protocol RoomListServiceProtocol {
     func invites() async throws -> RoomList
     func room(roomId: String)  throws -> RoomListItem
     func state(listener: RoomListServiceStateListener)   -> TaskHandle
-    func syncIndicator(listener: RoomListServiceSyncIndicatorListener)   -> TaskHandle
+    func syncIndicator(delayBeforeShowingInMs: UInt32, delayBeforeHidingInMs: UInt32, listener: RoomListServiceSyncIndicatorListener)   -> TaskHandle
     
 }
 
@@ -4157,12 +4220,14 @@ public class RoomListService: RoomListServiceProtocol {
         )
     }
 
-    public func syncIndicator(listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle {
+    public func syncIndicator(delayBeforeShowingInMs: UInt32, delayBeforeHidingInMs: UInt32, listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_roomlistservice_sync_indicator(self.pointer, 
+        FfiConverterUInt32.lower(delayBeforeShowingInMs),
+        FfiConverterUInt32.lower(delayBeforeHidingInMs),
         FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.lower(listener),$0
     )
 }
@@ -4483,6 +4548,95 @@ public func FfiConverterTypeRoomMember_lift(_ pointer: UnsafeMutableRawPointer) 
 
 public func FfiConverterTypeRoomMember_lower(_ value: RoomMember) -> UnsafeMutableRawPointer {
     return FfiConverterTypeRoomMember.lower(value)
+}
+
+
+public protocol RoomMembersIteratorProtocol {
+    func len()   -> UInt32
+    func nextChunk(chunkSize: UInt32)   -> [RoomMember]?
+    
+}
+
+public class RoomMembersIterator: RoomMembersIteratorProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommembersiterator(pointer, $0) }
+    }
+
+    
+
+    
+    
+
+    public func len()  -> UInt32 {
+        return try!  FfiConverterUInt32.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommembersiterator_len(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func nextChunk(chunkSize: UInt32)  -> [RoomMember]? {
+        return try!  FfiConverterOptionSequenceTypeRoomMember.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommembersiterator_next_chunk(self.pointer, 
+        FfiConverterUInt32.lower(chunkSize),$0
+    )
+}
+        )
+    }
+}
+
+public struct FfiConverterTypeRoomMembersIterator: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = RoomMembersIterator
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMembersIterator {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: RoomMembersIterator, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMembersIterator {
+        return RoomMembersIterator(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: RoomMembersIterator) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+
+public func FfiConverterTypeRoomMembersIterator_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMembersIterator {
+    return try FfiConverterTypeRoomMembersIterator.lift(pointer)
+}
+
+public func FfiConverterTypeRoomMembersIterator_lower(_ value: RoomMembersIterator) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeRoomMembersIterator.lower(value)
 }
 
 
@@ -7796,41 +7950,41 @@ public func FfiConverterTypeRoomListEntriesResult_lower(_ value: RoomListEntries
 }
 
 
-public struct RoomListEntriesWithDynamicFilterResult {
-    public var dynamicFilter: RoomListEntriesDynamicFilter
+public struct RoomListEntriesWithDynamicAdaptersResult {
+    public var controller: RoomListDynamicEntriesController
     public var entriesStream: TaskHandle
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(dynamicFilter: RoomListEntriesDynamicFilter, entriesStream: TaskHandle) {
-        self.dynamicFilter = dynamicFilter
+    public init(controller: RoomListDynamicEntriesController, entriesStream: TaskHandle) {
+        self.controller = controller
         self.entriesStream = entriesStream
     }
 }
 
 
 
-public struct FfiConverterTypeRoomListEntriesWithDynamicFilterResult: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListEntriesWithDynamicFilterResult {
-        return try RoomListEntriesWithDynamicFilterResult(
-            dynamicFilter: FfiConverterTypeRoomListEntriesDynamicFilter.read(from: &buf), 
+public struct FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListEntriesWithDynamicAdaptersResult {
+        return try RoomListEntriesWithDynamicAdaptersResult(
+            controller: FfiConverterTypeRoomListDynamicEntriesController.read(from: &buf), 
             entriesStream: FfiConverterTypeTaskHandle.read(from: &buf)
         )
     }
 
-    public static func write(_ value: RoomListEntriesWithDynamicFilterResult, into buf: inout [UInt8]) {
-        FfiConverterTypeRoomListEntriesDynamicFilter.write(value.dynamicFilter, into: &buf)
+    public static func write(_ value: RoomListEntriesWithDynamicAdaptersResult, into buf: inout [UInt8]) {
+        FfiConverterTypeRoomListDynamicEntriesController.write(value.controller, into: &buf)
         FfiConverterTypeTaskHandle.write(value.entriesStream, into: &buf)
     }
 }
 
 
-public func FfiConverterTypeRoomListEntriesWithDynamicFilterResult_lift(_ buf: RustBuffer) throws -> RoomListEntriesWithDynamicFilterResult {
-    return try FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lift(buf)
+public func FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult_lift(_ buf: RustBuffer) throws -> RoomListEntriesWithDynamicAdaptersResult {
+    return try FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult.lift(buf)
 }
 
-public func FfiConverterTypeRoomListEntriesWithDynamicFilterResult_lower(_ value: RoomListEntriesWithDynamicFilterResult) -> RustBuffer {
-    return FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lower(value)
+public func FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult_lower(_ value: RoomListEntriesWithDynamicAdaptersResult) -> RustBuffer {
+    return FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult.lower(value)
 }
 
 
@@ -11251,6 +11405,7 @@ public enum RoomListEntriesUpdate {
     case insert(index: UInt32, value: RoomListEntry)
     case set(index: UInt32, value: RoomListEntry)
     case remove(index: UInt32)
+    case truncate(length: UInt32)
     case reset(values: [RoomListEntry])
 }
 
@@ -11293,7 +11448,11 @@ public struct FfiConverterTypeRoomListEntriesUpdate: FfiConverterRustBuffer {
             index: try FfiConverterUInt32.read(from: &buf)
         )
         
-        case 10: return .reset(
+        case 10: return .truncate(
+            length: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 11: return .reset(
             values: try FfiConverterSequenceTypeRoomListEntry.read(from: &buf)
         )
         
@@ -11349,8 +11508,13 @@ public struct FfiConverterTypeRoomListEntriesUpdate: FfiConverterRustBuffer {
             FfiConverterUInt32.write(index, into: &buf)
             
         
-        case let .reset(values):
+        case let .truncate(length):
             writeInt(&buf, Int32(10))
+            FfiConverterUInt32.write(length, into: &buf)
+            
+        
+        case let .reset(values):
+            writeInt(&buf, Int32(11))
             FfiConverterSequenceTypeRoomListEntry.write(values, into: &buf)
             
         }
@@ -12378,6 +12542,7 @@ public enum TimelineChange {
     case pushFront
     case popBack
     case popFront
+    case truncate
     case reset
 }
 
@@ -12406,7 +12571,9 @@ public struct FfiConverterTypeTimelineChange: FfiConverterRustBuffer {
         
         case 9: return .popFront
         
-        case 10: return .reset
+        case 10: return .truncate
+        
+        case 11: return .reset
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -12452,8 +12619,12 @@ public struct FfiConverterTypeTimelineChange: FfiConverterRustBuffer {
             writeInt(&buf, Int32(9))
         
         
-        case .reset:
+        case .truncate:
             writeInt(&buf, Int32(10))
+        
+        
+        case .reset:
+            writeInt(&buf, Int32(11))
         
         }
     }
@@ -15507,6 +15678,27 @@ fileprivate struct FfiConverterOptionSequenceString: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionSequenceTypeRoomMember: FfiConverterRustBuffer {
+    typealias SwiftType = [RoomMember]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceTypeRoomMember.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceTypeRoomMember.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionSequenceTypeTimelineItem: FfiConverterRustBuffer {
     typealias SwiftType = [TimelineItem]?
 
@@ -16499,6 +16691,23 @@ fileprivate func uniffiFutureCallbackHandlerTypeRoomMemberTypeClientError(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerTypeRoomMembersIteratorTypeClientError(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: UnsafeMutableRawPointer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<RoomMembersIterator, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
+        continuation.pointee.resume(returning: try FfiConverterTypeRoomMembersIterator.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContentWithoutRelation(
     rawContinutation: UnsafeRawPointer,
     returnValue: UnsafeMutableRawPointer,
@@ -16737,19 +16946,19 @@ fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesResult(
         continuation.pointee.resume(throwing: error)
     }
 }
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesWithDynamicFilterResult(
+fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesWithDynamicAdaptersResult(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
     callStatus: RustCallStatus) {
 
     let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomListEntriesWithDynamicFilterResult, Error>.self,
+        to: CheckedContinuation<RoomListEntriesWithDynamicAdaptersResult, Error>.self,
         capacity: 1
     )
 
     do {
         try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomListEntriesWithDynamicFilterResult.lift(returnValue))
+        continuation.pointee.resume(returning: try FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult.lift(returnValue))
     } catch let error {
         continuation.pointee.resume(throwing: error)
     }
@@ -17281,6 +17490,23 @@ fileprivate func uniffiFutureCallbackHandlerOptionTypeVirtualTimelineItem(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerOptionSequenceTypeRoomMember(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: RustBuffer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<[RoomMember]?, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
+        continuation.pointee.resume(returning: try FfiConverterOptionSequenceTypeRoomMember.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerOptionSequenceTypeTimelineItem(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -17345,23 +17571,6 @@ fileprivate func uniffiFutureCallbackHandlerSequenceTypeRoom(
     do {
         try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
         continuation.pointee.resume(returning: try FfiConverterSequenceTypeRoom.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerSequenceTypeRoomMemberTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[RoomMember], Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterSequenceTypeRoomMember.lift(returnValue))
     } catch let error {
         continuation.pointee.resume(throwing: error)
     }
@@ -17904,7 +18113,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_details_for_event() != 23233) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members() != 63440) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members() != 64110) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_get_timeline_event_content_by_event_id() != 4338) {
@@ -17949,7 +18158,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 11928) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 19441) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 4975) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 5937) {
@@ -17958,7 +18167,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 4559) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 48203) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 6390) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 17678) {
@@ -18048,7 +18257,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries() != 27911) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_filter() != 18327) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_adapters() != 30316) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_loading_state() != 54823) {
@@ -18057,7 +18266,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 60000) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentriesdynamicfilter_set() != 41193) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_add_one_page() != 1980) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_reset_to_one_page() != 48285) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_set_filter() != 20071) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_avatar_url() != 23609) {
@@ -18114,7 +18329,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_state() != 7038) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 1112) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 5536) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 9148) {
@@ -18169,6 +18384,12 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_user_id() != 19498) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_len() != 32977) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_next_chunk() != 35645) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 58929) {
