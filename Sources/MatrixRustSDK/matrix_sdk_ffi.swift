@@ -2099,21 +2099,36 @@ public func FfiConverterTypeNotificationClientBuilder_lower(_ value: Notificatio
 
 public protocol NotificationSettingsProtocol {
     func containsKeywordsRules() async  -> Bool
+    func containsKeywordsRulesBlocking()   -> Bool
     func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode
+    func getDefaultRoomNotificationModeBlocking(isEncrypted: Bool, isOneToOne: Bool)   -> RoomNotificationMode
     func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws -> RoomNotificationSettings
+    func getRoomNotificationSettingsBlocking(roomId: String, isEncrypted: Bool, isOneToOne: Bool)  throws -> RoomNotificationSettings
     func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String]
+    func getRoomsWithUserDefinedRulesBlocking(enabled: Bool?)   -> [String]
     func getUserDefinedRoomNotificationMode(roomId: String) async throws -> RoomNotificationMode?
+    func getUserDefinedRoomNotificationModeBlocking(roomId: String)  throws -> RoomNotificationMode?
     func isCallEnabled() async throws -> Bool
+    func isCallEnabledBlocking()  throws -> Bool
     func isRoomMentionEnabled() async throws -> Bool
+    func isRoomMentionEnabledBlocking()  throws -> Bool
     func isUserMentionEnabled() async throws -> Bool
+    func isUserMentionEnabledBlocking()  throws -> Bool
     func restoreDefaultRoomNotificationMode(roomId: String) async throws
+    func restoreDefaultRoomNotificationModeBlocking(roomId: String)  throws
     func setCallEnabled(enabled: Bool) async throws
+    func setCallEnabledBlocking(enabled: Bool)  throws
     func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws
+    func setDefaultRoomNotificationModeBlocking(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode)  throws
     func setDelegate(delegate: NotificationSettingsDelegate?)  
     func setRoomMentionEnabled(enabled: Bool) async throws
+    func setRoomMentionEnabledBlocking(enabled: Bool)  throws
     func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws
+    func setRoomNotificationModeBlocking(roomId: String, mode: RoomNotificationMode)  throws
     func setUserMentionEnabled(enabled: Bool) async throws
+    func setUserMentionEnabledBlocking(enabled: Bool)  throws
     func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws
+    func unmuteRoomBlocking(roomId: String, isEncrypted: Bool, isOneToOne: Bool)  throws
     
 }
 
@@ -2160,6 +2175,17 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func containsKeywordsRulesBlocking()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_contains_keywords_rules_blocking(self.pointer, $0
+    )
+}
+        )
+    }
+
     public func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2185,6 +2211,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func getDefaultRoomNotificationModeBlocking(isEncrypted: Bool, isOneToOne: Bool)  -> RoomNotificationMode {
+        return try!  FfiConverterTypeRoomNotificationMode.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_default_room_notification_mode_blocking(self.pointer, 
+        FfiConverterBool.lower(isEncrypted),
+        FfiConverterBool.lower(isOneToOne),$0
+    )
+}
+        )
+    }
 
     public func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws -> RoomNotificationSettings {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2213,6 +2252,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func getRoomNotificationSettingsBlocking(roomId: String, isEncrypted: Bool, isOneToOne: Bool) throws -> RoomNotificationSettings {
+        return try  FfiConverterTypeRoomNotificationSettings.lift(
+            try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_room_notification_settings_blocking(self.pointer, 
+        FfiConverterString.lower(roomId),
+        FfiConverterBool.lower(isEncrypted),
+        FfiConverterBool.lower(isOneToOne),$0
+    )
+}
+        )
+    }
+
     public func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String] {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2237,6 +2289,18 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func getRoomsWithUserDefinedRulesBlocking(enabled: Bool?)  -> [String] {
+        return try!  FfiConverterSequenceString.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_rooms_with_user_defined_rules_blocking(self.pointer, 
+        FfiConverterOptionBool.lower(enabled),$0
+    )
+}
+        )
+    }
 
     public func getUserDefinedRoomNotificationMode(roomId: String) async throws -> RoomNotificationMode? {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2263,6 +2327,17 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func getUserDefinedRoomNotificationModeBlocking(roomId: String) throws -> RoomNotificationMode? {
+        return try  FfiConverterOptionTypeRoomNotificationMode.lift(
+            try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_user_defined_room_notification_mode_blocking(self.pointer, 
+        FfiConverterString.lower(roomId),$0
+    )
+}
+        )
+    }
+
     public func isCallEnabled() async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2286,6 +2361,16 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func isCallEnabledBlocking() throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_call_enabled_blocking(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func isRoomMentionEnabled() async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2311,6 +2396,16 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func isRoomMentionEnabledBlocking() throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_room_mention_enabled_blocking(self.pointer, $0
+    )
+}
+        )
+    }
+
     public func isUserMentionEnabled() async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2334,6 +2429,16 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func isUserMentionEnabledBlocking() throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_user_mention_enabled_blocking(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func restoreDefaultRoomNotificationMode(roomId: String) async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2360,6 +2465,15 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func restoreDefaultRoomNotificationModeBlocking(roomId: String) throws {
+        try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_restore_default_room_notification_mode_blocking(self.pointer, 
+        FfiConverterString.lower(roomId),$0
+    )
+}
+    }
+
     public func setCallEnabled(enabled: Bool) async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2384,6 +2498,15 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func setCallEnabledBlocking(enabled: Bool) throws {
+        try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_call_enabled_blocking(self.pointer, 
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+    }
 
     public func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2411,6 +2534,17 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func setDefaultRoomNotificationModeBlocking(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) throws {
+        try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_default_room_notification_mode_blocking(self.pointer, 
+        FfiConverterBool.lower(isEncrypted),
+        FfiConverterBool.lower(isOneToOne),
+        FfiConverterTypeRoomNotificationMode.lower(mode),$0
+    )
+}
+    }
 
     public func setDelegate(delegate: NotificationSettingsDelegate?)  {
         try! 
@@ -2447,6 +2581,15 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func setRoomMentionEnabledBlocking(enabled: Bool) throws {
+        try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_mention_enabled_blocking(self.pointer, 
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+    }
+
     public func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2473,6 +2616,16 @@ public class NotificationSettings: NotificationSettingsProtocol {
 
     
 
+    public func setRoomNotificationModeBlocking(roomId: String, mode: RoomNotificationMode) throws {
+        try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_notification_mode_blocking(self.pointer, 
+        FfiConverterString.lower(roomId),
+        FfiConverterTypeRoomNotificationMode.lower(mode),$0
+    )
+}
+    }
+
     public func setUserMentionEnabled(enabled: Bool) async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2497,6 +2650,15 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func setUserMentionEnabledBlocking(enabled: Bool) throws {
+        try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_user_mention_enabled_blocking(self.pointer, 
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+    }
 
     public func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2524,6 +2686,17 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
+    public func unmuteRoomBlocking(roomId: String, isEncrypted: Bool, isOneToOne: Bool) throws {
+        try 
+    rustCallWithError(FfiConverterTypeNotificationSettingsError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_unmute_room_blocking(self.pointer, 
+        FfiConverterString.lower(roomId),
+        FfiConverterBool.lower(isEncrypted),
+        FfiConverterBool.lower(isOneToOne),$0
+    )
+}
+    }
 }
 
 public struct FfiConverterTypeNotificationSettings: FfiConverter {
@@ -2645,15 +2818,23 @@ public func FfiConverterTypeOidcAuthenticationData_lower(_ value: OidcAuthentica
 public protocol RoomProtocol {
     func activeMembersCount()   -> UInt64
     func addTimelineListener(listener: TimelineListener) async  -> RoomTimelineListenerResult
+    func addTimelineListenerBlocking(listener: TimelineListener) async  -> RoomTimelineListenerResult
     func alternativeAliases()   -> [String]
     func avatarUrl()   -> String?
     func canUserBan(userId: String) async throws -> Bool
+    func canUserBanBlocking(userId: String)  throws -> Bool
     func canUserInvite(userId: String) async throws -> Bool
+    func canUserInviteBlocking(userId: String)  throws -> Bool
     func canUserKick(userId: String) async throws -> Bool
+    func canUserKickBlocking(userId: String)  throws -> Bool
     func canUserRedact(userId: String) async throws -> Bool
+    func canUserRedactBlocking(userId: String)  throws -> Bool
     func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws -> Bool
+    func canUserSendMessageBlocking(userId: String, message: MessageLikeEventType)  throws -> Bool
     func canUserSendState(userId: String, stateEvent: StateEventType) async throws -> Bool
+    func canUserSendStateBlocking(userId: String, stateEvent: StateEventType)  throws -> Bool
     func canUserTriggerRoomNotification(userId: String) async throws -> Bool
+    func canUserTriggerRoomNotificationBlocking(userId: String)  throws -> Bool
     func cancelSend(txnId: String)  
     func canonicalAlias()   -> String?
     func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, txnId: String?)  throws
@@ -2662,6 +2843,7 @@ public protocol RoomProtocol {
     func endPoll(pollStartId: String, text: String, txnId: String?)  throws
     func fetchDetailsForEvent(eventId: String)  throws
     func fetchMembers() async throws
+    func fetchMembersBlocking()  throws
     func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContentWithoutRelation
     func id()   -> String
     func ignoreUser(userId: String)  throws
@@ -2678,8 +2860,10 @@ public protocol RoomProtocol {
     func leave()  throws
     func member(userId: String) async throws -> RoomMember
     func memberAvatarUrl(userId: String)  throws -> String?
+    func memberBlocking(userId: String)  throws -> RoomMember
     func memberDisplayName(userId: String)  throws -> String?
     func members() async throws -> RoomMembersIterator
+    func membersBlocking()  throws -> RoomMembersIterator
     func membership()   -> Membership
     func name()   -> String?
     func ownUserId()   -> String
@@ -2691,6 +2875,7 @@ public protocol RoomProtocol {
     func retryDecryption(sessionIds: [String])  
     func retrySend(txnId: String)  
     func roomInfo() async throws -> RoomInfo
+    func roomInfoBlocking()  throws -> RoomInfo
     func send(msg: RoomMessageEventContentWithoutRelation, txnId: String?)  
     func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
@@ -2766,6 +2951,31 @@ public class Room: RoomProtocol {
 
     
 
+    public func addTimelineListenerBlocking(listener: TimelineListener) async  -> RoomTimelineListenerResult {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<RoomTimelineListenerResult, Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener_blocking(
+                    self.pointer,
+                    
+        FfiConverterCallbackInterfaceTimelineListener.lower(listener),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoomTimelineListenerResult,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+
     public func alternativeAliases()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
             try! 
@@ -2813,6 +3023,17 @@ public class Room: RoomProtocol {
 
     
 
+    public func canUserBanBlocking(userId: String) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_can_user_ban_blocking(self.pointer, 
+        FfiConverterString.lower(userId),$0
+    )
+}
+        )
+    }
+
     public func canUserInvite(userId: String) async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2837,6 +3058,17 @@ public class Room: RoomProtocol {
     }
 
     
+
+    public func canUserInviteBlocking(userId: String) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_can_user_invite_blocking(self.pointer, 
+        FfiConverterString.lower(userId),$0
+    )
+}
+        )
+    }
 
     public func canUserKick(userId: String) async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2863,6 +3095,17 @@ public class Room: RoomProtocol {
 
     
 
+    public func canUserKickBlocking(userId: String) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_can_user_kick_blocking(self.pointer, 
+        FfiConverterString.lower(userId),$0
+    )
+}
+        )
+    }
+
     public func canUserRedact(userId: String) async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2887,6 +3130,17 @@ public class Room: RoomProtocol {
     }
 
     
+
+    public func canUserRedactBlocking(userId: String) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact_blocking(self.pointer, 
+        FfiConverterString.lower(userId),$0
+    )
+}
+        )
+    }
 
     public func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
@@ -2914,6 +3168,18 @@ public class Room: RoomProtocol {
 
     
 
+    public func canUserSendMessageBlocking(userId: String, message: MessageLikeEventType) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_message_blocking(self.pointer, 
+        FfiConverterString.lower(userId),
+        FfiConverterTypeMessageLikeEventType.lower(message),$0
+    )
+}
+        )
+    }
+
     public func canUserSendState(userId: String, stateEvent: StateEventType) async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2940,6 +3206,18 @@ public class Room: RoomProtocol {
 
     
 
+    public func canUserSendStateBlocking(userId: String, stateEvent: StateEventType) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_state_blocking(self.pointer, 
+        FfiConverterString.lower(userId),
+        FfiConverterTypeStateEventType.lower(stateEvent),$0
+    )
+}
+        )
+    }
+
     public func canUserTriggerRoomNotification(userId: String) async throws -> Bool {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -2964,6 +3242,17 @@ public class Room: RoomProtocol {
     }
 
     
+
+    public func canUserTriggerRoomNotificationBlocking(userId: String) throws -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_can_user_trigger_room_notification_blocking(self.pointer, 
+        FfiConverterString.lower(userId),$0
+    )
+}
+        )
+    }
 
     public func cancelSend(txnId: String)  {
         try! 
@@ -3063,6 +3352,14 @@ public class Room: RoomProtocol {
     }
 
     
+
+    public func fetchMembersBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_fetch_members_blocking(self.pointer, $0
+    )
+}
+    }
 
     public func getTimelineEventContentByEventId(eventId: String) throws -> RoomMessageEventContentWithoutRelation {
         return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
@@ -3243,6 +3540,17 @@ public class Room: RoomProtocol {
         )
     }
 
+    public func memberBlocking(userId: String) throws -> RoomMember {
+        return try  FfiConverterTypeRoomMember.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_member_blocking(self.pointer, 
+        FfiConverterString.lower(userId),$0
+    )
+}
+        )
+    }
+
     public func memberDisplayName(userId: String) throws -> String? {
         return try  FfiConverterOptionString.lift(
             try 
@@ -3277,6 +3585,16 @@ public class Room: RoomProtocol {
     }
 
     
+
+    public func membersBlocking() throws -> RoomMembersIterator {
+        return try  FfiConverterTypeRoomMembersIterator.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_members_blocking(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func membership()  -> Membership {
         return try!  FfiConverterTypeMembership.lift(
@@ -3402,6 +3720,16 @@ public class Room: RoomProtocol {
     }
 
     
+
+    public func roomInfoBlocking() throws -> RoomInfo {
+        return try  FfiConverterTypeRoomInfo.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_room_info_blocking(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func send(msg: RoomMessageEventContentWithoutRelation, txnId: String?)  {
         try! 
@@ -4707,6 +5035,7 @@ public func FfiConverterTypeRoomMessageEventContentWithoutRelation_lower(_ value
 public protocol SendAttachmentJoinHandleProtocol {
     func cancel()  
     func join() async throws
+    func joinBlocking()  throws
     
 }
 
@@ -4761,6 +5090,14 @@ public class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol {
     }
 
     
+
+    public func joinBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeRoomError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join_blocking(self.pointer, $0
+    )
+}
+    }
 }
 
 public struct FfiConverterTypeSendAttachmentJoinHandle: FfiConverter {
@@ -4805,12 +5142,17 @@ public func FfiConverterTypeSendAttachmentJoinHandle_lower(_ value: SendAttachme
 
 public protocol SessionVerificationControllerProtocol {
     func approveVerification() async throws
+    func approveVerificationBlocking()  throws
     func cancelVerification() async throws
+    func cancelVerificationBlocking()  throws
     func declineVerification() async throws
+    func declineVerificationBlocking()  throws
     func isVerified()   -> Bool
     func requestVerification() async throws
+    func requestVerificationBlocking()  throws
     func setDelegate(delegate: SessionVerificationControllerDelegate?)  
     func startSasVerification() async throws
+    func startSasVerificationBlocking()  throws
     
 }
 
@@ -4857,6 +5199,14 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
 
     
 
+    public func approveVerificationBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_approve_verification_blocking(self.pointer, $0
+    )
+}
+    }
+
     public func cancelVerification() async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -4881,6 +5231,14 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
 
     
 
+    public func cancelVerificationBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_cancel_verification_blocking(self.pointer, $0
+    )
+}
+    }
+
     public func declineVerification() async throws {
         // Suspend the function and call the scaffolding function, passing it a callback handler from
         // `AsyncTypes.swift`
@@ -4904,6 +5262,14 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     
+
+    public func declineVerificationBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_decline_verification_blocking(self.pointer, $0
+    )
+}
+    }
 
     public func isVerified()  -> Bool {
         return try!  FfiConverterBool.lift(
@@ -4940,6 +5306,14 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
 
     
 
+    public func requestVerificationBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_request_verification_blocking(self.pointer, $0
+    )
+}
+    }
+
     public func setDelegate(delegate: SessionVerificationControllerDelegate?)  {
         try! 
     rustCall() {
@@ -4973,6 +5347,14 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     
+
+    public func startSasVerificationBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_start_sas_verification_blocking(self.pointer, $0
+    )
+}
+    }
 }
 
 public struct FfiConverterTypeSessionVerificationController: FfiConverter {
@@ -5220,8 +5602,10 @@ public func FfiConverterTypeSpan_lower(_ value: Span) -> UnsafeMutableRawPointer
 public protocol SyncServiceProtocol {
     func roomListService()   -> RoomListService
     func start() async 
+    func startBlocking()  
     func state(listener: SyncServiceStateObserver)   -> TaskHandle
     func stop() async throws
+    func stopBlocking()  throws
     
 }
 
@@ -5279,6 +5663,15 @@ public class SyncService: SyncServiceProtocol {
 
     
 
+    public func startBlocking()  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_syncservice_start_blocking(self.pointer, $0
+    )
+}
+    }
+
     public func state(listener: SyncServiceStateObserver)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
@@ -5314,6 +5707,14 @@ public class SyncService: SyncServiceProtocol {
     }
 
     
+
+    public func stopBlocking() throws {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_syncservice_stop_blocking(self.pointer, $0
+    )
+}
+    }
 }
 
 public struct FfiConverterTypeSyncService: FfiConverter {
@@ -5358,6 +5759,7 @@ public func FfiConverterTypeSyncService_lower(_ value: SyncService) -> UnsafeMut
 
 public protocol SyncServiceBuilderProtocol {
     func finish() async throws -> SyncService
+    func finishBlocking()  throws -> SyncService
     func withCrossProcessLock(appIdentifier: String?)   -> SyncServiceBuilder
     
 }
@@ -5404,6 +5806,16 @@ public class SyncServiceBuilder: SyncServiceBuilderProtocol {
     }
 
     
+
+    public func finishBlocking() throws -> SyncService {
+        return try  FfiConverterTypeSyncService.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_finish_blocking(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder {
         return try!  FfiConverterTypeSyncServiceBuilder.lift(
@@ -18011,34 +18423,67 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 42972) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules_blocking() != 49945) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode() != 7288) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode_blocking() != 54691) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings() != 654) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings_blocking() != 14778) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_rooms_with_user_defined_rules() != 687) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_rooms_with_user_defined_rules_blocking() != 36007) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_user_defined_room_notification_mode() != 40224) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_user_defined_room_notification_mode_blocking() != 54350) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled() != 38110) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled_blocking() != 63240) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_room_mention_enabled() != 36336) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_room_mention_enabled_blocking() != 19453) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_user_mention_enabled() != 9844) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_user_mention_enabled_blocking() != 3925) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_restore_default_room_notification_mode() != 43578) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_restore_default_room_notification_mode_blocking() != 52229) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_call_enabled() != 61774) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_call_enabled_blocking() != 13674) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_default_room_notification_mode() != 64886) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_default_room_notification_mode_blocking() != 45386) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_delegate() != 22622) {
@@ -18047,13 +18492,25 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_mention_enabled() != 50730) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_mention_enabled_blocking() != 49766) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_notification_mode() != 21294) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_notification_mode_blocking() != 30630) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_user_mention_enabled() != 63345) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_user_mention_enabled_blocking() != 55113) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 33146) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room_blocking() != 21159) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_oidcauthenticationdata_login_url() != 2455) {
@@ -18065,6 +18522,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 43137) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener_blocking() != 41720) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 25219) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18074,22 +18534,43 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_ban() != 47371) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_ban_blocking() != 9553) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_invite() != 62419) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_invite_blocking() != 1804) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_kick() != 47687) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_kick_blocking() != 9352) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_redact() != 54334) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_redact_blocking() != 17668) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_message() != 28210) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_message_blocking() != 45751) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_state() != 54763) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_state_blocking() != 42484) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_trigger_room_notification() != 8288) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_trigger_room_notification_blocking() != 25135) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_cancel_send() != 22141) {
@@ -18114,6 +18595,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members() != 64110) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members_blocking() != 58127) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_get_timeline_event_content_by_event_id() != 4338) {
@@ -18164,10 +18648,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 5937) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_blocking() != 16632) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 4559) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 6390) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members_blocking() != 30072) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 17678) {
@@ -18201,6 +18691,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 45186) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info_blocking() != 23031) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 39033) {
@@ -18398,13 +18891,25 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 25237) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join_blocking() != 42780) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 468) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification_blocking() != 36353) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 63679) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification_blocking() != 15930) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 50627) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification_blocking() != 58069) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 949) {
@@ -18413,10 +18918,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 51679) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification_blocking() != 48371) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 24735) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 3726) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification_blocking() != 27679) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_description() != 55458) {
@@ -18440,13 +18951,22 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start() != 4435) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start_blocking() != 46746) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_state() != 15048) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_stop() != 39770) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_stop_blocking() != 5460) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish() != 61604) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish_blocking() != 8552) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 29139) {

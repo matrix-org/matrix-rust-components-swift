@@ -3,8 +3,8 @@
 
 import PackageDescription
 
-let checksum = "2e9449e3a84ad782abaa5691c8b5d9ba695e04837c06137a07ef6adbec2f24d8"
-let version = "v1.1.16"
+let checksum = "b25bd4e0fce141d6157679ac5ff38425f0c753fdbe429297c7d4ef8249240f0b"
+let version = "v1.1.17"
 let url = "https://github.com/matrix-org/matrix-rust-components-swift/releases/download/\(version)/MatrixSDKFFI.xcframework.zip"
 
 let package = Package(
