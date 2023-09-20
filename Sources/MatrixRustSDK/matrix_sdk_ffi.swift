@@ -2886,7 +2886,7 @@ public protocol RoomProtocol {
     func sendReadReceipt(eventId: String)  throws
     func sendReply(msg: RoomMessageEventContentWithoutRelation, inReplyToEventId: String, txnId: String?)  throws
     func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
-    func setName(name: String?)  throws
+    func setName(name: String)  throws
     func setTopic(topic: String)  throws
     func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener)  throws -> TaskHandle
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)   -> TaskHandle
@@ -3856,11 +3856,11 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func setName(name: String?) throws {
+    public func setName(name: String) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_set_name(self.pointer, 
-        FfiConverterOptionString.lower(name),$0
+        FfiConverterString.lower(name),$0
     )
 }
     }
@@ -6723,13 +6723,17 @@ public struct AudioMessageContent {
     public var body: String
     public var source: MediaSource
     public var info: AudioInfo?
+    public var audio: UnstableAudioDetailsContent?
+    public var voice: UnstableVoiceContent?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, source: MediaSource, info: AudioInfo?) {
+    public init(body: String, source: MediaSource, info: AudioInfo?, audio: UnstableAudioDetailsContent?, voice: UnstableVoiceContent?) {
         self.body = body
         self.source = source
         self.info = info
+        self.audio = audio
+        self.voice = voice
     }
 }
 
@@ -6740,7 +6744,9 @@ public struct FfiConverterTypeAudioMessageContent: FfiConverterRustBuffer {
         return try AudioMessageContent(
             body: FfiConverterString.read(from: &buf), 
             source: FfiConverterTypeMediaSource.read(from: &buf), 
-            info: FfiConverterOptionTypeAudioInfo.read(from: &buf)
+            info: FfiConverterOptionTypeAudioInfo.read(from: &buf), 
+            audio: FfiConverterOptionTypeUnstableAudioDetailsContent.read(from: &buf), 
+            voice: FfiConverterOptionTypeUnstableVoiceContent.read(from: &buf)
         )
     }
 
@@ -6748,6 +6754,8 @@ public struct FfiConverterTypeAudioMessageContent: FfiConverterRustBuffer {
         FfiConverterString.write(value.body, into: &buf)
         FfiConverterTypeMediaSource.write(value.source, into: &buf)
         FfiConverterOptionTypeAudioInfo.write(value.info, into: &buf)
+        FfiConverterOptionTypeUnstableAudioDetailsContent.write(value.audio, into: &buf)
+        FfiConverterOptionTypeUnstableVoiceContent.write(value.voice, into: &buf)
     }
 }
 
@@ -9125,6 +9133,100 @@ public func FfiConverterTypeTransmissionProgress_lift(_ buf: RustBuffer) throws 
 
 public func FfiConverterTypeTransmissionProgress_lower(_ value: TransmissionProgress) -> RustBuffer {
     return FfiConverterTypeTransmissionProgress.lower(value)
+}
+
+
+public struct UnstableAudioDetailsContent {
+    public var duration: TimeInterval
+    public var waveform: [UInt16]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(duration: TimeInterval, waveform: [UInt16]) {
+        self.duration = duration
+        self.waveform = waveform
+    }
+}
+
+
+extension UnstableAudioDetailsContent: Equatable, Hashable {
+    public static func ==(lhs: UnstableAudioDetailsContent, rhs: UnstableAudioDetailsContent) -> Bool {
+        if lhs.duration != rhs.duration {
+            return false
+        }
+        if lhs.waveform != rhs.waveform {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(duration)
+        hasher.combine(waveform)
+    }
+}
+
+
+public struct FfiConverterTypeUnstableAudioDetailsContent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UnstableAudioDetailsContent {
+        return try UnstableAudioDetailsContent(
+            duration: FfiConverterDuration.read(from: &buf), 
+            waveform: FfiConverterSequenceUInt16.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UnstableAudioDetailsContent, into buf: inout [UInt8]) {
+        FfiConverterDuration.write(value.duration, into: &buf)
+        FfiConverterSequenceUInt16.write(value.waveform, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeUnstableAudioDetailsContent_lift(_ buf: RustBuffer) throws -> UnstableAudioDetailsContent {
+    return try FfiConverterTypeUnstableAudioDetailsContent.lift(buf)
+}
+
+public func FfiConverterTypeUnstableAudioDetailsContent_lower(_ value: UnstableAudioDetailsContent) -> RustBuffer {
+    return FfiConverterTypeUnstableAudioDetailsContent.lower(value)
+}
+
+
+public struct UnstableVoiceContent {
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init() {
+    }
+}
+
+
+extension UnstableVoiceContent: Equatable, Hashable {
+    public static func ==(lhs: UnstableVoiceContent, rhs: UnstableVoiceContent) -> Bool {
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+    }
+}
+
+
+public struct FfiConverterTypeUnstableVoiceContent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UnstableVoiceContent {
+        return try UnstableVoiceContent(
+        )
+    }
+
+    public static func write(_ value: UnstableVoiceContent, into buf: inout [UInt8]) {
+    }
+}
+
+
+public func FfiConverterTypeUnstableVoiceContent_lift(_ buf: RustBuffer) throws -> UnstableVoiceContent {
+    return try FfiConverterTypeUnstableVoiceContent.lift(buf)
+}
+
+public func FfiConverterTypeUnstableVoiceContent_lower(_ value: UnstableVoiceContent) -> RustBuffer {
+    return FfiConverterTypeUnstableVoiceContent.lower(value)
 }
 
 
@@ -15754,6 +15856,48 @@ fileprivate struct FfiConverterOptionTypeTracingFileConfiguration: FfiConverterR
     }
 }
 
+fileprivate struct FfiConverterOptionTypeUnstableAudioDetailsContent: FfiConverterRustBuffer {
+    typealias SwiftType = UnstableAudioDetailsContent?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeUnstableAudioDetailsContent.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeUnstableAudioDetailsContent.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypeUnstableVoiceContent: FfiConverterRustBuffer {
+    typealias SwiftType = UnstableVoiceContent?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeUnstableVoiceContent.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeUnstableVoiceContent.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeVideoInfo: FfiConverterRustBuffer {
     typealias SwiftType = VideoInfo?
 
@@ -16170,6 +16314,28 @@ fileprivate struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterUInt8.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+fileprivate struct FfiConverterSequenceUInt16: FfiConverterRustBuffer {
+    typealias SwiftType = [UInt16]
+
+    public static func write(_ value: [UInt16], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterUInt16.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt16] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [UInt16]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterUInt16.read(from: &buf))
         }
         return seq
     }
@@ -18726,7 +18892,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 38775) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 39725) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 56429) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 55348) {
