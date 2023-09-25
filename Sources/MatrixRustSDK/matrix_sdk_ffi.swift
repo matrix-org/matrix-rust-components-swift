@@ -1292,6 +1292,7 @@ public func FfiConverterTypeClientBuilder_lower(_ value: ClientBuilder) -> Unsaf
 
 
 public protocol EventTimelineItemProtocol {
+    func canBeRepliedTo()   -> Bool
     func content()   -> TimelineItemContent
     func debugInfo()   -> EventTimelineItemDebugInfo
     func eventId()   -> String?
@@ -1328,6 +1329,17 @@ public class EventTimelineItem: EventTimelineItemProtocol {
 
     
     
+
+    public func canBeRepliedTo()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_can_be_replied_to(self.pointer, $0
+    )
+}
+        )
+    }
 
     public func content()  -> TimelineItemContent {
         return try!  FfiConverterTypeTimelineItemContent.lift(
@@ -2844,6 +2856,7 @@ public protocol RoomProtocol {
     func fetchDetailsForEvent(eventId: String)  throws
     func fetchMembers() async throws
     func fetchMembersBlocking()  throws
+    func getEventTimelineItemByEventId(eventId: String)  throws -> EventTimelineItem
     func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContentWithoutRelation
     func id()   -> String
     func ignoreUser(userId: String)  throws
@@ -2884,7 +2897,7 @@ public protocol RoomProtocol {
     func sendPollResponse(pollStartId: String, answers: [String], txnId: String?)  throws
     func sendReadMarker(fullyReadEventId: String, readReceiptEventId: String?)  throws
     func sendReadReceipt(eventId: String)  throws
-    func sendReply(msg: RoomMessageEventContentWithoutRelation, inReplyToEventId: String, txnId: String?)  throws
+    func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem, txnId: String?)  throws
     func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func setName(name: String)  throws
     func setTopic(topic: String)  throws
@@ -2892,7 +2905,7 @@ public protocol RoomProtocol {
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)   -> TaskHandle
     func toggleReaction(eventId: String, key: String)  throws
     func topic()   -> String?
-    func uploadAvatar(mimeType: String, data: [UInt8])  throws
+    func uploadAvatar(mimeType: String, data: [UInt8], mediaInfo: ImageInfo?)  throws
     
 }
 
@@ -3359,6 +3372,17 @@ public class Room: RoomProtocol {
     uniffi_matrix_sdk_ffi_fn_method_room_fetch_members_blocking(self.pointer, $0
     )
 }
+    }
+
+    public func getEventTimelineItemByEventId(eventId: String) throws -> EventTimelineItem {
+        return try  FfiConverterTypeEventTimelineItem.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_get_event_timeline_item_by_event_id(self.pointer, 
+        FfiConverterString.lower(eventId),$0
+    )
+}
+        )
     }
 
     public func getTimelineEventContentByEventId(eventId: String) throws -> RoomMessageEventContentWithoutRelation {
@@ -3830,12 +3854,12 @@ public class Room: RoomProtocol {
 }
     }
 
-    public func sendReply(msg: RoomMessageEventContentWithoutRelation, inReplyToEventId: String, txnId: String?) throws {
+    public func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem, txnId: String?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_send_reply(self.pointer, 
         FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),
-        FfiConverterString.lower(inReplyToEventId),
+        FfiConverterTypeEventTimelineItem.lower(replyItem),
         FfiConverterOptionString.lower(txnId),$0
     )
 }
@@ -3918,12 +3942,13 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func uploadAvatar(mimeType: String, data: [UInt8]) throws {
+    public func uploadAvatar(mimeType: String, data: [UInt8], mediaInfo: ImageInfo?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_upload_avatar(self.pointer, 
         FfiConverterString.lower(mimeType),
-        FfiConverterSequenceUInt8.lower(data),$0
+        FfiConverterSequenceUInt8.lower(data),
+        FfiConverterOptionTypeImageInfo.lower(mediaInfo),$0
     )
 }
     }
@@ -4184,7 +4209,8 @@ public func FfiConverterTypeRoomListDynamicEntriesController_lower(_ value: Room
 public protocol RoomListItemProtocol {
     func avatarUrl()   -> String?
     func canonicalAlias()   -> String?
-    func fullRoom()   -> Room
+    func fullRoom() async  -> Room
+    func fullRoomBlocking()   -> Room
     func hasUnreadNotifications()   -> Bool
     func id()   -> String
     func isDirect()   -> Bool
@@ -4239,12 +4265,36 @@ public class RoomListItem: RoomListItemProtocol {
         )
     }
 
-    public func fullRoom()  -> Room {
+    public func fullRoom() async  -> Room {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<Room, Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerTypeRoom,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+
+    public func fullRoomBlocking()  -> Room {
         return try!  FfiConverterTypeRoom.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room_blocking(self.pointer, $0
     )
 }
         )
@@ -9192,20 +9242,26 @@ public func FfiConverterTypeUnstableAudioDetailsContent_lower(_ value: UnstableA
 
 
 public struct UnstableVoiceContent {
+    public var doNotUse: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init() {
+    public init(doNotUse: Bool) {
+        self.doNotUse = doNotUse
     }
 }
 
 
 extension UnstableVoiceContent: Equatable, Hashable {
     public static func ==(lhs: UnstableVoiceContent, rhs: UnstableVoiceContent) -> Bool {
+        if lhs.doNotUse != rhs.doNotUse {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
+        hasher.combine(doNotUse)
     }
 }
 
@@ -9213,10 +9269,12 @@ extension UnstableVoiceContent: Equatable, Hashable {
 public struct FfiConverterTypeUnstableVoiceContent: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UnstableVoiceContent {
         return try UnstableVoiceContent(
+            doNotUse: FfiConverterBool.read(from: &buf)
         )
     }
 
     public static func write(_ value: UnstableVoiceContent, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.doNotUse, into: &buf)
     }
 }
 
@@ -10196,6 +10254,67 @@ public func FfiConverterTypeLogLevel_lower(_ value: LogLevel) -> RustBuffer {
 extension LogLevel: Equatable, Hashable {}
 
 
+
+public enum MediaInfoError {
+
+    
+    
+    // Simple error enums only carry a message
+    case MissingField(message: String)
+    
+    // Simple error enums only carry a message
+    case InvalidField(message: String)
+    
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeMediaInfoError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeMediaInfoError: FfiConverterRustBuffer {
+    typealias SwiftType = MediaInfoError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaInfoError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .MissingField(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .InvalidField(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MediaInfoError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        case .MissingField(_ /* message is ignored*/):
+            writeInt(&buf, Int32(1))
+        case .InvalidField(_ /* message is ignored*/):
+            writeInt(&buf, Int32(2))
+
+        
+        }
+    }
+}
+
+
+extension MediaInfoError: Equatable, Hashable {}
+
+extension MediaInfoError: Error { }
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -11764,6 +11883,9 @@ public enum RoomError {
     case InvalidAttachmentMimeType(message: String)
     
     // Simple error enums only carry a message
+    case InvalidMediaInfo(message: String)
+    
+    // Simple error enums only carry a message
     case TimelineUnavailable(message: String)
     
     // Simple error enums only carry a message
@@ -11797,15 +11919,19 @@ public struct FfiConverterTypeRoomError: FfiConverterRustBuffer {
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 3: return .TimelineUnavailable(
+        case 3: return .InvalidMediaInfo(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 4: return .InvalidThumbnailData(
+        case 4: return .TimelineUnavailable(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 5: return .FailedSendingAttachment(
+        case 5: return .InvalidThumbnailData(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 6: return .FailedSendingAttachment(
             message: try FfiConverterString.read(from: &buf)
         )
         
@@ -11824,12 +11950,14 @@ public struct FfiConverterTypeRoomError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         case .InvalidAttachmentMimeType(_ /* message is ignored*/):
             writeInt(&buf, Int32(2))
-        case .TimelineUnavailable(_ /* message is ignored*/):
+        case .InvalidMediaInfo(_ /* message is ignored*/):
             writeInt(&buf, Int32(3))
-        case .InvalidThumbnailData(_ /* message is ignored*/):
+        case .TimelineUnavailable(_ /* message is ignored*/):
             writeInt(&buf, Int32(4))
-        case .FailedSendingAttachment(_ /* message is ignored*/):
+        case .InvalidThumbnailData(_ /* message is ignored*/):
             writeInt(&buf, Int32(5))
+        case .FailedSendingAttachment(_ /* message is ignored*/):
+            writeInt(&buf, Int32(6))
 
         
         }
@@ -11846,6 +11974,7 @@ extension RoomError: Error { }
 public enum RoomListEntriesDynamicFilterKind {
     
     case all
+    case none
     case normalizedMatchRoomName(pattern: String)
     case fuzzyMatchRoomName(pattern: String)
 }
@@ -11859,11 +11988,13 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
         
         case 1: return .all
         
-        case 2: return .normalizedMatchRoomName(
+        case 2: return .none
+        
+        case 3: return .normalizedMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
-        case 3: return .fuzzyMatchRoomName(
+        case 4: return .fuzzyMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
@@ -11879,13 +12010,17 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
             writeInt(&buf, Int32(1))
         
         
-        case let .normalizedMatchRoomName(pattern):
+        case .none:
             writeInt(&buf, Int32(2))
+        
+        
+        case let .normalizedMatchRoomName(pattern):
+            writeInt(&buf, Int32(3))
             FfiConverterString.write(pattern, into: &buf)
             
         
         case let .fuzzyMatchRoomName(pattern):
-            writeInt(&buf, Int32(3))
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(pattern, into: &buf)
             
         }
@@ -13157,67 +13292,6 @@ public func FfiConverterTypeTimelineChange_lower(_ value: TimelineChange) -> Rus
 extension TimelineChange: Equatable, Hashable {}
 
 
-
-public enum TimelineError {
-
-    
-    
-    // Simple error enums only carry a message
-    case MissingMediaInfoField(message: String)
-    
-    // Simple error enums only carry a message
-    case InvalidMediaInfoField(message: String)
-    
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeTimelineError.lift(error)
-    }
-}
-
-
-public struct FfiConverterTypeTimelineError: FfiConverterRustBuffer {
-    typealias SwiftType = TimelineError
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineError {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        
-
-        
-        case 1: return .MissingMediaInfoField(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
-        case 2: return .InvalidMediaInfoField(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: TimelineError, into buf: inout [UInt8]) {
-        switch value {
-
-        
-
-        
-        case .MissingMediaInfoField(_ /* message is ignored*/):
-            writeInt(&buf, Int32(1))
-        case .InvalidMediaInfoField(_ /* message is ignored*/):
-            writeInt(&buf, Int32(2))
-
-        
-        }
-    }
-}
-
-
-extension TimelineError: Equatable, Hashable {}
-
-extension TimelineError: Error { }
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -17048,6 +17122,23 @@ fileprivate func uniffiFutureCallbackHandlerTypeClientBuilder(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerTypeEventTimelineItemTypeClientError(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: UnsafeMutableRawPointer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<EventTimelineItem, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
+        continuation.pointee.resume(returning: try FfiConverterTypeEventTimelineItem.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerTypeMediaFileHandleTypeClientError(
     rawContinutation: UnsafeRawPointer,
     returnValue: UnsafeMutableRawPointer,
@@ -18505,6 +18596,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 64379) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_can_be_replied_to() != 42286) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_content() != 1802) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18766,6 +18860,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members_blocking() != 58127) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_event_timeline_item_by_event_id() != 50554) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_get_timeline_event_content_by_event_id() != 4338) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18886,7 +18983,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_receipt() != 6919) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 58749) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 45489) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 38775) {
@@ -18910,7 +19007,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 23413) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 33347) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 46437) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries() != 27911) {
@@ -18940,7 +19037,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_canonical_alias() != 56187) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 50213) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 12614) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room_blocking() != 53631) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_has_unread_notifications() != 64858) {
