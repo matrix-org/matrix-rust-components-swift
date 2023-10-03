@@ -6569,11 +6569,12 @@ public func FfiConverterTypeUnreadNotificationsCount_lower(_ value: UnreadNotifi
 }
 
 
-public protocol WidgetCommProtocol {
+public protocol WidgetDriverProtocol {
+    func run(room: Room, permissionsProvider: WidgetPermissionsProvider) async 
     
 }
 
-public class WidgetComm: WidgetCommProtocol {
+public class WidgetDriver: WidgetDriverProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -6584,20 +6585,46 @@ public class WidgetComm: WidgetCommProtocol {
     }
 
     deinit {
-        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetcomm(pointer, $0) }
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriver(pointer, $0) }
     }
 
     
 
     
     
+
+    public func run(room: Room, permissionsProvider: WidgetPermissionsProvider) async  {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<(), Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_widgetdriver_run(
+                    self.pointer,
+                    
+        FfiConverterTypeRoom.lower(room),
+        FfiConverterCallbackInterfaceWidgetPermissionsProvider.lower(permissionsProvider),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerVoid,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
 }
 
-public struct FfiConverterTypeWidgetComm: FfiConverter {
+public struct FfiConverterTypeWidgetDriver: FfiConverter {
     typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = WidgetComm
+    typealias SwiftType = WidgetDriver
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetComm {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetDriver {
         let v: UInt64 = try readInt(&buf)
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -6608,28 +6635,143 @@ public struct FfiConverterTypeWidgetComm: FfiConverter {
         return try lift(ptr!)
     }
 
-    public static func write(_ value: WidgetComm, into buf: inout [UInt8]) {
+    public static func write(_ value: WidgetDriver, into buf: inout [UInt8]) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetComm {
-        return WidgetComm(unsafeFromRawPointer: pointer)
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetDriver {
+        return WidgetDriver(unsafeFromRawPointer: pointer)
     }
 
-    public static func lower(_ value: WidgetComm) -> UnsafeMutableRawPointer {
+    public static func lower(_ value: WidgetDriver) -> UnsafeMutableRawPointer {
         return value.pointer
     }
 }
 
 
-public func FfiConverterTypeWidgetComm_lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetComm {
-    return try FfiConverterTypeWidgetComm.lift(pointer)
+public func FfiConverterTypeWidgetDriver_lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetDriver {
+    return try FfiConverterTypeWidgetDriver.lift(pointer)
 }
 
-public func FfiConverterTypeWidgetComm_lower(_ value: WidgetComm) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeWidgetComm.lower(value)
+public func FfiConverterTypeWidgetDriver_lower(_ value: WidgetDriver) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeWidgetDriver.lower(value)
+}
+
+
+public protocol WidgetDriverHandleProtocol {
+    func recv() async  -> String?
+    func send(msg: String) async  -> Bool
+    
+}
+
+public class WidgetDriverHandle: WidgetDriverHandleProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriverhandle(pointer, $0) }
+    }
+
+    
+
+    
+    
+
+    public func recv() async  -> String? {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<String?, Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_recv(
+                    self.pointer,
+                    
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerOptionString,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+
+    public func send(msg: String) async  -> Bool {
+        // Suspend the function and call the scaffolding function, passing it a callback handler from
+        // `AsyncTypes.swift`
+        //
+        // Make sure to hold on to a reference to the continuation in the top-level scope so that
+        // it's not freed before the callback is invoked.
+        var continuation: CheckedContinuation<Bool, Error>? = nil
+        return try!  await withCheckedThrowingContinuation {
+            continuation = $0
+            try! rustCall() {
+                uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_send(
+                    self.pointer,
+                    
+        FfiConverterString.lower(msg),
+                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
+                    uniffiFutureCallbackHandlerBool,
+                    &continuation,
+                    $0
+                )
+            }
+        }
+    }
+
+    
+}
+
+public struct FfiConverterTypeWidgetDriverHandle: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = WidgetDriverHandle
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetDriverHandle {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: WidgetDriverHandle, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetDriverHandle {
+        return WidgetDriverHandle(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: WidgetDriverHandle) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+
+public func FfiConverterTypeWidgetDriverHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetDriverHandle {
+    return try FfiConverterTypeWidgetDriverHandle.lift(pointer)
+}
+
+public func FfiConverterTypeWidgetDriverHandle_lower(_ value: WidgetDriverHandle) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeWidgetDriverHandle.lower(value)
 }
 
 private let UNIFFI_RUST_TASK_CALLBACK_SUCCESS: Int8 = 0
@@ -9447,41 +9589,41 @@ public func FfiConverterTypeVideoMessageContent_lower(_ value: VideoMessageConte
 }
 
 
-public struct Widget {
-    public var settings: WidgetSettings
-    public var comm: WidgetComm
+public struct WidgetDriverAndHandle {
+    public var driver: WidgetDriver
+    public var handle: WidgetDriverHandle
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(settings: WidgetSettings, comm: WidgetComm) {
-        self.settings = settings
-        self.comm = comm
+    public init(driver: WidgetDriver, handle: WidgetDriverHandle) {
+        self.driver = driver
+        self.handle = handle
     }
 }
 
 
 
-public struct FfiConverterTypeWidget: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Widget {
-        return try Widget(
-            settings: FfiConverterTypeWidgetSettings.read(from: &buf), 
-            comm: FfiConverterTypeWidgetComm.read(from: &buf)
+public struct FfiConverterTypeWidgetDriverAndHandle: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetDriverAndHandle {
+        return try WidgetDriverAndHandle(
+            driver: FfiConverterTypeWidgetDriver.read(from: &buf), 
+            handle: FfiConverterTypeWidgetDriverHandle.read(from: &buf)
         )
     }
 
-    public static func write(_ value: Widget, into buf: inout [UInt8]) {
-        FfiConverterTypeWidgetSettings.write(value.settings, into: &buf)
-        FfiConverterTypeWidgetComm.write(value.comm, into: &buf)
+    public static func write(_ value: WidgetDriverAndHandle, into buf: inout [UInt8]) {
+        FfiConverterTypeWidgetDriver.write(value.driver, into: &buf)
+        FfiConverterTypeWidgetDriverHandle.write(value.handle, into: &buf)
     }
 }
 
 
-public func FfiConverterTypeWidget_lift(_ buf: RustBuffer) throws -> Widget {
-    return try FfiConverterTypeWidget.lift(buf)
+public func FfiConverterTypeWidgetDriverAndHandle_lift(_ buf: RustBuffer) throws -> WidgetDriverAndHandle {
+    return try FfiConverterTypeWidgetDriverAndHandle.lift(buf)
 }
 
-public func FfiConverterTypeWidget_lower(_ value: Widget) -> RustBuffer {
-    return FfiConverterTypeWidget.lower(value)
+public func FfiConverterTypeWidgetDriverAndHandle_lower(_ value: WidgetDriverAndHandle) -> RustBuffer {
+    return FfiConverterTypeWidgetDriverAndHandle.lower(value)
 }
 
 
@@ -17736,6 +17878,23 @@ fileprivate func uniffiFutureCallbackHandlerTypeUserProfileTypeClientError(
         continuation.pointee.resume(throwing: error)
     }
 }
+fileprivate func uniffiFutureCallbackHandlerTypeWidgetDriverAndHandle(
+    rawContinutation: UnsafeRawPointer,
+    returnValue: RustBuffer,
+    callStatus: RustCallStatus) {
+
+    let continuation = rawContinutation.bindMemory(
+        to: CheckedContinuation<WidgetDriverAndHandle, Error>.self,
+        capacity: 1
+    )
+
+    do {
+        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
+        continuation.pointee.resume(returning: try FfiConverterTypeWidgetDriverAndHandle.lift(returnValue))
+    } catch let error {
+        continuation.pointee.resume(throwing: error)
+    }
+}
 fileprivate func uniffiFutureCallbackHandlerTypeMembership(
     rawContinutation: UnsafeRawPointer,
     returnValue: RustBuffer,
@@ -18302,6 +18461,15 @@ public func logEvent(file: String, line: UInt32?, level: LogLevel, target: Strin
 
 
 
+public func makeWidgetDriver(settings: WidgetSettings)  -> WidgetDriverAndHandle {
+    return try!  FfiConverterTypeWidgetDriverAndHandle.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_make_widget_driver(
+        FfiConverterTypeWidgetSettings.lower(settings),$0)
+}
+    )
+}
+
 public func mediaSourceFromUrl(url: String)  -> MediaSource {
     return try!  FfiConverterTypeMediaSource.lift(
         try! rustCall() {
@@ -18321,10 +18489,29 @@ public func messageEventContentFromHtml(body: String, htmlBody: String)  -> Room
     )
 }
 
+public func messageEventContentFromHtmlAsEmote(body: String, htmlBody: String)  -> RoomMessageEventContentWithoutRelation {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_html_as_emote(
+        FfiConverterString.lower(body),
+        FfiConverterString.lower(htmlBody),$0)
+}
+    )
+}
+
 public func messageEventContentFromMarkdown(md: String)  -> RoomMessageEventContentWithoutRelation {
     return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_markdown(
+        FfiConverterString.lower(md),$0)
+}
+    )
+}
+
+public func messageEventContentFromMarkdownAsEmote(md: String)  -> RoomMessageEventContentWithoutRelation {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_markdown_as_emote(
         FfiConverterString.lower(md),$0)
 }
     )
@@ -18338,32 +18525,6 @@ public func messageEventContentNew(msgtype: MessageType)  -> RoomMessageEventCon
 }
     )
 }
-
-public func runWidgetApi(room: Room, widget: Widget, permissionsProvider: WidgetPermissionsProvider) async  {
-    var continuation: CheckedContinuation<(), Error>? = nil
-    // Suspend the function and call the scaffolding function, passing it a callback handler from
-    // `AsyncTypes.swift`
-    //
-    // Make sure to hold on to a reference to the continuation in the top-level scope so that
-    // it's not freed before the callback is invoked.
-    return try!  await withCheckedThrowingContinuation {
-        continuation = $0
-        try! rustCall() {
-            uniffi_matrix_sdk_ffi_fn_func_run_widget_api(
-                
-        FfiConverterTypeRoom.lower(room),
-        FfiConverterTypeWidget.lower(widget),
-        FfiConverterCallbackInterfaceWidgetPermissionsProvider.lower(permissionsProvider),
-                FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                uniffiFutureCallbackHandlerVoid,
-                &continuation,
-                $0
-            )
-        }
-    }
-}
-
-
 
 public func sdkGitSha()  -> String {
     return try!  FfiConverterString.lift(
@@ -18412,19 +18573,25 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 58164) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 16909) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 28929) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html() != 48173) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html_as_emote() != 30627) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 5412) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 65448) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown_as_emote() != 16575) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_run_widget_api() != 39210) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 65448) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 11183) {
@@ -19307,6 +19474,15 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 10233) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriver_run() != 25357) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_recv() != 25974) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_send() != 32739) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 31512) {
