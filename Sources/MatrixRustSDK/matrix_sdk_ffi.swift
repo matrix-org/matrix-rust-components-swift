@@ -223,6 +223,7 @@ fileprivate enum UniffiInternalError: LocalizedError {
 fileprivate let CALL_SUCCESS: Int8 = 0
 fileprivate let CALL_ERROR: Int8 = 1
 fileprivate let CALL_PANIC: Int8 = 2
+fileprivate let CALL_CANCELLED: Int8 = 3
 
 fileprivate extension RustCallStatus {
     init() {
@@ -284,6 +285,9 @@ private func uniffiCheckCallStatus(
                 callStatus.errorBuf.deallocate()
                 throw UniffiInternalError.rustPanic("Rust panic")
             }
+
+        case CALL_CANCELLED:
+                throw CancellationError()
 
         default:
             throw UniffiInternalError.unexpectedRustCallStatusCode
@@ -371,6 +375,19 @@ fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
     }
 }
 
+fileprivate struct FfiConverterDouble: FfiConverterPrimitive {
+    typealias FfiType = Double
+    typealias SwiftType = Double
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Double {
+        return try lift(readDouble(&buf))
+    }
+
+    public static func write(_ value: Double, into buf: inout [UInt8]) {
+        writeDouble(&buf, lower(value))
+    }
+}
+
 fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
@@ -427,6 +444,21 @@ fileprivate struct FfiConverterString: FfiConverter {
         let len = Int32(value.utf8.count)
         writeInt(&buf, len)
         writeBytes(&buf, value.utf8)
+    }
+}
+
+fileprivate struct FfiConverterData: FfiConverterRustBuffer {
+    typealias SwiftType = Data
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        let len: Int32 = try readInt(&buf)
+        return Data(try readBytes(&buf, count: Int(len)))
+    }
+
+    public static func write(_ value: Data, into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        writeBytes(&buf, value)
     }
 }
 
@@ -602,9 +634,9 @@ public protocol ClientProtocol {
     func deviceId()  throws -> String
     func displayName()  throws -> String
     func getDmRoom(userId: String)  throws -> Room?
-    func getMediaContent(mediaSource: MediaSource)  throws -> [UInt8]
+    func getMediaContent(mediaSource: MediaSource)  throws -> Data
     func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, tempDir: String?)  throws -> MediaFileHandle
-    func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64)  throws -> [UInt8]
+    func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64)  throws -> Data
     func getNotificationSettings()   -> NotificationSettings
     func getProfile(userId: String)  throws -> UserProfile
     func getSessionVerificationController()  throws -> SessionVerificationController
@@ -624,8 +656,8 @@ public protocol ClientProtocol {
     func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String)  throws
     func syncService()   -> SyncServiceBuilder
     func unignoreUser(userId: String)  throws
-    func uploadAvatar(mimeType: String, data: [UInt8])  throws
-    func uploadMedia(mimeType: String, data: [UInt8], progressWatcher: ProgressWatcher?)  throws -> String
+    func uploadAvatar(mimeType: String, data: Data)  throws
+    func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?)  throws -> String
     func userId()  throws -> String
     
 }
@@ -733,8 +765,8 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func getMediaContent(mediaSource: MediaSource) throws -> [UInt8] {
-        return try  FfiConverterSequenceUInt8.lift(
+    public func getMediaContent(mediaSource: MediaSource) throws -> Data {
+        return try  FfiConverterData.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_get_media_content(self.pointer, 
@@ -758,8 +790,8 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) throws -> [UInt8] {
-        return try  FfiConverterSequenceUInt8.lift(
+    public func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) throws -> Data {
+        return try  FfiConverterData.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_get_media_thumbnail(self.pointer, 
@@ -969,23 +1001,23 @@ public class Client: ClientProtocol {
 }
     }
 
-    public func uploadAvatar(mimeType: String, data: [UInt8]) throws {
+    public func uploadAvatar(mimeType: String, data: Data) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_upload_avatar(self.pointer, 
         FfiConverterString.lower(mimeType),
-        FfiConverterSequenceUInt8.lower(data),$0
+        FfiConverterData.lower(data),$0
     )
 }
     }
 
-    public func uploadMedia(mimeType: String, data: [UInt8], progressWatcher: ProgressWatcher?) throws -> String {
+    public func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) throws -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_upload_media(self.pointer, 
         FfiConverterString.lower(mimeType),
-        FfiConverterSequenceUInt8.lower(data),
+        FfiConverterData.lower(data),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
     )
 }
@@ -2164,25 +2196,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
     
 
     public func containsKeywordsRules() async  -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_contains_keywords_rules(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBool,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -2199,27 +2225,21 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomNotificationMode, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_default_room_notification_mode(
                     self.pointer,
-                    
-        FfiConverterBool.lower(isEncrypted),
-        FfiConverterBool.lower(isOneToOne),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomNotificationMode,
-                    &continuation,
-                    $0
+                    FfiConverterBool.lower(isEncrypted),
+                    FfiConverterBool.lower(isOneToOne)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomNotificationMode.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -2238,28 +2258,21 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws -> RoomNotificationSettings {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomNotificationSettings, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_room_notification_settings(
                     self.pointer,
-                    
-        FfiConverterString.lower(roomId),
-        FfiConverterBool.lower(isEncrypted),
-        FfiConverterBool.lower(isOneToOne),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomNotificationSettingsTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(roomId),
+                    FfiConverterBool.lower(isEncrypted),
+                    FfiConverterBool.lower(isOneToOne)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomNotificationSettings.lift,
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2278,26 +2291,20 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String] {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<[String], Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_rooms_with_user_defined_rules(
                     self.pointer,
-                    
-        FfiConverterOptionBool.lower(enabled),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerSequenceString,
-                    &continuation,
-                    $0
+                    FfiConverterOptionBool.lower(enabled)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceString.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -2315,26 +2322,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func getUserDefinedRoomNotificationMode(roomId: String) async throws -> RoomNotificationMode? {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomNotificationMode?, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_user_defined_room_notification_mode(
                     self.pointer,
-                    
-        FfiConverterString.lower(roomId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerOptionTypeRoomNotificationModeTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(roomId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeRoomNotificationMode.lift,
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2351,25 +2351,18 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func isCallEnabled() async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_call_enabled(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2385,25 +2378,18 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func isRoomMentionEnabled() async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_room_mention_enabled(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2419,25 +2405,18 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func isUserMentionEnabled() async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_user_mention_enabled(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2453,26 +2432,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func restoreDefaultRoomNotificationMode(roomId: String) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_restore_default_room_notification_mode(
                     self.pointer,
-                    
-        FfiConverterString.lower(roomId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(roomId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2487,26 +2459,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func setCallEnabled(enabled: Bool) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_call_enabled(
                     self.pointer,
-                    
-        FfiConverterBool.lower(enabled),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterBool.lower(enabled)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2521,28 +2486,21 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_default_room_notification_mode(
                     self.pointer,
-                    
-        FfiConverterBool.lower(isEncrypted),
-        FfiConverterBool.lower(isOneToOne),
-        FfiConverterTypeRoomNotificationMode.lower(mode),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterBool.lower(isEncrypted),
+                    FfiConverterBool.lower(isOneToOne),
+                    FfiConverterTypeRoomNotificationMode.lower(mode)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2569,26 +2527,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func setRoomMentionEnabled(enabled: Bool) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_mention_enabled(
                     self.pointer,
-                    
-        FfiConverterBool.lower(enabled),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterBool.lower(enabled)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2603,27 +2554,20 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_notification_mode(
                     self.pointer,
-                    
-        FfiConverterString.lower(roomId),
-        FfiConverterTypeRoomNotificationMode.lower(mode),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(roomId),
+                    FfiConverterTypeRoomNotificationMode.lower(mode)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2639,26 +2583,19 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func setUserMentionEnabled(enabled: Bool) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_user_mention_enabled(
                     self.pointer,
-                    
-        FfiConverterBool.lower(enabled),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterBool.lower(enabled)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2673,28 +2610,21 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     public func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_unmute_room(
                     self.pointer,
-                    
-        FfiConverterString.lower(roomId),
-        FfiConverterBool.lower(isEncrypted),
-        FfiConverterBool.lower(isOneToOne),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(roomId),
+                    FfiConverterBool.lower(isEncrypted),
+                    FfiConverterBool.lower(isOneToOne)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
     }
 
     
@@ -2895,7 +2825,6 @@ public protocol RoomProtocol {
     func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?)  
     func sendPollResponse(pollStartId: String, answers: [String])  throws
-    func sendReadMarker(fullyReadEventId: String, readReceiptEventId: String?)  throws
     func sendReadReceipt(eventId: String)  throws
     func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem)  throws
     func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
@@ -2905,7 +2834,7 @@ public protocol RoomProtocol {
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)   -> TaskHandle
     func toggleReaction(eventId: String, key: String)  throws
     func topic()   -> String?
-    func uploadAvatar(mimeType: String, data: [UInt8], mediaInfo: ImageInfo?)  throws
+    func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?)  throws
     
 }
 
@@ -2940,51 +2869,39 @@ public class Room: RoomProtocol {
     }
 
     public func addTimelineListener(listener: TimelineListener) async  -> RoomTimelineListenerResult {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomTimelineListenerResult, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(
                     self.pointer,
-                    
-        FfiConverterCallbackInterfaceTimelineListener.lower(listener),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomTimelineListenerResult,
-                    &continuation,
-                    $0
+                    FfiConverterCallbackInterfaceTimelineListener.lower(listener)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomTimelineListenerResult.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
 
     public func addTimelineListenerBlocking(listener: TimelineListener) async  -> RoomTimelineListenerResult {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomTimelineListenerResult, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener_blocking(
                     self.pointer,
-                    
-        FfiConverterCallbackInterfaceTimelineListener.lower(listener),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomTimelineListenerResult,
-                    &continuation,
-                    $0
+                    FfiConverterCallbackInterfaceTimelineListener.lower(listener)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomTimelineListenerResult.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -3012,26 +2929,19 @@ public class Room: RoomProtocol {
     }
 
     public func canUserBan(userId: String) async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_ban(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3048,26 +2958,19 @@ public class Room: RoomProtocol {
     }
 
     public func canUserInvite(userId: String) async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_invite(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3084,26 +2987,19 @@ public class Room: RoomProtocol {
     }
 
     public func canUserKick(userId: String) async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_kick(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3120,26 +3016,19 @@ public class Room: RoomProtocol {
     }
 
     public func canUserRedact(userId: String) async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3156,27 +3045,20 @@ public class Room: RoomProtocol {
     }
 
     public func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_message(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-        FfiConverterTypeMessageLikeEventType.lower(message),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId),
+                    FfiConverterTypeMessageLikeEventType.lower(message)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3194,27 +3076,20 @@ public class Room: RoomProtocol {
     }
 
     public func canUserSendState(userId: String, stateEvent: StateEventType) async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_state(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-        FfiConverterTypeStateEventType.lower(stateEvent),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId),
+                    FfiConverterTypeStateEventType.lower(stateEvent)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3232,26 +3107,19 @@ public class Room: RoomProtocol {
     }
 
     public func canUserTriggerRoomNotification(userId: String) async throws -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_trigger_room_notification(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBoolTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3340,25 +3208,18 @@ public class Room: RoomProtocol {
     }
 
     public func fetchMembers() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_fetch_members(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3526,26 +3387,19 @@ public class Room: RoomProtocol {
     }
 
     public func member(userId: String) async throws -> RoomMember {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomMember, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_member(
                     self.pointer,
-                    
-        FfiConverterString.lower(userId),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomMemberTypeClientError,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(userId)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoomMember.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3584,25 +3438,18 @@ public class Room: RoomProtocol {
     }
 
     public func members() async throws -> RoomMembersIterator {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomMembersIterator, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_members(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomMembersIteratorTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoomMembersIterator.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3718,25 +3565,18 @@ public class Room: RoomProtocol {
     }
 
     public func roomInfo() async throws -> RoomInfo {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomInfo, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_room_info(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomInfoTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomInfo.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -3824,16 +3664,6 @@ public class Room: RoomProtocol {
     uniffi_matrix_sdk_ffi_fn_method_room_send_poll_response(self.pointer, 
         FfiConverterString.lower(pollStartId),
         FfiConverterSequenceString.lower(answers),$0
-    )
-}
-    }
-
-    public func sendReadMarker(fullyReadEventId: String, readReceiptEventId: String?) throws {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_send_read_marker(self.pointer, 
-        FfiConverterString.lower(fullyReadEventId),
-        FfiConverterOptionString.lower(readReceiptEventId),$0
     )
 }
     }
@@ -3934,12 +3764,12 @@ public class Room: RoomProtocol {
         )
     }
 
-    public func uploadAvatar(mimeType: String, data: [UInt8], mediaInfo: ImageInfo?) throws {
+    public func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_upload_avatar(self.pointer, 
         FfiConverterString.lower(mimeType),
-        FfiConverterSequenceUInt8.lower(data),
+        FfiConverterData.lower(data),
         FfiConverterOptionTypeImageInfo.lower(mediaInfo),$0
     )
 }
@@ -4258,25 +4088,19 @@ public class RoomListItem: RoomListItemProtocol {
     }
 
     public func fullRoom() async  -> Room {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Room, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoom,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoom.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -4326,25 +4150,19 @@ public class RoomListItem: RoomListItemProtocol {
     }
 
     public func latestEvent() async  -> EventTimelineItem? {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<EventTimelineItem?, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_latest_event(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerOptionTypeEventTimelineItem,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeEventTimelineItem.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -4361,25 +4179,18 @@ public class RoomListItem: RoomListItemProtocol {
     }
 
     public func roomInfo() async throws -> RoomInfo {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomInfo, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_room_info(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomInfoTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomInfo.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -4495,74 +4306,53 @@ public class RoomListService: RoomListServiceProtocol {
     
 
     public func allRooms() async throws -> RoomList {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomList, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_all_rooms(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomListTypeRoomListError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoomList.lift,
+            errorHandler: FfiConverterTypeRoomListError.lift
+        )
     }
 
     
 
     public func applyInput(input: RoomListInput) async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_apply_input(
                     self.pointer,
-                    
-        FfiConverterTypeRoomListInput.lower(input),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeRoomListError,
-                    &continuation,
-                    $0
+                    FfiConverterTypeRoomListInput.lower(input)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeRoomListError.lift
+        )
     }
 
     
 
     public func invites() async throws -> RoomList {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<RoomList, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_invites(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeRoomListTypeRoomListError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoomList.lift,
+            errorHandler: FfiConverterTypeRoomListError.lift
+        )
     }
 
     
@@ -5110,25 +4900,18 @@ public class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol {
     }
 
     public func join() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeRoomError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeRoomError.lift
+        )
     }
 
     
@@ -5218,25 +5001,18 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     
 
     public func approveVerification() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_approve_verification(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -5250,25 +5026,18 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     public func cancelVerification() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_cancel_verification(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -5282,25 +5051,18 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     public func declineVerification() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_decline_verification(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -5325,25 +5087,18 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     public func requestVerification() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_request_verification(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -5367,25 +5122,18 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     public func startSasVerification() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_start_sas_verification(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -5682,25 +5430,19 @@ public class SyncService: SyncServiceProtocol {
     }
 
     public func start() async  {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservice_start(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoid,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -5727,25 +5469,18 @@ public class SyncService: SyncServiceProtocol {
     }
 
     public func stop() async throws {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservice_stop(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoidTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -5826,25 +5561,18 @@ public class SyncServiceBuilder: SyncServiceBuilderProtocol {
     
 
     public func finish() async throws -> SyncService {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<SyncService, Error>? = nil
-        return try  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_finish(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerTypeSyncServiceTypeClientError,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeSyncService.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
 
     
@@ -6594,27 +6322,21 @@ public class WidgetDriver: WidgetDriverProtocol {
     
 
     public func run(room: Room, permissionsProvider: WidgetPermissionsProvider) async  {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<(), Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriver_run(
                     self.pointer,
-                    
-        FfiConverterTypeRoom.lower(room),
-        FfiConverterCallbackInterfaceWidgetPermissionsProvider.lower(permissionsProvider),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerVoid,
-                    &continuation,
-                    $0
+                    FfiConverterTypeRoom.lower(room),
+                    FfiConverterCallbackInterfaceWidgetPermissionsProvider.lower(permissionsProvider)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -6686,50 +6408,38 @@ public class WidgetDriverHandle: WidgetDriverHandleProtocol {
     
 
     public func recv() async  -> String? {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<String?, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_recv(
-                    self.pointer,
-                    
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerOptionString,
-                    &continuation,
-                    $0
+                    self.pointer
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionString.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
 
     public func send(msg: String) async  -> Bool {
-        // Suspend the function and call the scaffolding function, passing it a callback handler from
-        // `AsyncTypes.swift`
-        //
-        // Make sure to hold on to a reference to the continuation in the top-level scope so that
-        // it's not freed before the callback is invoked.
-        var continuation: CheckedContinuation<Bool, Error>? = nil
-        return try!  await withCheckedThrowingContinuation {
-            continuation = $0
-            try! rustCall() {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_send(
                     self.pointer,
-                    
-        FfiConverterString.lower(msg),
-                    FfiConverterForeignExecutor.lower(UniFfiForeignExecutor()),
-                    uniffiFutureCallbackHandlerBool,
-                    &continuation,
-                    $0
+                    FfiConverterString.lower(msg)
                 )
-            }
-        }
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: nil
+            
+        )
     }
 
     
@@ -6772,71 +6482,6 @@ public func FfiConverterTypeWidgetDriverHandle_lift(_ pointer: UnsafeMutableRawP
 
 public func FfiConverterTypeWidgetDriverHandle_lower(_ value: WidgetDriverHandle) -> UnsafeMutableRawPointer {
     return FfiConverterTypeWidgetDriverHandle.lower(value)
-}
-
-private let UNIFFI_RUST_TASK_CALLBACK_SUCCESS: Int8 = 0
-private let UNIFFI_RUST_TASK_CALLBACK_CANCELLED: Int8 = 1
-private let UNIFFI_FOREIGN_EXECUTOR_CALLBACK_SUCCESS: Int8 = 0
-private let UNIFFI_FOREIGN_EXECUTOR_CALLBACK_CANCELED: Int8 = 1
-private let UNIFFI_FOREIGN_EXECUTOR_CALLBACK_ERROR: Int8 = 2
-
-// Encapsulates an executor that can run Rust tasks
-//
-// On Swift, `Task.detached` can handle this we just need to know what priority to send it.
-public struct UniFfiForeignExecutor {
-    var priority: TaskPriority
-
-    public init(priority: TaskPriority) {
-        self.priority = priority
-    }
-
-    public init() {
-        self.priority = Task.currentPriority
-    }
-}
-
-fileprivate struct FfiConverterForeignExecutor: FfiConverter {
-    typealias SwiftType = UniFfiForeignExecutor
-    // Rust uses a pointer to represent the FfiConverterForeignExecutor, but we only need a u8. 
-    // let's use `Int`, which is equivalent to `size_t`
-    typealias FfiType = Int
-
-    public static func lift(_ value: FfiType) throws -> SwiftType {
-        UniFfiForeignExecutor(priority: TaskPriority(rawValue: numericCast(value)))
-    }
-    public static func lower(_ value: SwiftType) -> FfiType {
-        numericCast(value.priority.rawValue)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        fatalError("FfiConverterForeignExecutor.read not implemented yet")
-    }
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        fatalError("FfiConverterForeignExecutor.read not implemented yet")
-    }
-}
-
-
-fileprivate func uniffiForeignExecutorCallback(executorHandle: Int, delayMs: UInt32, rustTask: UniFfiRustTaskCallback?, taskData: UnsafeRawPointer?) -> Int8 {
-    if let rustTask = rustTask {
-        let executor = try! FfiConverterForeignExecutor.lift(executorHandle)
-        Task.detached(priority: executor.priority) {
-            if delayMs != 0 {
-                let nanoseconds: UInt64 = numericCast(delayMs * 1000000)
-                try! await Task.sleep(nanoseconds: nanoseconds)
-            }
-            rustTask(taskData, UNIFFI_RUST_TASK_CALLBACK_SUCCESS)
-        }
-        return UNIFFI_FOREIGN_EXECUTOR_CALLBACK_SUCCESS
-    } else {
-        // When rustTask is null, we should drop the foreign executor.
-        // However, since its just a value type, we don't need to do anything here.
-        return UNIFFI_FOREIGN_EXECUTOR_CALLBACK_SUCCESS
-    }
-}
-
-fileprivate func uniffiInitForeignExecutor() {
-    uniffi_foreign_executor_callback_set(uniffiForeignExecutorCallback)
 }
 
 
@@ -6950,6 +6595,69 @@ public func FfiConverterTypeAudioMessageContent_lift(_ buf: RustBuffer) throws -
 
 public func FfiConverterTypeAudioMessageContent_lower(_ value: AudioMessageContent) -> RustBuffer {
     return FfiConverterTypeAudioMessageContent.lower(value)
+}
+
+
+public struct ClientProperties {
+    public var clientId: String
+    public var languageTag: String?
+    public var theme: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(clientId: String, languageTag: String?, theme: String?) {
+        self.clientId = clientId
+        self.languageTag = languageTag
+        self.theme = theme
+    }
+}
+
+
+extension ClientProperties: Equatable, Hashable {
+    public static func ==(lhs: ClientProperties, rhs: ClientProperties) -> Bool {
+        if lhs.clientId != rhs.clientId {
+            return false
+        }
+        if lhs.languageTag != rhs.languageTag {
+            return false
+        }
+        if lhs.theme != rhs.theme {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(clientId)
+        hasher.combine(languageTag)
+        hasher.combine(theme)
+    }
+}
+
+
+public struct FfiConverterTypeClientProperties: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ClientProperties {
+        return try ClientProperties(
+            clientId: FfiConverterString.read(from: &buf), 
+            languageTag: FfiConverterOptionString.read(from: &buf), 
+            theme: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ClientProperties, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.clientId, into: &buf)
+        FfiConverterOptionString.write(value.languageTag, into: &buf)
+        FfiConverterOptionString.write(value.theme, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeClientProperties_lift(_ buf: RustBuffer) throws -> ClientProperties {
+    return try FfiConverterTypeClientProperties.lift(buf)
+}
+
+public func FfiConverterTypeClientProperties_lower(_ value: ClientProperties) -> RustBuffer {
+    return FfiConverterTypeClientProperties.lower(value)
 }
 
 
@@ -9589,6 +9297,133 @@ public func FfiConverterTypeVideoMessageContent_lower(_ value: VideoMessageConte
 }
 
 
+public struct VirtualElementCallWidgetOptions {
+    public var elementCallUrl: String
+    public var widgetId: String
+    public var parentUrl: String?
+    public var hideHeader: Bool?
+    public var preload: Bool?
+    public var fontScale: Double?
+    public var appPrompt: Bool?
+    public var skipLobby: Bool?
+    public var confineToRoom: Bool?
+    public var fonts: [String]?
+    public var analyticsId: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(elementCallUrl: String, widgetId: String, parentUrl: String?, hideHeader: Bool?, preload: Bool?, fontScale: Double?, appPrompt: Bool?, skipLobby: Bool?, confineToRoom: Bool?, fonts: [String]?, analyticsId: String?) {
+        self.elementCallUrl = elementCallUrl
+        self.widgetId = widgetId
+        self.parentUrl = parentUrl
+        self.hideHeader = hideHeader
+        self.preload = preload
+        self.fontScale = fontScale
+        self.appPrompt = appPrompt
+        self.skipLobby = skipLobby
+        self.confineToRoom = confineToRoom
+        self.fonts = fonts
+        self.analyticsId = analyticsId
+    }
+}
+
+
+extension VirtualElementCallWidgetOptions: Equatable, Hashable {
+    public static func ==(lhs: VirtualElementCallWidgetOptions, rhs: VirtualElementCallWidgetOptions) -> Bool {
+        if lhs.elementCallUrl != rhs.elementCallUrl {
+            return false
+        }
+        if lhs.widgetId != rhs.widgetId {
+            return false
+        }
+        if lhs.parentUrl != rhs.parentUrl {
+            return false
+        }
+        if lhs.hideHeader != rhs.hideHeader {
+            return false
+        }
+        if lhs.preload != rhs.preload {
+            return false
+        }
+        if lhs.fontScale != rhs.fontScale {
+            return false
+        }
+        if lhs.appPrompt != rhs.appPrompt {
+            return false
+        }
+        if lhs.skipLobby != rhs.skipLobby {
+            return false
+        }
+        if lhs.confineToRoom != rhs.confineToRoom {
+            return false
+        }
+        if lhs.fonts != rhs.fonts {
+            return false
+        }
+        if lhs.analyticsId != rhs.analyticsId {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(elementCallUrl)
+        hasher.combine(widgetId)
+        hasher.combine(parentUrl)
+        hasher.combine(hideHeader)
+        hasher.combine(preload)
+        hasher.combine(fontScale)
+        hasher.combine(appPrompt)
+        hasher.combine(skipLobby)
+        hasher.combine(confineToRoom)
+        hasher.combine(fonts)
+        hasher.combine(analyticsId)
+    }
+}
+
+
+public struct FfiConverterTypeVirtualElementCallWidgetOptions: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VirtualElementCallWidgetOptions {
+        return try VirtualElementCallWidgetOptions(
+            elementCallUrl: FfiConverterString.read(from: &buf), 
+            widgetId: FfiConverterString.read(from: &buf), 
+            parentUrl: FfiConverterOptionString.read(from: &buf), 
+            hideHeader: FfiConverterOptionBool.read(from: &buf), 
+            preload: FfiConverterOptionBool.read(from: &buf), 
+            fontScale: FfiConverterOptionDouble.read(from: &buf), 
+            appPrompt: FfiConverterOptionBool.read(from: &buf), 
+            skipLobby: FfiConverterOptionBool.read(from: &buf), 
+            confineToRoom: FfiConverterOptionBool.read(from: &buf), 
+            fonts: FfiConverterOptionSequenceString.read(from: &buf), 
+            analyticsId: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: VirtualElementCallWidgetOptions, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.elementCallUrl, into: &buf)
+        FfiConverterString.write(value.widgetId, into: &buf)
+        FfiConverterOptionString.write(value.parentUrl, into: &buf)
+        FfiConverterOptionBool.write(value.hideHeader, into: &buf)
+        FfiConverterOptionBool.write(value.preload, into: &buf)
+        FfiConverterOptionDouble.write(value.fontScale, into: &buf)
+        FfiConverterOptionBool.write(value.appPrompt, into: &buf)
+        FfiConverterOptionBool.write(value.skipLobby, into: &buf)
+        FfiConverterOptionBool.write(value.confineToRoom, into: &buf)
+        FfiConverterOptionSequenceString.write(value.fonts, into: &buf)
+        FfiConverterOptionString.write(value.analyticsId, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeVirtualElementCallWidgetOptions_lift(_ buf: RustBuffer) throws -> VirtualElementCallWidgetOptions {
+    return try FfiConverterTypeVirtualElementCallWidgetOptions.lift(buf)
+}
+
+public func FfiConverterTypeVirtualElementCallWidgetOptions_lower(_ value: VirtualElementCallWidgetOptions) -> RustBuffer {
+    return FfiConverterTypeVirtualElementCallWidgetOptions.lower(value)
+}
+
+
 public struct WidgetDriverAndHandle {
     public var driver: WidgetDriver
     public var handle: WidgetDriverHandle
@@ -9630,12 +9465,14 @@ public func FfiConverterTypeWidgetDriverAndHandle_lower(_ value: WidgetDriverAnd
 public struct WidgetPermissions {
     public var read: [WidgetEventFilter]
     public var send: [WidgetEventFilter]
+    public var requiresClient: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(read: [WidgetEventFilter], send: [WidgetEventFilter]) {
+    public init(read: [WidgetEventFilter], send: [WidgetEventFilter], requiresClient: Bool) {
         self.read = read
         self.send = send
+        self.requiresClient = requiresClient
     }
 }
 
@@ -9648,12 +9485,16 @@ extension WidgetPermissions: Equatable, Hashable {
         if lhs.send != rhs.send {
             return false
         }
+        if lhs.requiresClient != rhs.requiresClient {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(read)
         hasher.combine(send)
+        hasher.combine(requiresClient)
     }
 }
 
@@ -9662,13 +9503,15 @@ public struct FfiConverterTypeWidgetPermissions: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetPermissions {
         return try WidgetPermissions(
             read: FfiConverterSequenceTypeWidgetEventFilter.read(from: &buf), 
-            send: FfiConverterSequenceTypeWidgetEventFilter.read(from: &buf)
+            send: FfiConverterSequenceTypeWidgetEventFilter.read(from: &buf), 
+            requiresClient: FfiConverterBool.read(from: &buf)
         )
     }
 
     public static func write(_ value: WidgetPermissions, into buf: inout [UInt8]) {
         FfiConverterSequenceTypeWidgetEventFilter.write(value.read, into: &buf)
         FfiConverterSequenceTypeWidgetEventFilter.write(value.send, into: &buf)
+        FfiConverterBool.write(value.requiresClient, into: &buf)
     }
 }
 
@@ -9684,13 +9527,15 @@ public func FfiConverterTypeWidgetPermissions_lower(_ value: WidgetPermissions) 
 
 public struct WidgetSettings {
     public var id: String
-    public var initOnLoad: Bool
+    public var initAfterContentLoad: Bool
+    public var rawUrl: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, initOnLoad: Bool) {
+    public init(id: String, initAfterContentLoad: Bool, rawUrl: String) {
         self.id = id
-        self.initOnLoad = initOnLoad
+        self.initAfterContentLoad = initAfterContentLoad
+        self.rawUrl = rawUrl
     }
 }
 
@@ -9700,7 +9545,10 @@ extension WidgetSettings: Equatable, Hashable {
         if lhs.id != rhs.id {
             return false
         }
-        if lhs.initOnLoad != rhs.initOnLoad {
+        if lhs.initAfterContentLoad != rhs.initAfterContentLoad {
+            return false
+        }
+        if lhs.rawUrl != rhs.rawUrl {
             return false
         }
         return true
@@ -9708,7 +9556,8 @@ extension WidgetSettings: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
-        hasher.combine(initOnLoad)
+        hasher.combine(initAfterContentLoad)
+        hasher.combine(rawUrl)
     }
 }
 
@@ -9717,13 +9566,15 @@ public struct FfiConverterTypeWidgetSettings: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetSettings {
         return try WidgetSettings(
             id: FfiConverterString.read(from: &buf), 
-            initOnLoad: FfiConverterBool.read(from: &buf)
+            initAfterContentLoad: FfiConverterBool.read(from: &buf), 
+            rawUrl: FfiConverterString.read(from: &buf)
         )
     }
 
     public static func write(_ value: WidgetSettings, into buf: inout [UInt8]) {
         FfiConverterString.write(value.id, into: &buf)
-        FfiConverterBool.write(value.initOnLoad, into: &buf)
+        FfiConverterBool.write(value.initAfterContentLoad, into: &buf)
+        FfiConverterString.write(value.rawUrl, into: &buf)
     }
 }
 
@@ -11339,30 +11190,14 @@ public enum NotificationSettingsError {
 
     
     
-    // Simple error enums only carry a message
-    case Generic(message: String)
-    
-    // Simple error enums only carry a message
-    case InvalidParameter(message: String)
-    
-    // Simple error enums only carry a message
-    case InvalidRoomId(message: String)
-    
-    // Simple error enums only carry a message
-    case RuleNotFound(message: String)
-    
-    // Simple error enums only carry a message
-    case UnableToAddPushRule(message: String)
-    
-    // Simple error enums only carry a message
-    case UnableToRemovePushRule(message: String)
-    
-    // Simple error enums only carry a message
-    case UnableToSavePushRules(message: String)
-    
-    // Simple error enums only carry a message
-    case UnableToUpdatePushRule(message: String)
-    
+    case Generic(msg: String)
+    case InvalidParameter(msg: String)
+    case InvalidRoomId(roomId: String)
+    case RuleNotFound(ruleId: String)
+    case UnableToAddPushRule
+    case UnableToRemovePushRule
+    case UnableToSavePushRules
+    case UnableToUpdatePushRule
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeNotificationSettingsError.lift(error)
@@ -11381,39 +11216,23 @@ public struct FfiConverterTypeNotificationSettingsError: FfiConverterRustBuffer 
 
         
         case 1: return .Generic(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            msg: try FfiConverterString.read(from: &buf)
+            )
         case 2: return .InvalidParameter(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            msg: try FfiConverterString.read(from: &buf)
+            )
         case 3: return .InvalidRoomId(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            roomId: try FfiConverterString.read(from: &buf)
+            )
         case 4: return .RuleNotFound(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
-        case 5: return .UnableToAddPushRule(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
-        case 6: return .UnableToRemovePushRule(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
-        case 7: return .UnableToSavePushRules(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
-        case 8: return .UnableToUpdatePushRule(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            ruleId: try FfiConverterString.read(from: &buf)
+            )
+        case 5: return .UnableToAddPushRule
+        case 6: return .UnableToRemovePushRule
+        case 7: return .UnableToSavePushRules
+        case 8: return .UnableToUpdatePushRule
 
-        default: throw UniffiInternalError.unexpectedEnumCase
+         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
@@ -11423,23 +11242,41 @@ public struct FfiConverterTypeNotificationSettingsError: FfiConverterRustBuffer 
         
 
         
-        case .Generic(_ /* message is ignored*/):
+        
+        case let .Generic(msg):
             writeInt(&buf, Int32(1))
-        case .InvalidParameter(_ /* message is ignored*/):
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .InvalidParameter(msg):
             writeInt(&buf, Int32(2))
-        case .InvalidRoomId(_ /* message is ignored*/):
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .InvalidRoomId(roomId):
             writeInt(&buf, Int32(3))
-        case .RuleNotFound(_ /* message is ignored*/):
+            FfiConverterString.write(roomId, into: &buf)
+            
+        
+        case let .RuleNotFound(ruleId):
             writeInt(&buf, Int32(4))
-        case .UnableToAddPushRule(_ /* message is ignored*/):
+            FfiConverterString.write(ruleId, into: &buf)
+            
+        
+        case .UnableToAddPushRule:
             writeInt(&buf, Int32(5))
-        case .UnableToRemovePushRule(_ /* message is ignored*/):
+        
+        
+        case .UnableToRemovePushRule:
             writeInt(&buf, Int32(6))
-        case .UnableToSavePushRules(_ /* message is ignored*/):
+        
+        
+        case .UnableToSavePushRules:
             writeInt(&buf, Int32(7))
-        case .UnableToUpdatePushRule(_ /* message is ignored*/):
+        
+        
+        case .UnableToUpdatePushRule:
             writeInt(&buf, Int32(8))
-
         
         }
     }
@@ -11713,6 +11550,148 @@ public func FfiConverterTypePaginationOptions_lower(_ value: PaginationOptions) 
 extension PaginationOptions: Equatable, Hashable {}
 
 
+
+public enum ParseError {
+
+    
+    
+    // Simple error enums only carry a message
+    case EmptyHost(message: String)
+    
+    // Simple error enums only carry a message
+    case IdnaError(message: String)
+    
+    // Simple error enums only carry a message
+    case InvalidPort(message: String)
+    
+    // Simple error enums only carry a message
+    case InvalidIpv4Address(message: String)
+    
+    // Simple error enums only carry a message
+    case InvalidIpv6Address(message: String)
+    
+    // Simple error enums only carry a message
+    case InvalidDomainCharacter(message: String)
+    
+    // Simple error enums only carry a message
+    case RelativeUrlWithoutBase(message: String)
+    
+    // Simple error enums only carry a message
+    case RelativeUrlWithCannotBeABaseBase(message: String)
+    
+    // Simple error enums only carry a message
+    case SetHostOnCannotBeABaseUrl(message: String)
+    
+    // Simple error enums only carry a message
+    case Overflow(message: String)
+    
+    // Simple error enums only carry a message
+    case Other(message: String)
+    
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeParseError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeParseError: FfiConverterRustBuffer {
+    typealias SwiftType = ParseError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParseError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .EmptyHost(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .IdnaError(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .InvalidPort(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .InvalidIpv4Address(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 5: return .InvalidIpv6Address(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 6: return .InvalidDomainCharacter(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 7: return .RelativeUrlWithoutBase(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 8: return .RelativeUrlWithCannotBeABaseBase(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 9: return .SetHostOnCannotBeABaseUrl(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 10: return .Overflow(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 11: return .Other(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ParseError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        case .EmptyHost(_ /* message is ignored*/):
+            writeInt(&buf, Int32(1))
+        case .IdnaError(_ /* message is ignored*/):
+            writeInt(&buf, Int32(2))
+        case .InvalidPort(_ /* message is ignored*/):
+            writeInt(&buf, Int32(3))
+        case .InvalidIpv4Address(_ /* message is ignored*/):
+            writeInt(&buf, Int32(4))
+        case .InvalidIpv6Address(_ /* message is ignored*/):
+            writeInt(&buf, Int32(5))
+        case .InvalidDomainCharacter(_ /* message is ignored*/):
+            writeInt(&buf, Int32(6))
+        case .RelativeUrlWithoutBase(_ /* message is ignored*/):
+            writeInt(&buf, Int32(7))
+        case .RelativeUrlWithCannotBeABaseBase(_ /* message is ignored*/):
+            writeInt(&buf, Int32(8))
+        case .SetHostOnCannotBeABaseUrl(_ /* message is ignored*/):
+            writeInt(&buf, Int32(9))
+        case .Overflow(_ /* message is ignored*/):
+            writeInt(&buf, Int32(10))
+        case .Other(_ /* message is ignored*/):
+            writeInt(&buf, Int32(11))
+
+        
+        }
+    }
+}
+
+
+extension ParseError: Equatable, Hashable {}
+
+extension ParseError: Error { }
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -12844,9 +12823,9 @@ public struct FfiConverterTypeRoomVisibility: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .public
+        case 1: return .`public`
         
-        case 2: return .private
+        case 2: return .`private`
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -12856,11 +12835,11 @@ public struct FfiConverterTypeRoomVisibility: FfiConverterRustBuffer {
         switch value {
         
         
-        case .public:
+        case .`public`:
             writeInt(&buf, Int32(1))
         
         
-        case .private:
+        case .`private`:
             writeInt(&buf, Int32(2))
         
         }
@@ -15612,6 +15591,27 @@ fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionDouble: FfiConverterRustBuffer {
+    typealias SwiftType = Double?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterDouble.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterDouble.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionBool: FfiConverterRustBuffer {
     typealias SwiftType = Bool?
 
@@ -16515,28 +16515,6 @@ fileprivate struct FfiConverterOptionSequenceTypeRequiredState: FfiConverterRust
     }
 }
 
-fileprivate struct FfiConverterSequenceUInt8: FfiConverterRustBuffer {
-    typealias SwiftType = [UInt8]
-
-    public static func write(_ value: [UInt8], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for item in value {
-            FfiConverterUInt8.write(item, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt8] {
-        let len: Int32 = try readInt(&buf)
-        var seq = [UInt8]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterUInt8.read(from: &buf))
-        }
-        return seq
-    }
-}
-
 fileprivate struct FfiConverterSequenceUInt16: FfiConverterRustBuffer {
     typealias SwiftType = [UInt16]
 
@@ -16956,1488 +16934,68 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
         }
         return dict
     }
-}// Callbacks for async functions
+}
+private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
+private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
+
+internal func uniffiRustCallAsync<F, T>(
+    rustFutureFunc: () -> UnsafeMutableRawPointer,
+    pollFunc: (UnsafeMutableRawPointer, UnsafeMutableRawPointer) -> (),
+    completeFunc: (UnsafeMutableRawPointer, UnsafeMutablePointer<RustCallStatus>) -> F,
+    freeFunc: (UnsafeMutableRawPointer) -> (),
+    liftFunc: (F) throws -> T,
+    errorHandler: ((RustBuffer) throws -> Error)?
+) async throws -> T {
+    // Make sure to call uniffiEnsureInitialized() since future creation doesn't have a
+    // RustCallStatus param, so doesn't use makeRustCall()
+    uniffiEnsureInitialized()
+    let rustFuture = rustFutureFunc()
+    defer {
+        freeFunc(rustFuture)
+    }
+    var pollResult: Int8;
+    repeat {
+        pollResult = await withUnsafeContinuation {
+            pollFunc(rustFuture, ContinuationHolder($0).toOpaque())
+        }
+    } while pollResult != UNIFFI_RUST_FUTURE_POLL_READY
+
+    return try liftFunc(makeRustCall(
+        { completeFunc(rustFuture, $0) },
+        errorHandler: errorHandler
+    ))
+}
 
 // Callback handlers for an async calls.  These are invoked by Rust when the future is ready.  They
 // lift the return value or error and resume the suspended function.
-fileprivate func uniffiFutureCallbackHandlerVoid(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<(), Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: ())
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerVoidTypeAuthenticationError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<(), Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeAuthenticationError.lift)
-        continuation.pointee.resume(returning: ())
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerVoidTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<(), Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: ())
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerVoidTypeNotificationSettingsError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<(), Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeNotificationSettingsError.lift)
-        continuation.pointee.resume(returning: ())
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerVoidTypeRoomError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<(), Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeRoomError.lift)
-        continuation.pointee.resume(returning: ())
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerVoidTypeRoomListError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<(), Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeRoomListError.lift)
-        continuation.pointee.resume(returning: ())
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerUInt32(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt32,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<UInt32, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterUInt32.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerUInt64(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UInt64,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<UInt64, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterUInt64.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerInt64(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: Int64,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Int64, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterInt64.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerBool(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: Int8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Bool, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterBool.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerBoolTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: Int8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Bool, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterBool.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerBoolTypeNotificationSettingsError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: Int8,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Bool, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeNotificationSettingsError.lift)
-        continuation.pointee.resume(returning: try FfiConverterBool.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerString(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<String, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterString.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerStringTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<String, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterString.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeAuthenticationService(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<AuthenticationService, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeAuthenticationService.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeClientTypeAuthenticationError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Client, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeAuthenticationError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeClient.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeClientTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Client, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeClient.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeClientBuilder(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<ClientBuilder, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeClientBuilder.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeEventTimelineItemTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<EventTimelineItem, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeEventTimelineItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeMediaFileHandleTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<MediaFileHandle, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeMediaFileHandle.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeMediaSource(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<MediaSource, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeMediaSource.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeMediaSourceTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<MediaSource, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeMediaSource.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeNotificationClient(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<NotificationClient, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeNotificationClient.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeNotificationClientBuilder(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<NotificationClientBuilder, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeNotificationClientBuilder.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeNotificationClientBuilderTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<NotificationClientBuilder, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeNotificationClientBuilder.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeNotificationSettings(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<NotificationSettings, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeNotificationSettings.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeOidcAuthenticationDataTypeAuthenticationError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<OidcAuthenticationData, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeAuthenticationError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeOidcAuthenticationData.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoom(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Room, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoom.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListTypeRoomListError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomList, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeRoomListError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomList.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListItemTypeRoomListError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomListItem, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeRoomListError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomListItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListService(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomListService, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomListService.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomMemberTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomMember, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomMember.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomMembersIteratorTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomMembersIterator, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomMembersIterator.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContentWithoutRelation(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomMessageEventContentWithoutRelation, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomMessageEventContentWithoutRelationTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomMessageEventContentWithoutRelation, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeSendAttachmentJoinHandle(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<SendAttachmentJoinHandle, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeSendAttachmentJoinHandle.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeSessionVerificationControllerTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<SessionVerificationController, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeSessionVerificationController.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeSpan(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Span, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeSpan.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeSyncServiceTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<SyncService, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeSyncService.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeSyncServiceBuilder(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<SyncServiceBuilder, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeSyncServiceBuilder.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeTaskHandle(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TaskHandle, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeTaskHandle.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeTaskHandleTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TaskHandle, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeTaskHandle.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
+fileprivate func uniffiFutureContinuationCallback(ptr: UnsafeMutableRawPointer, pollResult: Int8) {
+    ContinuationHolder.fromOpaque(ptr).resume(pollResult)
 }
-fileprivate func uniffiFutureCallbackHandlerTypeTimelineItemContent(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
 
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TimelineItemContent, Error>.self,
-        capacity: 1
-    )
+// Wraps UnsafeContinuation in a class so that we can use reference counting when passing it across
+// the FFI
+class ContinuationHolder {
+    let continuation: UnsafeContinuation<Int8, Never>
 
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeTimelineItemContent.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
+    init(_ continuation: UnsafeContinuation<Int8, Never>) {
+        self.continuation = continuation
     }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeUnreadNotificationsCount(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: UnsafeMutableRawPointer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<UnreadNotificationsCount, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeUnreadNotificationsCount.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeEventTimelineItemDebugInfo(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<EventTimelineItemDebugInfo, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeEventTimelineItemDebugInfo.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomInfoTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomInfo, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomInfo.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesResult(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomListEntriesResult, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomListEntriesResult.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListEntriesWithDynamicAdaptersResult(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomListEntriesWithDynamicAdaptersResult, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomListLoadingStateResultTypeRoomListError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomListLoadingStateResult, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeRoomListError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomListLoadingStateResult.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomNotificationSettingsTypeNotificationSettingsError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomNotificationSettings, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeNotificationSettingsError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomNotificationSettings.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomTimelineListenerResult(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomTimelineListenerResult, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomTimelineListenerResult.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeSearchUsersResultsTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<SearchUsersResults, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeSearchUsersResults.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeSessionTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Session, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeSession.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeUserProfileTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<UserProfile, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeUserProfile.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeWidgetDriverAndHandle(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<WidgetDriverAndHandle, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeWidgetDriverAndHandle.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeMembership(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Membership, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeMembership.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeMembershipState(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<MembershipState, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeMembershipState.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeProfileDetails(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<ProfileDetails, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeProfileDetails.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeRoomNotificationMode(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomNotificationMode, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeRoomNotificationMode.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeTimelineChange(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TimelineChange, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeTimelineChange.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeTimelineEventTypeTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TimelineEventType, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterTypeTimelineEventType.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerTypeTimelineItemContentKind(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TimelineItemContentKind, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterTypeTimelineItemContentKind.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionUInt32(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<UInt32?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionUInt32.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionString(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<String?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionString.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionStringTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<String?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterOptionString.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeEventTimelineItem(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<EventTimelineItem?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeEventTimelineItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeHomeserverLoginDetails(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<HomeserverLoginDetails?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeHomeserverLoginDetails.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeMessage(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Message?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeMessage.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeRoomTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<Room?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeRoom.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeRoomMember(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomMember?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeRoomMember.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeTimelineItem(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<TimelineItem?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeTimelineItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeInReplyToDetails(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<InReplyToDetails?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeInReplyToDetails.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeInsertData(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<InsertData?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeInsertData.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeNotificationItemTypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<NotificationItem?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeNotificationItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeSetData(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<SetData?, Error>.self,
-        capacity: 1
-    )
 
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeSetData.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
+    func resume(_ pollResult: Int8) {
+        self.continuation.resume(returning: pollResult)
     }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeEventItemOrigin(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<EventItemOrigin?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeEventItemOrigin.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeEventSendState(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<EventSendState?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeEventSendState.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeMessageType(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<MessageType?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeMessageType.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeRoomNotificationModeTypeNotificationSettingsError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<RoomNotificationMode?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeNotificationSettingsError.lift)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeRoomNotificationMode.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionTypeVirtualTimelineItem(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<VirtualTimelineItem?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionTypeVirtualTimelineItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionSequenceTypeRoomMember(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
 
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[RoomMember]?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionSequenceTypeRoomMember.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerOptionSequenceTypeTimelineItem(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[TimelineItem]?, Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterOptionSequenceTypeTimelineItem.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerSequenceUInt8TypeClientError(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[UInt8], Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: FfiConverterTypeClientError.lift)
-        continuation.pointee.resume(returning: try FfiConverterSequenceUInt8.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerSequenceString(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[String], Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterSequenceString.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
-}
-fileprivate func uniffiFutureCallbackHandlerSequenceTypeRoom(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
-
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[Room], Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterSequenceTypeRoom.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
+    func toOpaque() -> UnsafeMutableRawPointer {
+        return Unmanaged<ContinuationHolder>.passRetained(self).toOpaque()
     }
-}
-fileprivate func uniffiFutureCallbackHandlerSequenceTypeReaction(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
 
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[Reaction], Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterSequenceTypeReaction.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
+    static func fromOpaque(_ ptr: UnsafeRawPointer) -> ContinuationHolder {
+        return Unmanaged<ContinuationHolder>.fromOpaque(ptr).takeRetainedValue()
     }
 }
-fileprivate func uniffiFutureCallbackHandlerDictionaryStringTypeReceipt(
-    rawContinutation: UnsafeRawPointer,
-    returnValue: RustBuffer,
-    callStatus: RustCallStatus) {
 
-    let continuation = rawContinutation.bindMemory(
-        to: CheckedContinuation<[String: Receipt], Error>.self,
-        capacity: 1
-    )
-
-    do {
-        try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: nil)
-        continuation.pointee.resume(returning: try FfiConverterDictionaryStringTypeReceipt.lift(returnValue))
-    } catch let error {
-        continuation.pointee.resume(throwing: error)
-    }
+fileprivate func uniffiInitContinuationCallback() {
+    ffi_matrix_sdk_ffi_rust_future_continuation_callback_set(uniffiFutureContinuationCallback)
 }
 
 public func genTransactionId()  -> String {
@@ -18447,6 +17005,25 @@ public func genTransactionId()  -> String {
 }
     )
 }
+
+public func generateWebviewUrl(widgetSettings: WidgetSettings, room: Room, props: ClientProperties) async throws -> String {
+    return try  await uniffiRustCallAsync(
+        rustFutureFunc: {
+            uniffi_matrix_sdk_ffi_fn_func_generate_webview_url(
+                FfiConverterTypeWidgetSettings.lower(widgetSettings),
+                FfiConverterTypeRoom.lower(room),
+                FfiConverterTypeClientProperties.lower(props)
+            )
+        },
+        pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+        completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+        freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+        liftFunc: FfiConverterString.lift,
+        errorHandler: FfiConverterTypeParseError.lift
+    )
+}
+
+
 
 public func logEvent(file: String, line: UInt32?, level: LogLevel, target: String, message: String)  {
     try! rustCall() {
@@ -18461,9 +17038,9 @@ public func logEvent(file: String, line: UInt32?, level: LogLevel, target: Strin
 
 
 
-public func makeWidgetDriver(settings: WidgetSettings)  -> WidgetDriverAndHandle {
-    return try!  FfiConverterTypeWidgetDriverAndHandle.lift(
-        try! rustCall() {
+public func makeWidgetDriver(settings: WidgetSettings) throws -> WidgetDriverAndHandle {
+    return try  FfiConverterTypeWidgetDriverAndHandle.lift(
+        try rustCallWithError(FfiConverterTypeParseError.lift) {
     uniffi_matrix_sdk_ffi_fn_func_make_widget_driver(
         FfiConverterTypeWidgetSettings.lower(settings),$0)
 }
@@ -18526,6 +17103,15 @@ public func messageEventContentNew(msgtype: MessageType)  -> RoomMessageEventCon
     )
 }
 
+public func newVirtualElementCallWidget(props: VirtualElementCallWidgetOptions) throws -> WidgetSettings {
+    return try  FfiConverterTypeWidgetSettings.lift(
+        try rustCallWithError(FfiConverterTypeParseError.lift) {
+    uniffi_matrix_sdk_ffi_fn_func_new_virtual_element_call_widget(
+        FfiConverterTypeVirtualElementCallWidgetOptions.lower(props),$0)
+}
+    )
+}
+
 public func sdkGitSha()  -> String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
@@ -18561,7 +17147,7 @@ private enum InitializationResult {
 // the code inside is only computed once.
 private var initializationResult: InitializationResult {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 23
+    let bindings_contract_version = 24
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_matrix_sdk_ffi_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
@@ -18570,10 +17156,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 65533) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_func_generate_webview_url() != 16581) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 58164) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 16909) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 16217) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 28929) {
@@ -18592,6 +17181,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 65448) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_func_new_virtual_element_call_widget() != 13275) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 11183) {
@@ -19146,9 +17738,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_poll_response() != 21289) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_marker() != 53306) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_receipt() != 6919) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -19564,7 +18153,7 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
 
-    uniffiInitForeignExecutor()
+    uniffiInitContinuationCallback()
     return InitializationResult.ok
 }
 
