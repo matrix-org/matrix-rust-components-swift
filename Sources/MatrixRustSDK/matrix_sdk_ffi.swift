@@ -1857,7 +1857,7 @@ public protocol MessageProtocol {
     func inReplyTo()   -> InReplyToDetails?
     func isEdited()   -> Bool
     func isThreaded()   -> Bool
-    func msgtype()   -> MessageType?
+    func msgtype()   -> MessageType
     
 }
 
@@ -1924,8 +1924,8 @@ public class Message: MessageProtocol {
         )
     }
 
-    public func msgtype()  -> MessageType? {
-        return try!  FfiConverterOptionTypeMessageType.lift(
+    public func msgtype()  -> MessageType {
+        return try!  FfiConverterTypeMessageType.lift(
             try! 
     rustCall() {
     
@@ -2828,6 +2828,7 @@ public protocol RoomProtocol {
     func sendReadReceipt(eventId: String)  throws
     func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem)  throws
     func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
+    func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)   -> SendAttachmentJoinHandle
     func setName(name: String)  throws
     func setTopic(topic: String)  throws
     func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener)  throws -> TaskHandle
@@ -3696,6 +3697,21 @@ public class Room: RoomProtocol {
         FfiConverterString.lower(url),
         FfiConverterString.lower(thumbnailUrl),
         FfiConverterTypeVideoInfo.lower(videoInfo),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
+    )
+}
+        )
+    }
+
+    public func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_send_voice_message(self.pointer, 
+        FfiConverterString.lower(url),
+        FfiConverterTypeAudioInfo.lower(audioInfo),
+        FfiConverterSequenceUInt16.lower(waveform),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
     )
 }
@@ -10973,6 +10989,7 @@ public enum MessageType {
     case notice(content: NoticeMessageContent)
     case text(content: TextMessageContent)
     case location(content: LocationContent)
+    case other(msgtype: String, body: String)
 }
 
 public struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
@@ -11012,6 +11029,11 @@ public struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
         
         case 8: return .location(
             content: try FfiConverterTypeLocationContent.read(from: &buf)
+        )
+        
+        case 9: return .other(
+            msgtype: try FfiConverterString.read(from: &buf), 
+            body: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -11060,6 +11082,12 @@ public struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
         case let .location(content):
             writeInt(&buf, Int32(8))
             FfiConverterTypeLocationContent.write(content, into: &buf)
+            
+        
+        case let .other(msgtype,body):
+            writeInt(&buf, Int32(9))
+            FfiConverterString.write(msgtype, into: &buf)
+            FfiConverterString.write(body, into: &buf)
             
         }
     }
@@ -16242,27 +16270,6 @@ fileprivate struct FfiConverterOptionTypeMembershipChange: FfiConverterRustBuffe
     }
 }
 
-fileprivate struct FfiConverterOptionTypeMessageType: FfiConverterRustBuffer {
-    typealias SwiftType = MessageType?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeMessageType.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeMessageType.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 fileprivate struct FfiConverterOptionTypePushFormat: FfiConverterRustBuffer {
     typealias SwiftType = PushFormat?
 
@@ -17094,9 +17101,9 @@ public func messageEventContentFromMarkdownAsEmote(md: String)  -> RoomMessageEv
     )
 }
 
-public func messageEventContentNew(msgtype: MessageType)  -> RoomMessageEventContentWithoutRelation {
-    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
-        try! rustCall() {
+public func messageEventContentNew(msgtype: MessageType) throws -> RoomMessageEventContentWithoutRelation {
+    return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
+        try rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_func_message_event_content_new(
         FfiConverterTypeMessageType.lower(msgtype),$0)
 }
@@ -17180,7 +17187,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown_as_emote() != 16575) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 65448) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 60536) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_new_virtual_element_call_widget() != 13275) {
@@ -17429,7 +17436,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_message_is_threaded() != 29945) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 50686) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 35166) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification() != 9907) {
@@ -17745,6 +17752,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 38775) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_voice_message() != 15857) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 56429) {
