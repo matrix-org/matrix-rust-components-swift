@@ -9091,6 +9091,69 @@ public func FfiConverterTypeVirtualElementCallWidgetOptions_lower(_ value: Virtu
 }
 
 
+public struct WidgetCapabilities {
+    public var read: [WidgetEventFilter]
+    public var send: [WidgetEventFilter]
+    public var requiresClient: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(read: [WidgetEventFilter], send: [WidgetEventFilter], requiresClient: Bool) {
+        self.read = read
+        self.send = send
+        self.requiresClient = requiresClient
+    }
+}
+
+
+extension WidgetCapabilities: Equatable, Hashable {
+    public static func ==(lhs: WidgetCapabilities, rhs: WidgetCapabilities) -> Bool {
+        if lhs.read != rhs.read {
+            return false
+        }
+        if lhs.send != rhs.send {
+            return false
+        }
+        if lhs.requiresClient != rhs.requiresClient {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(read)
+        hasher.combine(send)
+        hasher.combine(requiresClient)
+    }
+}
+
+
+public struct FfiConverterTypeWidgetCapabilities: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetCapabilities {
+        return try WidgetCapabilities(
+            read: FfiConverterSequenceTypeWidgetEventFilter.read(from: &buf), 
+            send: FfiConverterSequenceTypeWidgetEventFilter.read(from: &buf), 
+            requiresClient: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: WidgetCapabilities, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeWidgetEventFilter.write(value.read, into: &buf)
+        FfiConverterSequenceTypeWidgetEventFilter.write(value.send, into: &buf)
+        FfiConverterBool.write(value.requiresClient, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeWidgetCapabilities_lift(_ buf: RustBuffer) throws -> WidgetCapabilities {
+    return try FfiConverterTypeWidgetCapabilities.lift(buf)
+}
+
+public func FfiConverterTypeWidgetCapabilities_lower(_ value: WidgetCapabilities) -> RustBuffer {
+    return FfiConverterTypeWidgetCapabilities.lower(value)
+}
+
+
 public struct WidgetDriverAndHandle {
     public var driver: WidgetDriver
     public var handle: WidgetDriverHandle
@@ -9126,69 +9189,6 @@ public func FfiConverterTypeWidgetDriverAndHandle_lift(_ buf: RustBuffer) throws
 
 public func FfiConverterTypeWidgetDriverAndHandle_lower(_ value: WidgetDriverAndHandle) -> RustBuffer {
     return FfiConverterTypeWidgetDriverAndHandle.lower(value)
-}
-
-
-public struct WidgetPermissions {
-    public var read: [WidgetEventFilter]
-    public var send: [WidgetEventFilter]
-    public var requiresClient: Bool
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(read: [WidgetEventFilter], send: [WidgetEventFilter], requiresClient: Bool) {
-        self.read = read
-        self.send = send
-        self.requiresClient = requiresClient
-    }
-}
-
-
-extension WidgetPermissions: Equatable, Hashable {
-    public static func ==(lhs: WidgetPermissions, rhs: WidgetPermissions) -> Bool {
-        if lhs.read != rhs.read {
-            return false
-        }
-        if lhs.send != rhs.send {
-            return false
-        }
-        if lhs.requiresClient != rhs.requiresClient {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(read)
-        hasher.combine(send)
-        hasher.combine(requiresClient)
-    }
-}
-
-
-public struct FfiConverterTypeWidgetPermissions: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetPermissions {
-        return try WidgetPermissions(
-            read: FfiConverterSequenceTypeWidgetEventFilter.read(from: &buf), 
-            send: FfiConverterSequenceTypeWidgetEventFilter.read(from: &buf), 
-            requiresClient: FfiConverterBool.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: WidgetPermissions, into buf: inout [UInt8]) {
-        FfiConverterSequenceTypeWidgetEventFilter.write(value.read, into: &buf)
-        FfiConverterSequenceTypeWidgetEventFilter.write(value.send, into: &buf)
-        FfiConverterBool.write(value.requiresClient, into: &buf)
-    }
-}
-
-
-public func FfiConverterTypeWidgetPermissions_lift(_ buf: RustBuffer) throws -> WidgetPermissions {
-    return try FfiConverterTypeWidgetPermissions.lift(buf)
-}
-
-public func FfiConverterTypeWidgetPermissions_lower(_ value: WidgetPermissions) -> RustBuffer {
-    return FfiConverterTypeWidgetPermissions.lower(value)
 }
 
 
@@ -15081,7 +15081,7 @@ extension FfiConverterCallbackInterfaceTimelineListener : FfiConverter {
 // Declaration and FfiConverters for WidgetCapabilitiesProvider Callback Interface
 
 public protocol WidgetCapabilitiesProvider : AnyObject {
-    func acquireCapabilities(capabilities: WidgetPermissions)  -> WidgetPermissions
+    func acquireCapabilities(capabilities: WidgetCapabilities)  -> WidgetCapabilities
     
 }
 
@@ -15094,10 +15094,10 @@ fileprivate let foreignCallbackCallbackInterfaceWidgetCapabilitiesProvider : For
         var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
         func makeCall() throws -> Int32 {
             let result =  swiftCallbackInterface.acquireCapabilities(
-                    capabilities:  try FfiConverterTypeWidgetPermissions.read(from: &reader)
+                    capabilities:  try FfiConverterTypeWidgetCapabilities.read(from: &reader)
                     )
             var writer = [UInt8]()
-            FfiConverterTypeWidgetPermissions.write(result, into: &writer)
+            FfiConverterTypeWidgetCapabilities.write(result, into: &writer)
             out_buf.pointee = RustBuffer(bytes: writer)
             return UNIFFI_CALLBACK_SUCCESS
         }
@@ -17702,7 +17702,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 974) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 16636) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 47314) {
         return InitializationResult.apiChecksumMismatch
     }
 
