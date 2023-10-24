@@ -2586,6 +2586,7 @@ public func FfiConverterTypeOidcAuthenticationData_lower(_ value: OidcAuthentica
 
 public protocol RoomProtocol {
     func activeMembersCount()   -> UInt64
+    func activeRoomCallParticipants()   -> [String]
     func addTimelineListener(listener: TimelineListener) async  -> RoomTimelineListenerResult
     func alternativeAliases()   -> [String]
     func avatarUrl()   -> String?
@@ -2606,6 +2607,7 @@ public protocol RoomProtocol {
     func fetchMembers() async throws
     func getEventTimelineItemByEventId(eventId: String)  throws -> EventTimelineItem
     func getTimelineEventContentByEventId(eventId: String)  throws -> RoomMessageEventContentWithoutRelation
+    func hasActiveRoomCall()   -> Bool
     func id()   -> String
     func ignoreUser(userId: String)  throws
     func inviteUserById(userId: String)  throws
@@ -2679,6 +2681,17 @@ public class Room: RoomProtocol {
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_room_active_members_count(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func activeRoomCallParticipants()  -> [String] {
+        return try!  FfiConverterSequenceString.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_active_room_call_participants(self.pointer, $0
     )
 }
         )
@@ -2959,6 +2972,17 @@ public class Room: RoomProtocol {
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_get_timeline_event_content_by_event_id(self.pointer, 
         FfiConverterString.lower(eventId),$0
+    )
+}
+        )
+    }
+
+    public func hasActiveRoomCall()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_has_active_room_call(self.pointer, $0
     )
 }
         )
@@ -7805,10 +7829,12 @@ public struct RoomInfo {
     public var highlightCount: UInt64
     public var notificationCount: UInt64
     public var userDefinedNotificationMode: RoomNotificationMode?
+    public var hasRoomCall: Bool
+    public var activeRoomCallParticipants: [String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?) {
+    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?, hasRoomCall: Bool, activeRoomCallParticipants: [String]) {
         self.id = id
         self.name = name
         self.topic = topic
@@ -7828,6 +7854,8 @@ public struct RoomInfo {
         self.highlightCount = highlightCount
         self.notificationCount = notificationCount
         self.userDefinedNotificationMode = userDefinedNotificationMode
+        self.hasRoomCall = hasRoomCall
+        self.activeRoomCallParticipants = activeRoomCallParticipants
     }
 }
 
@@ -7854,7 +7882,9 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
             joinedMembersCount: FfiConverterUInt64.read(from: &buf), 
             highlightCount: FfiConverterUInt64.read(from: &buf), 
             notificationCount: FfiConverterUInt64.read(from: &buf), 
-            userDefinedNotificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf)
+            userDefinedNotificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf), 
+            hasRoomCall: FfiConverterBool.read(from: &buf), 
+            activeRoomCallParticipants: FfiConverterSequenceString.read(from: &buf)
         )
     }
 
@@ -7878,6 +7908,8 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.highlightCount, into: &buf)
         FfiConverterUInt64.write(value.notificationCount, into: &buf)
         FfiConverterOptionTypeRoomNotificationMode.write(value.userDefinedNotificationMode, into: &buf)
+        FfiConverterBool.write(value.hasRoomCall, into: &buf)
+        FfiConverterSequenceString.write(value.activeRoomCallParticipants, into: &buf)
     }
 }
 
@@ -17156,6 +17188,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 62367) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_room_call_participants() != 5256) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 43137) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17214,6 +17249,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_get_timeline_event_content_by_event_id() != 4338) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_has_active_room_call() != 59850) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 27132) {
