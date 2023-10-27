@@ -633,6 +633,7 @@ public protocol ClientProtocol {
     func createRoom(request: CreateRoomParameters)  throws -> String
     func deviceId()  throws -> String
     func displayName()  throws -> String
+    func encryption()   -> Encryption
     func getDmRoom(userId: String)  throws -> Room?
     func getMediaContent(mediaSource: MediaSource)  throws -> Data
     func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, tempDir: String?)  throws -> MediaFileHandle
@@ -749,6 +750,17 @@ public class Client: ClientProtocol {
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_display_name(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func encryption()  -> Encryption {
+        return try!  FfiConverterTypeEncryption.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_client_encryption(self.pointer, $0
     )
 }
         )
@@ -1320,6 +1332,270 @@ public func FfiConverterTypeClientBuilder_lift(_ pointer: UnsafeMutableRawPointe
 
 public func FfiConverterTypeClientBuilder_lower(_ value: ClientBuilder) -> UnsafeMutableRawPointer {
     return FfiConverterTypeClientBuilder.lower(value)
+}
+
+
+public protocol EncryptionProtocol {
+    func backupState()   -> BackupState
+    func backupStateListener(listener: BackupStateListener)   -> TaskHandle
+    func disableRecovery() async throws
+    func enableBackups() async throws
+    func enableRecovery(waitForBackupsToUpload: Bool, progressListener: EnableRecoveryProgressListener) async throws -> String
+    func fixRecoveryIssues(recoveryKey: String) async throws
+    func isLastDevice() async throws -> Bool
+    func recoverAndReset(oldRecoveryKey: String) async throws -> String
+    func recoveryState()   -> RecoveryState
+    func recoveryStateListener(listener: RecoveryStateListener)   -> TaskHandle
+    func resetRecoveryKey() async throws -> String
+    func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async 
+    
+}
+
+public class Encryption: EncryptionProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_encryption(pointer, $0) }
+    }
+
+    
+
+    
+    
+
+    public func backupState()  -> BackupState {
+        return try!  FfiConverterTypeBackupState.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_encryption_backup_state(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func backupStateListener(listener: BackupStateListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_encryption_backup_state_listener(self.pointer, 
+        FfiConverterCallbackInterfaceBackupStateListener.lower(listener),$0
+    )
+}
+        )
+    }
+
+    public func disableRecovery() async throws {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_disable_recovery(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func enableBackups() async throws {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_enable_backups(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func enableRecovery(waitForBackupsToUpload: Bool, progressListener: EnableRecoveryProgressListener) async throws -> String {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_enable_recovery(
+                    self.pointer,
+                    FfiConverterBool.lower(waitForBackupsToUpload),
+                    FfiConverterCallbackInterfaceEnableRecoveryProgressListener.lower(progressListener)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func fixRecoveryIssues(recoveryKey: String) async throws {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_fix_recovery_issues(
+                    self.pointer,
+                    FfiConverterString.lower(recoveryKey)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func isLastDevice() async throws -> Bool {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_is_last_device(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func recoverAndReset(oldRecoveryKey: String) async throws -> String {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_recover_and_reset(
+                    self.pointer,
+                    FfiConverterString.lower(oldRecoveryKey)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func recoveryState()  -> RecoveryState {
+        return try!  FfiConverterTypeRecoveryState.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_encryption_recovery_state(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func recoveryStateListener(listener: RecoveryStateListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_encryption_recovery_state_listener(self.pointer, 
+        FfiConverterCallbackInterfaceRecoveryStateListener.lower(listener),$0
+    )
+}
+        )
+    }
+
+    public func resetRecoveryKey() async throws -> String {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_reset_recovery_key(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async  {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_wait_for_backup_upload_steady_state(
+                    self.pointer,
+                    FfiConverterOptionCallbackInterfaceBackupSteadyStateListener.lower(progressListener)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
+        )
+    }
+
+    
+}
+
+public struct FfiConverterTypeEncryption: FfiConverter {
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = Encryption
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Encryption {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: Encryption, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Encryption {
+        return Encryption(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: Encryption) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+}
+
+
+public func FfiConverterTypeEncryption_lift(_ pointer: UnsafeMutableRawPointer) throws -> Encryption {
+    return try FfiConverterTypeEncryption.lift(pointer)
+}
+
+public func FfiConverterTypeEncryption_lower(_ value: Encryption) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeEncryption.lower(value)
 }
 
 
@@ -4680,7 +4956,7 @@ public protocol SessionVerificationControllerProtocol {
     func approveVerification() async throws
     func cancelVerification() async throws
     func declineVerification() async throws
-    func isVerified()   -> Bool
+    func isVerified() async throws -> Bool
     func requestVerification() async throws
     func setDelegate(delegate: SessionVerificationControllerDelegate?)  
     func startSasVerification() async throws
@@ -4757,16 +5033,22 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
 
     
 
-    public func isVerified()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_is_verified(self.pointer, $0
-    )
-}
+    public func isVerified() async throws -> Bool {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_is_verified(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
+
+    
 
     public func requestVerification() async throws {
         return try  await uniffiRustCallAsync(
@@ -9620,6 +9902,176 @@ extension BackPaginationStatus: Equatable, Hashable {}
 
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum BackupState {
+    
+    case unknown
+    case creating
+    case enabling
+    case resuming
+    case enabled
+    case downloading
+    case disabling
+    case disabled
+}
+
+public struct FfiConverterTypeBackupState: FfiConverterRustBuffer {
+    typealias SwiftType = BackupState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BackupState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .unknown
+        
+        case 2: return .creating
+        
+        case 3: return .enabling
+        
+        case 4: return .resuming
+        
+        case 5: return .enabled
+        
+        case 6: return .downloading
+        
+        case 7: return .disabling
+        
+        case 8: return .disabled
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: BackupState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .unknown:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .creating:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .enabling:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .resuming:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .enabled:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .downloading:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .disabling:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .disabled:
+            writeInt(&buf, Int32(8))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeBackupState_lift(_ buf: RustBuffer) throws -> BackupState {
+    return try FfiConverterTypeBackupState.lift(buf)
+}
+
+public func FfiConverterTypeBackupState_lower(_ value: BackupState) -> RustBuffer {
+    return FfiConverterTypeBackupState.lower(value)
+}
+
+
+extension BackupState: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum BackupUploadState {
+    
+    case waiting
+    case checkingIfUploadNeeded(backedUpCount: UInt32, totalCount: UInt32)
+    case uploading(backedUpCount: UInt32, totalCount: UInt32)
+    case done
+}
+
+public struct FfiConverterTypeBackupUploadState: FfiConverterRustBuffer {
+    typealias SwiftType = BackupUploadState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BackupUploadState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .waiting
+        
+        case 2: return .checkingIfUploadNeeded(
+            backedUpCount: try FfiConverterUInt32.read(from: &buf), 
+            totalCount: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 3: return .uploading(
+            backedUpCount: try FfiConverterUInt32.read(from: &buf), 
+            totalCount: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 4: return .done
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: BackupUploadState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .waiting:
+            writeInt(&buf, Int32(1))
+        
+        
+        case let .checkingIfUploadNeeded(backedUpCount,totalCount):
+            writeInt(&buf, Int32(2))
+            FfiConverterUInt32.write(backedUpCount, into: &buf)
+            FfiConverterUInt32.write(totalCount, into: &buf)
+            
+        
+        case let .uploading(backedUpCount,totalCount):
+            writeInt(&buf, Int32(3))
+            FfiConverterUInt32.write(backedUpCount, into: &buf)
+            FfiConverterUInt32.write(totalCount, into: &buf)
+            
+        
+        case .done:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeBackupUploadState_lift(_ buf: RustBuffer) throws -> BackupUploadState {
+    return try FfiConverterTypeBackupUploadState.lift(buf)
+}
+
+public func FfiConverterTypeBackupUploadState_lower(_ value: BackupUploadState) -> RustBuffer {
+    return FfiConverterTypeBackupUploadState.lower(value)
+}
+
+
+extension BackupUploadState: Equatable, Hashable {}
+
+
+
 public enum ClientError {
 
     
@@ -9669,6 +10121,80 @@ public struct FfiConverterTypeClientError: FfiConverterRustBuffer {
 extension ClientError: Equatable, Hashable {}
 
 extension ClientError: Error { }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum EnableRecoveryProgress {
+    
+    case creatingBackup
+    case creatingRecoveryKey
+    case backingUp(backedUpCount: UInt32, totalCount: UInt32)
+    case done(recoveryKey: String)
+}
+
+public struct FfiConverterTypeEnableRecoveryProgress: FfiConverterRustBuffer {
+    typealias SwiftType = EnableRecoveryProgress
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EnableRecoveryProgress {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .creatingBackup
+        
+        case 2: return .creatingRecoveryKey
+        
+        case 3: return .backingUp(
+            backedUpCount: try FfiConverterUInt32.read(from: &buf), 
+            totalCount: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 4: return .done(
+            recoveryKey: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: EnableRecoveryProgress, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .creatingBackup:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .creatingRecoveryKey:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .backingUp(backedUpCount,totalCount):
+            writeInt(&buf, Int32(3))
+            FfiConverterUInt32.write(backedUpCount, into: &buf)
+            FfiConverterUInt32.write(totalCount, into: &buf)
+            
+        
+        case let .done(recoveryKey):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(recoveryKey, into: &buf)
+            
+        }
+    }
+}
+
+
+public func FfiConverterTypeEnableRecoveryProgress_lift(_ buf: RustBuffer) throws -> EnableRecoveryProgress {
+    return try FfiConverterTypeEnableRecoveryProgress.lift(buf)
+}
+
+public func FfiConverterTypeEnableRecoveryProgress_lower(_ value: EnableRecoveryProgress) -> RustBuffer {
+    return FfiConverterTypeEnableRecoveryProgress.lower(value)
+}
+
+
+extension EnableRecoveryProgress: Equatable, Hashable {}
+
+
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -11629,6 +12155,72 @@ public func FfiConverterTypePusherKind_lower(_ value: PusherKind) -> RustBuffer 
 
 
 extension PusherKind: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum RecoveryState {
+    
+    case unknown
+    case enabled
+    case disabled
+    case incomplete
+}
+
+public struct FfiConverterTypeRecoveryState: FfiConverterRustBuffer {
+    typealias SwiftType = RecoveryState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RecoveryState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .unknown
+        
+        case 2: return .enabled
+        
+        case 3: return .disabled
+        
+        case 4: return .incomplete
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RecoveryState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .unknown:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .enabled:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .disabled:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .incomplete:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeRecoveryState_lift(_ buf: RustBuffer) throws -> RecoveryState {
+    return try FfiConverterTypeRecoveryState.lift(buf)
+}
+
+public func FfiConverterTypeRecoveryState_lower(_ value: RecoveryState) -> RustBuffer {
+    return FfiConverterTypeRecoveryState.lower(value)
+}
+
+
+extension RecoveryState: Equatable, Hashable {}
 
 
 
@@ -13650,6 +14242,220 @@ extension FfiConverterCallbackInterfaceBackPaginationStatusListener : FfiConvert
 
 
 
+// Declaration and FfiConverters for BackupStateListener Callback Interface
+
+public protocol BackupStateListener : AnyObject {
+    func onUpdate(status: BackupState) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceBackupStateListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeOnUpdate(_ swiftCallbackInterface: BackupStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.onUpdate(
+                    status:  try FfiConverterTypeBackupState.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceBackupStateListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: BackupStateListener
+            do {
+                cb = try FfiConverterCallbackInterfaceBackupStateListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("BackupStateListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceBackupStateListener {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_backupstatelistener(foreignCallbackCallbackInterfaceBackupStateListener, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<BackupStateListener>()
+}
+
+extension FfiConverterCallbackInterfaceBackupStateListener : FfiConverter {
+    typealias SwiftType = BackupStateListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+// Declaration and FfiConverters for BackupSteadyStateListener Callback Interface
+
+public protocol BackupSteadyStateListener : AnyObject {
+    func onUpdate(status: BackupUploadState) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceBackupSteadyStateListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeOnUpdate(_ swiftCallbackInterface: BackupSteadyStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.onUpdate(
+                    status:  try FfiConverterTypeBackupUploadState.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceBackupSteadyStateListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: BackupSteadyStateListener
+            do {
+                cb = try FfiConverterCallbackInterfaceBackupSteadyStateListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("BackupSteadyStateListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceBackupSteadyStateListener {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_backupsteadystatelistener(foreignCallbackCallbackInterfaceBackupSteadyStateListener, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<BackupSteadyStateListener>()
+}
+
+extension FfiConverterCallbackInterfaceBackupSteadyStateListener : FfiConverter {
+    typealias SwiftType = BackupSteadyStateListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
 // Declaration and FfiConverters for ClientDelegate Callback Interface
 
 public protocol ClientDelegate : AnyObject {
@@ -13922,6 +14728,113 @@ extension FfiConverterCallbackInterfaceClientSessionDelegate : FfiConverter {
 
 
 
+// Declaration and FfiConverters for EnableRecoveryProgressListener Callback Interface
+
+public protocol EnableRecoveryProgressListener : AnyObject {
+    func onUpdate(status: EnableRecoveryProgress) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceEnableRecoveryProgressListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeOnUpdate(_ swiftCallbackInterface: EnableRecoveryProgressListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.onUpdate(
+                    status:  try FfiConverterTypeEnableRecoveryProgress.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceEnableRecoveryProgressListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: EnableRecoveryProgressListener
+            do {
+                cb = try FfiConverterCallbackInterfaceEnableRecoveryProgressListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("EnableRecoveryProgressListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceEnableRecoveryProgressListener {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_enablerecoveryprogresslistener(foreignCallbackCallbackInterfaceEnableRecoveryProgressListener, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<EnableRecoveryProgressListener>()
+}
+
+extension FfiConverterCallbackInterfaceEnableRecoveryProgressListener : FfiConverter {
+    typealias SwiftType = EnableRecoveryProgressListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
 // Declaration and FfiConverters for NotificationSettingsDelegate Callback Interface
 
 public protocol NotificationSettingsDelegate : AnyObject {
@@ -14104,6 +15017,113 @@ fileprivate struct FfiConverterCallbackInterfaceProgressWatcher {
 
 extension FfiConverterCallbackInterfaceProgressWatcher : FfiConverter {
     typealias SwiftType = ProgressWatcher
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        ensureCallbackinitialized();
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        ensureCallbackinitialized();
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        ensureCallbackinitialized();
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        ensureCallbackinitialized();
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+// Declaration and FfiConverters for RecoveryStateListener Callback Interface
+
+public protocol RecoveryStateListener : AnyObject {
+    func onUpdate(status: RecoveryState) 
+    
+}
+
+// The ForeignCallback that is passed to Rust.
+fileprivate let foreignCallbackCallbackInterfaceRecoveryStateListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeOnUpdate(_ swiftCallbackInterface: RecoveryStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            try swiftCallbackInterface.onUpdate(
+                    status:  try FfiConverterTypeRecoveryState.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceRecoveryStateListener.drop(handle: handle)
+            // Sucessful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            let cb: RecoveryStateListener
+            do {
+                cb = try FfiConverterCallbackInterfaceRecoveryStateListener.lift(handle)
+            } catch {
+                out_buf.pointee = FfiConverterString.lower("RecoveryStateListener: Invalid handle")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceRecoveryStateListener {
+    private static let initCallbackOnce: () = {
+        // Swift ensures this initializer code will once run once, even when accessed by multiple threads.
+        try! rustCall { (err: UnsafeMutablePointer<RustCallStatus>) in
+            uniffi_matrix_sdk_ffi_fn_init_callback_recoverystatelistener(foreignCallbackCallbackInterfaceRecoveryStateListener, err)
+        }
+    }()
+
+    private static func ensureCallbackinitialized() {
+        _ = initCallbackOnce
+    }
+
+    static func drop(handle: UniFFICallbackHandle) {
+        handleMap.remove(handle: handle)
+    }
+
+    private static var handleMap = UniFFICallbackHandleMap<RecoveryStateListener>()
+}
+
+extension FfiConverterCallbackInterfaceRecoveryStateListener : FfiConverter {
+    typealias SwiftType = RecoveryStateListener
     // We can use Handle as the FfiType because it's a typealias to UInt64
     typealias FfiType = UniFFICallbackHandle
 
@@ -16016,6 +17036,27 @@ fileprivate struct FfiConverterOptionTypeVirtualTimelineItem: FfiConverterRustBu
     }
 }
 
+fileprivate struct FfiConverterOptionCallbackInterfaceBackupSteadyStateListener: FfiConverterRustBuffer {
+    typealias SwiftType = BackupSteadyStateListener?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterCallbackInterfaceBackupSteadyStateListener.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterCallbackInterfaceBackupSteadyStateListener.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionCallbackInterfaceClientDelegate: FfiConverterRustBuffer {
     typealias SwiftType = ClientDelegate?
 
@@ -16930,6 +17971,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_display_name() != 57766) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_encryption() != 55944) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 2581) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17048,6 +18092,42 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 64379) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state() != 13611) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state_listener() != 29) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 56498) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 38094) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 13489) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_fix_recovery_issues() != 24283) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 30199) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 16535) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state() != 7187) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state_listener() != 11439) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 55362) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 57865) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_can_be_replied_to() != 42286) {
@@ -17542,7 +18622,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 50627) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 949) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 3866) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 51679) {
@@ -17683,6 +18763,12 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_backpaginationstatuslistener_on_update() != 2582) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_backupstatelistener_on_update() != 32936) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_backupsteadystatelistener_on_update() != 21611) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_receive_auth_error() != 54393) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -17695,10 +18781,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_save_session_in_keychain() != 30188) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_enablerecoveryprogresslistener_on_update() != 5434) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 4921) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 12165) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_recoverystatelistener_on_update() != 3601) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roominfolistener_call() != 567) {
