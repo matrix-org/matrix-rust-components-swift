@@ -63,9 +63,10 @@ with FileInput(files=[root + '/Package.swift'], inplace=True) as file:
             line = 'let version = "' + version + '"'
         print(line)
 
-sdk_commit_hash = subprocess.getoutput("cat " + sdk_path + "/.git/refs/heads/main")
+sdk_commit_hash = subprocess.check_output("git rev-parse HEAD", shell=True, cwd=sdk_path).decode("utf-8").rstrip()
+sdk_branch = subprocess.check_output("git rev-parse --abbrev-ref HEAD", shell=True, cwd=sdk_path).decode("utf-8").rstrip()
 print("SDK commit: " + sdk_commit_hash)
-commit_message = "Bump to " + version + " (matrix-rust-sdk " + sdk_commit_hash + ")"
+commit_message = "Bump to " + version + " (matrix-rust-sdk/" + sdk_branch + " " + sdk_commit_hash + ")"
 print("Pushing changes as: " + commit_message)
 os.system("git add " + root + "/Package.swift")
 os.system("git add " + root + "/Sources")
