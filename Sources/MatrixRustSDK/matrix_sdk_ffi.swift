@@ -1347,7 +1347,7 @@ public protocol EncryptionProtocol {
     func recoveryState()   -> RecoveryState
     func recoveryStateListener(listener: RecoveryStateListener)   -> TaskHandle
     func resetRecoveryKey() async throws -> String
-    func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async 
+    func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws
     
 }
 
@@ -1539,8 +1539,8 @@ public class Encryption: EncryptionProtocol {
 
     
 
-    public func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async  {
-        return try!  await uniffiRustCallAsync(
+    public func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws {
+        return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_wait_for_backup_upload_steady_state(
                     self.pointer,
@@ -1551,8 +1551,7 @@ public class Encryption: EncryptionProtocol {
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: nil
-            
+            errorHandler: FfiConverterTypeSteadyStateError.lift
         )
     }
 
@@ -10003,6 +10002,7 @@ public enum BackupUploadState {
     case waiting
     case checkingIfUploadNeeded(backedUpCount: UInt32, totalCount: UInt32)
     case uploading(backedUpCount: UInt32, totalCount: UInt32)
+    case error
     case done
 }
 
@@ -10025,7 +10025,9 @@ public struct FfiConverterTypeBackupUploadState: FfiConverterRustBuffer {
             totalCount: try FfiConverterUInt32.read(from: &buf)
         )
         
-        case 4: return .done
+        case 4: return .error
+        
+        case 5: return .done
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -10051,8 +10053,12 @@ public struct FfiConverterTypeBackupUploadState: FfiConverterRustBuffer {
             FfiConverterUInt32.write(totalCount, into: &buf)
             
         
-        case .done:
+        case .error:
             writeInt(&buf, Int32(4))
+        
+        
+        case .done:
+            writeInt(&buf, Int32(5))
         
         }
     }
@@ -13537,6 +13543,65 @@ public func FfiConverterTypeStateEventType_lower(_ value: StateEventType) -> Rus
 extension StateEventType: Equatable, Hashable {}
 
 
+
+public enum SteadyStateError {
+
+    
+    
+    case BackupDisabled
+    case Connection
+    case Laged
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeSteadyStateError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeSteadyStateError: FfiConverterRustBuffer {
+    typealias SwiftType = SteadyStateError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SteadyStateError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .BackupDisabled
+        case 2: return .Connection
+        case 3: return .Laged
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SteadyStateError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case .BackupDisabled:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .Connection:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .Laged:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+extension SteadyStateError: Equatable, Hashable {}
+
+extension SteadyStateError: Error { }
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -18127,7 +18192,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 55362) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 57865) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 37083) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_can_be_replied_to() != 42286) {
