@@ -639,7 +639,7 @@ public protocol ClientProtocol : AnyObject {
     func encryption()  -> Encryption
     func getDmRoom(userId: String) throws  -> Room?
     func getMediaContent(mediaSource: MediaSource) throws  -> Data
-    func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, tempDir: String?) throws  -> MediaFileHandle
+    func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) throws  -> MediaFileHandle
     func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) throws  -> Data
     func getNotificationSettings()  -> NotificationSettings
     func getProfile(userId: String) throws  -> UserProfile
@@ -791,7 +791,7 @@ public class Client: ClientProtocol {
         )
     }
 
-    public func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, tempDir: String?) throws  -> MediaFileHandle {
+    public func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) throws  -> MediaFileHandle {
         return try  FfiConverterTypeMediaFileHandle.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -799,6 +799,7 @@ public class Client: ClientProtocol {
         FfiConverterTypeMediaSource.lower(mediaSource),
         FfiConverterOptionString.lower(body),
         FfiConverterString.lower(mimeType),
+        FfiConverterBool.lower(useCache),
         FfiConverterOptionString.lower(tempDir),$0
     )
 }
@@ -1345,6 +1346,7 @@ public func FfiConverterTypeClientBuilder_lower(_ value: ClientBuilder) -> Unsaf
 
 
 public protocol EncryptionProtocol : AnyObject {
+    func backupExistsOnServer() async throws  -> Bool
     func backupState()  -> BackupState
     func backupStateListener(listener: BackupStateListener)  -> TaskHandle
     func disableRecovery() async throws 
@@ -1377,6 +1379,23 @@ public class Encryption: EncryptionProtocol {
     
 
     
+    
+
+    public func backupExistsOnServer() async throws  -> Bool {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_backup_exists_on_server(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
     
 
     public func backupState()  -> BackupState {
@@ -1970,7 +1989,8 @@ public func FfiConverterTypeHomeserverLoginDetails_lower(_ value: HomeserverLogi
 
 
 public protocol MediaFileHandleProtocol : AnyObject {
-    func path()  -> String
+    func path() throws  -> String
+    func persist(path: String) throws  -> Bool
     
 }
 
@@ -1993,12 +2013,22 @@ public class MediaFileHandle: MediaFileHandleProtocol {
     
     
 
-    public func path()  -> String {
-        return try!  FfiConverterString.lift(
-            try! 
-    rustCall() {
-    
+    public func path() throws  -> String {
+        return try  FfiConverterString.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_mediafilehandle_path(self.pointer, $0
+    )
+}
+        )
+    }
+
+    public func persist(path: String) throws  -> Bool {
+        return try  FfiConverterBool.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_mediafilehandle_persist(self.pointer, 
+        FfiConverterString.lower(path),$0
     )
 }
         )
@@ -7468,14 +7498,16 @@ public struct NotificationItem {
     public var senderInfo: NotificationSenderInfo
     public var roomInfo: NotificationRoomInfo
     public var isNoisy: Bool?
+    public var hasMention: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(event: NotificationEvent, senderInfo: NotificationSenderInfo, roomInfo: NotificationRoomInfo, isNoisy: Bool?) {
+    public init(event: NotificationEvent, senderInfo: NotificationSenderInfo, roomInfo: NotificationRoomInfo, isNoisy: Bool?, hasMention: Bool?) {
         self.event = event
         self.senderInfo = senderInfo
         self.roomInfo = roomInfo
         self.isNoisy = isNoisy
+        self.hasMention = hasMention
     }
 }
 
@@ -7488,7 +7520,8 @@ public struct FfiConverterTypeNotificationItem: FfiConverterRustBuffer {
                 event: FfiConverterTypeNotificationEvent.read(from: &buf), 
                 senderInfo: FfiConverterTypeNotificationSenderInfo.read(from: &buf), 
                 roomInfo: FfiConverterTypeNotificationRoomInfo.read(from: &buf), 
-                isNoisy: FfiConverterOptionBool.read(from: &buf)
+                isNoisy: FfiConverterOptionBool.read(from: &buf), 
+                hasMention: FfiConverterOptionBool.read(from: &buf)
         )
     }
 
@@ -7497,6 +7530,7 @@ public struct FfiConverterTypeNotificationItem: FfiConverterRustBuffer {
         FfiConverterTypeNotificationSenderInfo.write(value.senderInfo, into: &buf)
         FfiConverterTypeNotificationRoomInfo.write(value.roomInfo, into: &buf)
         FfiConverterOptionBool.write(value.isNoisy, into: &buf)
+        FfiConverterOptionBool.write(value.hasMention, into: &buf)
     }
 }
 
@@ -10036,7 +10070,6 @@ public enum BackupState {
     case enabled
     case downloading
     case disabling
-    case disabled
 }
 
 public struct FfiConverterTypeBackupState: FfiConverterRustBuffer {
@@ -10059,8 +10092,6 @@ public struct FfiConverterTypeBackupState: FfiConverterRustBuffer {
         case 6: return .downloading
         
         case 7: return .disabling
-        
-        case 8: return .disabled
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -10096,10 +10127,6 @@ public struct FfiConverterTypeBackupState: FfiConverterRustBuffer {
         
         case .disabling:
             writeInt(&buf, Int32(7))
-        
-        
-        case .disabled:
-            writeInt(&buf, Int32(8))
         
         }
     }
@@ -11920,7 +11947,7 @@ extension OtherState: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum PaginationOptions {
     
-    case singleRequest(eventLimit: UInt16, waitForToken: Bool)
+    case simpleRequest(eventLimit: UInt16, waitForToken: Bool)
     case untilNumItems(eventLimit: UInt16, items: UInt16, waitForToken: Bool)
 }
 
@@ -11931,7 +11958,7 @@ public struct FfiConverterTypePaginationOptions: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .singleRequest(
+        case 1: return .simpleRequest(
             eventLimit: try FfiConverterUInt16.read(from: &buf), 
             waitForToken: try FfiConverterBool.read(from: &buf)
         )
@@ -11950,7 +11977,7 @@ public struct FfiConverterTypePaginationOptions: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .singleRequest(eventLimit,waitForToken):
+        case let .simpleRequest(eventLimit,waitForToken):
             writeInt(&buf, Int32(1))
             FfiConverterUInt16.write(eventLimit, into: &buf)
             FfiConverterBool.write(waitForToken, into: &buf)
@@ -17903,7 +17930,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 25167) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 23010) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 60005) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 51889) {
@@ -18017,6 +18044,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 64379) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_exists_on_server() != 17130) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state() != 13611) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18110,7 +18140,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 40398) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 57070) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 2500) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_persist() != 4346) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_message_body() != 2560) {
