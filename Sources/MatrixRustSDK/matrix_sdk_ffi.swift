@@ -2472,6 +2472,7 @@ public func FfiConverterTypeNotificationClientBuilder_lower(_ value: Notificatio
 
 
 public protocol NotificationSettingsProtocol : AnyObject {
+    func canHomeserverPushEncryptedEventToDevice() async  -> Bool
     func containsKeywordsRules() async  -> Bool
     func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode
     func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  -> RoomNotificationSettings
@@ -2508,6 +2509,24 @@ public class NotificationSettings: NotificationSettingsProtocol {
     
 
     
+    
+
+    public func canHomeserverPushEncryptedEventToDevice() async  -> Bool {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_can_homeserver_push_encrypted_event_to_device(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: nil
+            
+        )
+    }
+
     
 
     public func containsKeywordsRules() async  -> Bool {
@@ -17706,6 +17725,14 @@ public func generateWebviewUrl(widgetSettings: WidgetSettings, room: Room, props
 
 
 
+public func getElementCallRequiredPermissions()  -> WidgetCapabilities {
+    return try!  FfiConverterTypeWidgetCapabilities.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_get_element_call_required_permissions($0)
+}
+    )
+}
+
 public func logEvent(file: String, line: UInt32?, level: LogLevel, target: String, message: String)  {
     try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_log_event(
@@ -17838,6 +17865,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_generate_webview_url() != 16581) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_func_get_element_call_required_permissions() != 51289) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 58164) {
@@ -18168,6 +18198,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_finish() != 12382) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_homeserver_push_encrypted_event_to_device() != 22382) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 42972) {
