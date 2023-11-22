@@ -287,7 +287,7 @@ private func uniffiCheckCallStatus(
             }
 
         case CALL_CANCELLED:
-                throw fatalError("Cancellation not supported yet")
+            fatalError("Cancellation not supported yet")
 
         default:
             throw UniffiInternalError.unexpectedRustCallStatusCode
@@ -498,7 +498,8 @@ public protocol AuthenticationServiceProtocol : AnyObject {
     
 }
 
-public class AuthenticationService: AuthenticationServiceProtocol {
+public class AuthenticationService:
+    AuthenticationServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -584,6 +585,7 @@ public class AuthenticationService: AuthenticationServiceProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeAuthenticationService: FfiConverter {
@@ -666,7 +668,8 @@ public protocol ClientProtocol : AnyObject {
     
 }
 
-public class Client: ClientProtocol {
+public class Client:
+    ClientProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -1051,6 +1054,7 @@ public class Client: ClientProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeClient: FfiConverter {
@@ -1113,7 +1117,8 @@ public protocol ClientBuilderProtocol : AnyObject {
     
 }
 
-public class ClientBuilder: ClientBuilderProtocol {
+public class ClientBuilder:
+    ClientBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -1301,6 +1306,7 @@ public class ClientBuilder: ClientBuilderProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeClientBuilder: FfiConverter {
@@ -1362,7 +1368,8 @@ public protocol EncryptionProtocol : AnyObject {
     
 }
 
-public class Encryption: EncryptionProtocol {
+public class Encryption:
+    EncryptionProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -1584,6 +1591,7 @@ public class Encryption: EncryptionProtocol {
     }
 
     
+
 }
 
 public struct FfiConverterTypeEncryption: FfiConverter {
@@ -1648,7 +1656,8 @@ public protocol EventTimelineItemProtocol : AnyObject {
     
 }
 
-public class EventTimelineItem: EventTimelineItemProtocol {
+public class EventTimelineItem:
+    EventTimelineItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -1842,6 +1851,7 @@ public class EventTimelineItem: EventTimelineItemProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeEventTimelineItem: FfiConverter {
@@ -1893,7 +1903,8 @@ public protocol HomeserverLoginDetailsProtocol : AnyObject {
     
 }
 
-public class HomeserverLoginDetails: HomeserverLoginDetailsProtocol {
+public class HomeserverLoginDetails:
+    HomeserverLoginDetailsProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -1944,6 +1955,7 @@ public class HomeserverLoginDetails: HomeserverLoginDetailsProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeHomeserverLoginDetails: FfiConverter {
@@ -1994,7 +2006,8 @@ public protocol MediaFileHandleProtocol : AnyObject {
     
 }
 
-public class MediaFileHandle: MediaFileHandleProtocol {
+public class MediaFileHandle:
+    MediaFileHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -2033,6 +2046,7 @@ public class MediaFileHandle: MediaFileHandleProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeMediaFileHandle: FfiConverter {
@@ -2083,7 +2097,8 @@ public protocol MediaSourceProtocol : AnyObject {
     
 }
 
-public class MediaSource: MediaSourceProtocol {
+public class MediaSource:
+    MediaSourceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -2132,6 +2147,7 @@ public class MediaSource: MediaSourceProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeMediaSource: FfiConverter {
@@ -2185,7 +2201,8 @@ public protocol MessageProtocol : AnyObject {
     
 }
 
-public class Message: MessageProtocol {
+public class Message:
+    MessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -2258,6 +2275,7 @@ public class Message: MessageProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeMessage: FfiConverter {
@@ -2307,7 +2325,8 @@ public protocol NotificationClientProtocol : AnyObject {
     
 }
 
-public class NotificationClient: NotificationClientProtocol {
+public class NotificationClient:
+    NotificationClientProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -2337,6 +2356,7 @@ public class NotificationClient: NotificationClientProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeNotificationClient: FfiConverter {
@@ -2387,7 +2407,8 @@ public protocol NotificationClientBuilderProtocol : AnyObject {
     
 }
 
-public class NotificationClientBuilder: NotificationClientBuilderProtocol {
+public class NotificationClientBuilder:
+    NotificationClientBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -2427,6 +2448,7 @@ public class NotificationClientBuilder: NotificationClientBuilderProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeNotificationClientBuilder: FfiConverter {
@@ -2492,7 +2514,8 @@ public protocol NotificationSettingsProtocol : AnyObject {
     
 }
 
-public class NotificationSettings: NotificationSettingsProtocol {
+public class NotificationSettings:
+    NotificationSettingsProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -2815,6 +2838,7 @@ public class NotificationSettings: NotificationSettingsProtocol {
     }
 
     
+
 }
 
 public struct FfiConverterTypeNotificationSettings: FfiConverter {
@@ -2864,7 +2888,8 @@ public protocol OidcAuthenticationDataProtocol : AnyObject {
     
 }
 
-public class OidcAuthenticationData: OidcAuthenticationDataProtocol {
+public class OidcAuthenticationData:
+    OidcAuthenticationDataProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -2893,6 +2918,7 @@ public class OidcAuthenticationData: OidcAuthenticationDataProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeOidcAuthenticationData: FfiConverter {
@@ -2955,6 +2981,7 @@ public protocol RoomProtocol : AnyObject {
     func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws 
     func displayName() throws  -> String
     func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws 
+    func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) throws 
     func endPoll(pollStartId: String, text: String) throws 
     func fetchDetailsForEvent(eventId: String) throws 
     func fetchMembers() async throws 
@@ -3009,7 +3036,8 @@ public protocol RoomProtocol : AnyObject {
     
 }
 
-public class Room: RoomProtocol {
+public class Room:
+    RoomProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -3267,6 +3295,19 @@ public class Room: RoomProtocol {
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_edit(self.pointer, 
         FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(newContent),
+        FfiConverterTypeEventTimelineItem.lower(editItem),$0
+    )
+}
+    }
+
+    public func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_room_edit_poll(self.pointer, 
+        FfiConverterString.lower(question),
+        FfiConverterSequenceString.lower(answers),
+        FfiConverterUInt8.lower(maxSelections),
+        FfiConverterTypePollKind.lower(pollKind),
         FfiConverterTypeEventTimelineItem.lower(editItem),$0
     )
 }
@@ -3845,6 +3886,7 @@ public class Room: RoomProtocol {
     )
 }
     }
+
 }
 
 public struct FfiConverterTypeRoom: FfiConverter {
@@ -3897,7 +3939,8 @@ public protocol RoomListProtocol : AnyObject {
     
 }
 
-public class RoomList: RoomListProtocol {
+public class RoomList:
+    RoomListProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -3962,6 +4005,7 @@ public class RoomList: RoomListProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeRoomList: FfiConverter {
@@ -4013,7 +4057,8 @@ public protocol RoomListDynamicEntriesControllerProtocol : AnyObject {
     
 }
 
-public class RoomListDynamicEntriesController: RoomListDynamicEntriesControllerProtocol {
+public class RoomListDynamicEntriesController:
+    RoomListDynamicEntriesControllerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -4061,6 +4106,7 @@ public class RoomListDynamicEntriesController: RoomListDynamicEntriesControllerP
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeRoomListDynamicEntriesController: FfiConverter {
@@ -4122,7 +4168,8 @@ public protocol RoomListItemProtocol : AnyObject {
     
 }
 
-public class RoomListItem: RoomListItemProtocol {
+public class RoomListItem:
+    RoomListItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -4300,6 +4347,7 @@ public class RoomListItem: RoomListItemProtocol {
     )
 }
     }
+
 }
 
 public struct FfiConverterTypeRoomListItem: FfiConverter {
@@ -4354,7 +4402,8 @@ public protocol RoomListServiceProtocol : AnyObject {
     
 }
 
-public class RoomListService: RoomListServiceProtocol {
+public class RoomListService:
+    RoomListServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -4461,6 +4510,7 @@ public class RoomListService: RoomListServiceProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeRoomListService: FfiConverter {
@@ -4527,7 +4577,8 @@ public protocol RoomMemberProtocol : AnyObject {
     
 }
 
-public class RoomMember: RoomMemberProtocol {
+public class RoomMember:
+    RoomMemberProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -4739,6 +4790,7 @@ public class RoomMember: RoomMemberProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeRoomMember: FfiConverter {
@@ -4789,7 +4841,8 @@ public protocol RoomMembersIteratorProtocol : AnyObject {
     
 }
 
-public class RoomMembersIterator: RoomMembersIteratorProtocol {
+public class RoomMembersIterator:
+    RoomMembersIteratorProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -4830,6 +4883,7 @@ public class RoomMembersIterator: RoomMembersIteratorProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeRoomMembersIterator: FfiConverter {
@@ -4879,7 +4933,8 @@ public protocol RoomMessageEventContentWithoutRelationProtocol : AnyObject {
     
 }
 
-public class RoomMessageEventContentWithoutRelation: RoomMessageEventContentWithoutRelationProtocol {
+public class RoomMessageEventContentWithoutRelation:
+    RoomMessageEventContentWithoutRelationProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -4909,6 +4964,7 @@ public class RoomMessageEventContentWithoutRelation: RoomMessageEventContentWith
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeRoomMessageEventContentWithoutRelation: FfiConverter {
@@ -4959,7 +5015,8 @@ public protocol SendAttachmentJoinHandleProtocol : AnyObject {
     
 }
 
-public class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol {
+public class SendAttachmentJoinHandle:
+    SendAttachmentJoinHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5003,6 +5060,7 @@ public class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol {
     }
 
     
+
 }
 
 public struct FfiConverterTypeSendAttachmentJoinHandle: FfiConverter {
@@ -5058,7 +5116,8 @@ public protocol SessionVerificationControllerProtocol : AnyObject {
     
 }
 
-public class SessionVerificationController: SessionVerificationControllerProtocol {
+public class SessionVerificationController:
+    SessionVerificationControllerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5188,6 +5247,7 @@ public class SessionVerificationController: SessionVerificationControllerProtoco
     }
 
     
+
 }
 
 public struct FfiConverterTypeSessionVerificationController: FfiConverter {
@@ -5238,7 +5298,8 @@ public protocol SessionVerificationEmojiProtocol : AnyObject {
     
 }
 
-public class SessionVerificationEmoji: SessionVerificationEmojiProtocol {
+public class SessionVerificationEmoji:
+    SessionVerificationEmojiProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5278,6 +5339,7 @@ public class SessionVerificationEmoji: SessionVerificationEmojiProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeSessionVerificationEmoji: FfiConverter {
@@ -5329,7 +5391,8 @@ public protocol SpanProtocol : AnyObject {
     
 }
 
-public class Span: SpanProtocol {
+public class Span:
+    SpanProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5394,6 +5457,7 @@ public class Span: SpanProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeSpan: FfiConverter {
@@ -5446,7 +5510,8 @@ public protocol SyncServiceProtocol : AnyObject {
     
 }
 
-public class SyncService: SyncServiceProtocol {
+public class SyncService:
+    SyncServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5522,6 +5587,7 @@ public class SyncService: SyncServiceProtocol {
     }
 
     
+
 }
 
 public struct FfiConverterTypeSyncService: FfiConverter {
@@ -5572,7 +5638,8 @@ public protocol SyncServiceBuilderProtocol : AnyObject {
     
 }
 
-public class SyncServiceBuilder: SyncServiceBuilderProtocol {
+public class SyncServiceBuilder:
+    SyncServiceBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5619,6 +5686,7 @@ public class SyncServiceBuilder: SyncServiceBuilderProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeSyncServiceBuilder: FfiConverter {
@@ -5669,7 +5737,8 @@ public protocol TaskHandleProtocol : AnyObject {
     
 }
 
-public class TaskHandle: TaskHandleProtocol {
+public class TaskHandle:
+    TaskHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5707,6 +5776,7 @@ public class TaskHandle: TaskHandleProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeTaskHandle: FfiConverter {
@@ -5763,7 +5833,8 @@ public protocol TimelineDiffProtocol : AnyObject {
     
 }
 
-public class TimelineDiff: TimelineDiffProtocol {
+public class TimelineDiff:
+    TimelineDiffProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5869,6 +5940,7 @@ public class TimelineDiff: TimelineDiffProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeTimelineDiff: FfiConverter {
@@ -5921,7 +5993,8 @@ public protocol TimelineEventProtocol : AnyObject {
     
 }
 
-public class TimelineEvent: TimelineEventProtocol {
+public class TimelineEvent:
+    TimelineEventProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -5982,6 +6055,7 @@ public class TimelineEvent: TimelineEventProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeTimelineEvent: FfiConverter {
@@ -6034,7 +6108,8 @@ public protocol TimelineItemProtocol : AnyObject {
     
 }
 
-public class TimelineItem: TimelineItemProtocol {
+public class TimelineItem:
+    TimelineItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -6096,6 +6171,7 @@ public class TimelineItem: TimelineItemProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeTimelineItem: FfiConverter {
@@ -6146,7 +6222,8 @@ public protocol TimelineItemContentProtocol : AnyObject {
     
 }
 
-public class TimelineItemContent: TimelineItemContentProtocol {
+public class TimelineItemContent:
+    TimelineItemContentProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -6186,6 +6263,7 @@ public class TimelineItemContent: TimelineItemContentProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeTimelineItemContent: FfiConverter {
@@ -6237,7 +6315,8 @@ public protocol UnreadNotificationsCountProtocol : AnyObject {
     
 }
 
-public class UnreadNotificationsCount: UnreadNotificationsCountProtocol {
+public class UnreadNotificationsCount:
+    UnreadNotificationsCountProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -6288,6 +6367,7 @@ public class UnreadNotificationsCount: UnreadNotificationsCountProtocol {
 }
         )
     }
+
 }
 
 public struct FfiConverterTypeUnreadNotificationsCount: FfiConverter {
@@ -6337,7 +6417,8 @@ public protocol WidgetDriverProtocol : AnyObject {
     
 }
 
-public class WidgetDriver: WidgetDriverProtocol {
+public class WidgetDriver:
+    WidgetDriverProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -6375,6 +6456,7 @@ public class WidgetDriver: WidgetDriverProtocol {
     }
 
     
+
 }
 
 public struct FfiConverterTypeWidgetDriver: FfiConverter {
@@ -6425,7 +6507,8 @@ public protocol WidgetDriverHandleProtocol : AnyObject {
     
 }
 
-public class WidgetDriverHandle: WidgetDriverHandleProtocol {
+public class WidgetDriverHandle:
+    WidgetDriverHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
@@ -6480,6 +6563,7 @@ public class WidgetDriverHandle: WidgetDriverHandleProtocol {
     }
 
     
+
 }
 
 public struct FfiConverterTypeWidgetDriverHandle: FfiConverter {
@@ -14079,7 +14163,7 @@ public enum TimelineItemContentKind {
     case message
     case redactedMessage
     case sticker(body: String, info: ImageInfo, url: String)
-    case poll(question: String, kind: PollKind, maxSelections: UInt64, answers: [PollAnswer], votes: [String: [String]], endTime: UInt64?)
+    case poll(question: String, kind: PollKind, maxSelections: UInt64, answers: [PollAnswer], votes: [String: [String]], endTime: UInt64?, hasBeenEdited: Bool)
     case unableToDecrypt(msg: EncryptedMessage)
     case roomMembership(userId: String, change: MembershipChange?)
     case profileChange(displayName: String?, prevDisplayName: String?, avatarUrl: String?, prevAvatarUrl: String?)
@@ -14111,7 +14195,8 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
             maxSelections: try FfiConverterUInt64.read(from: &buf), 
             answers: try FfiConverterSequenceTypePollAnswer.read(from: &buf), 
             votes: try FfiConverterDictionaryStringSequenceString.read(from: &buf), 
-            endTime: try FfiConverterOptionUInt64.read(from: &buf)
+            endTime: try FfiConverterOptionUInt64.read(from: &buf), 
+            hasBeenEdited: try FfiConverterBool.read(from: &buf)
         )
         
         case 5: return .unableToDecrypt(
@@ -14169,7 +14254,7 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
             FfiConverterString.write(url, into: &buf)
             
         
-        case let .poll(question,kind,maxSelections,answers,votes,endTime):
+        case let .poll(question,kind,maxSelections,answers,votes,endTime,hasBeenEdited):
             writeInt(&buf, Int32(4))
             FfiConverterString.write(question, into: &buf)
             FfiConverterTypePollKind.write(kind, into: &buf)
@@ -14177,6 +14262,7 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
             FfiConverterSequenceTypePollAnswer.write(answers, into: &buf)
             FfiConverterDictionaryStringSequenceString.write(votes, into: &buf)
             FfiConverterOptionUInt64.write(endTime, into: &buf)
+            FfiConverterBool.write(hasBeenEdited, into: &buf)
             
         
         case let .unableToDecrypt(msg):
@@ -18303,6 +18389,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 38490) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit_poll() != 18073) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_end_poll() != 42646) {
