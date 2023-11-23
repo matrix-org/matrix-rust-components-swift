@@ -12722,6 +12722,7 @@ extension RoomError: Error { }
 public enum RoomListEntriesDynamicFilterKind {
     
     case all
+    case allNonLeft
     case none
     case normalizedMatchRoomName(pattern: String)
     case fuzzyMatchRoomName(pattern: String)
@@ -12736,13 +12737,15 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
         
         case 1: return .all
         
-        case 2: return .none
+        case 2: return .allNonLeft
         
-        case 3: return .normalizedMatchRoomName(
+        case 3: return .none
+        
+        case 4: return .normalizedMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
-        case 4: return .fuzzyMatchRoomName(
+        case 5: return .fuzzyMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
@@ -12758,17 +12761,21 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
             writeInt(&buf, Int32(1))
         
         
-        case .none:
+        case .allNonLeft:
             writeInt(&buf, Int32(2))
         
         
-        case let .normalizedMatchRoomName(pattern):
+        case .none:
             writeInt(&buf, Int32(3))
+        
+        
+        case let .normalizedMatchRoomName(pattern):
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(pattern, into: &buf)
             
         
         case let .fuzzyMatchRoomName(pattern):
-            writeInt(&buf, Int32(4))
+            writeInt(&buf, Int32(5))
             FfiConverterString.write(pattern, into: &buf)
             
         }
