@@ -1358,8 +1358,8 @@ public protocol EncryptionProtocol : AnyObject {
     func disableRecovery() async throws 
     func enableBackups() async throws 
     func enableRecovery(waitForBackupsToUpload: Bool, progressListener: EnableRecoveryProgressListener) async throws  -> String
-    func fixRecoveryIssues(recoveryKey: String) async throws 
     func isLastDevice() async throws  -> Bool
+    func recover(recoveryKey: String) async throws 
     func recoverAndReset(oldRecoveryKey: String) async throws  -> String
     func recoveryState()  -> RecoveryState
     func recoveryStateListener(listener: RecoveryStateListener)  -> TaskHandle
@@ -1481,24 +1481,6 @@ public class Encryption:
 
     
 
-    public func fixRecoveryIssues(recoveryKey: String) async throws  {
-        return try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_encryption_fix_recovery_issues(
-                    self.pointer,
-                    FfiConverterString.lower(recoveryKey)
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
-        )
-    }
-
-    
-
     public func isLastDevice() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1510,6 +1492,24 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
             liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func recover(recoveryKey: String) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_recover(
+                    self.pointer,
+                    FfiConverterString.lower(recoveryKey)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
             errorHandler: FfiConverterTypeClientError.lift
         )
     }
@@ -2966,7 +2966,6 @@ public func FfiConverterTypeOidcAuthenticationData_lower(_ value: OidcAuthentica
 public protocol RoomProtocol : AnyObject {
     func activeMembersCount()  -> UInt64
     func activeRoomCallParticipants()  -> [String]
-    func addTimelineListener(listener: TimelineListener) async  -> RoomTimelineListenerResult
     func alternativeAliases()  -> [String]
     func avatarUrl()  -> String?
     func canUserBan(userId: String) async throws  -> Bool
@@ -2976,17 +2975,8 @@ public protocol RoomProtocol : AnyObject {
     func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws  -> Bool
     func canUserSendState(userId: String, stateEvent: StateEventType) async throws  -> Bool
     func canUserTriggerRoomNotification(userId: String) async throws  -> Bool
-    func cancelSend(txnId: String) 
     func canonicalAlias()  -> String?
-    func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws 
     func displayName() throws  -> String
-    func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws 
-    func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) throws 
-    func endPoll(pollStartId: String, text: String) throws 
-    func fetchDetailsForEvent(eventId: String) throws 
-    func fetchMembers() async throws 
-    func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem
-    func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation
     func hasActiveRoomCall()  -> Bool
     func id()  -> String
     func ignoreUser(userId: String) throws 
@@ -3008,29 +2998,15 @@ public protocol RoomProtocol : AnyObject {
     func membership()  -> Membership
     func name()  -> String?
     func ownUserId()  -> String
-    func paginateBackwards(opts: PaginationOptions) throws 
+    func pollHistory() async  -> Timeline
     func redact(eventId: String, reason: String?) throws 
     func removeAvatar() throws 
-    func removeTimeline() 
     func reportContent(eventId: String, score: Int32?, reason: String?) throws 
-    func retryDecryption(sessionIds: [String]) 
-    func retrySend(txnId: String) 
     func roomInfo() async throws  -> RoomInfo
-    func send(msg: RoomMessageEventContentWithoutRelation) 
-    func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
-    func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
-    func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
-    func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?) 
-    func sendPollResponse(pollStartId: String, answers: [String]) throws 
-    func sendReadReceipt(eventId: String) throws 
-    func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws 
-    func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
-    func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
     func setName(name: String) throws 
     func setTopic(topic: String) throws 
-    func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle
-    func toggleReaction(eventId: String, key: String) throws 
+    func timeline() async  -> Timeline
     func topic()  -> String?
     func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws 
     
@@ -3077,25 +3053,6 @@ public class Room:
 }
         )
     }
-
-    public func addTimelineListener(listener: TimelineListener) async  -> RoomTimelineListenerResult {
-        return try!  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_add_timeline_listener(
-                    self.pointer,
-                    FfiConverterCallbackInterfaceTimelineListener.lower(listener)
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeRoomTimelineListenerResult.lift,
-            errorHandler: nil
-            
-        )
-    }
-
-    
 
     public func alternativeAliases()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
@@ -3247,16 +3204,6 @@ public class Room:
 
     
 
-    public func cancelSend(txnId: String)  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_cancel_send(self.pointer, 
-        FfiConverterString.lower(txnId),$0
-    )
-}
-    }
-
     public func canonicalAlias()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
@@ -3268,104 +3215,11 @@ public class Room:
         )
     }
 
-    public func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_create_poll(self.pointer, 
-        FfiConverterString.lower(question),
-        FfiConverterSequenceString.lower(answers),
-        FfiConverterUInt8.lower(maxSelections),
-        FfiConverterTypePollKind.lower(pollKind),$0
-    )
-}
-    }
-
     public func displayName() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_display_name(self.pointer, $0
-    )
-}
-        )
-    }
-
-    public func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_edit(self.pointer, 
-        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(newContent),
-        FfiConverterTypeEventTimelineItem.lower(editItem),$0
-    )
-}
-    }
-
-    public func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_edit_poll(self.pointer, 
-        FfiConverterString.lower(question),
-        FfiConverterSequenceString.lower(answers),
-        FfiConverterUInt8.lower(maxSelections),
-        FfiConverterTypePollKind.lower(pollKind),
-        FfiConverterTypeEventTimelineItem.lower(editItem),$0
-    )
-}
-    }
-
-    public func endPoll(pollStartId: String, text: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_end_poll(self.pointer, 
-        FfiConverterString.lower(pollStartId),
-        FfiConverterString.lower(text),$0
-    )
-}
-    }
-
-    public func fetchDetailsForEvent(eventId: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_fetch_details_for_event(self.pointer, 
-        FfiConverterString.lower(eventId),$0
-    )
-}
-    }
-
-    public func fetchMembers() async throws  {
-        return try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_fetch_members(
-                    self.pointer
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
-        )
-    }
-
-    
-
-    public func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem {
-        return try  FfiConverterTypeEventTimelineItem.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_get_event_timeline_item_by_event_id(self.pointer, 
-        FfiConverterString.lower(eventId),$0
-    )
-}
-        )
-    }
-
-    public func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation {
-        return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_get_timeline_event_content_by_event_id(self.pointer, 
-        FfiConverterString.lower(eventId),$0
     )
 }
         )
@@ -3604,14 +3458,23 @@ public class Room:
         )
     }
 
-    public func paginateBackwards(opts: PaginationOptions) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_paginate_backwards(self.pointer, 
-        FfiConverterTypePaginationOptions.lower(opts),$0
-    )
-}
+    public func pollHistory() async  -> Timeline {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_poll_history(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeTimeline.lift,
+            errorHandler: nil
+            
+        )
     }
+
+    
 
     public func redact(eventId: String, reason: String?) throws  {
         try 
@@ -3631,15 +3494,6 @@ public class Room:
 }
     }
 
-    public func removeTimeline()  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_remove_timeline(self.pointer, $0
-    )
-}
-    }
-
     public func reportContent(eventId: String, score: Int32?, reason: String?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -3647,26 +3501,6 @@ public class Room:
         FfiConverterString.lower(eventId),
         FfiConverterOptionInt32.lower(score),
         FfiConverterOptionString.lower(reason),$0
-    )
-}
-    }
-
-    public func retryDecryption(sessionIds: [String])  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_retry_decryption(self.pointer, 
-        FfiConverterSequenceString.lower(sessionIds),$0
-    )
-}
-    }
-
-    public func retrySend(txnId: String)  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_retry_send(self.pointer, 
-        FfiConverterString.lower(txnId),$0
     )
 }
     }
@@ -3688,132 +3522,6 @@ public class Room:
 
     
 
-    public func send(msg: RoomMessageEventContentWithoutRelation)  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_send(self.pointer, 
-        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),$0
-    )
-}
-    }
-
-    public func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
-        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_send_audio(self.pointer, 
-        FfiConverterString.lower(url),
-        FfiConverterTypeAudioInfo.lower(audioInfo),
-        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
-    )
-}
-        )
-    }
-
-    public func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
-        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_send_file(self.pointer, 
-        FfiConverterString.lower(url),
-        FfiConverterTypeFileInfo.lower(fileInfo),
-        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
-    )
-}
-        )
-    }
-
-    public func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
-        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_send_image(self.pointer, 
-        FfiConverterString.lower(url),
-        FfiConverterString.lower(thumbnailUrl),
-        FfiConverterTypeImageInfo.lower(imageInfo),
-        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
-    )
-}
-        )
-    }
-
-    public func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?)  {
-        try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_send_location(self.pointer, 
-        FfiConverterString.lower(body),
-        FfiConverterString.lower(geoUri),
-        FfiConverterOptionString.lower(description),
-        FfiConverterOptionUInt8.lower(zoomLevel),
-        FfiConverterOptionTypeAssetType.lower(assetType),$0
-    )
-}
-    }
-
-    public func sendPollResponse(pollStartId: String, answers: [String]) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_send_poll_response(self.pointer, 
-        FfiConverterString.lower(pollStartId),
-        FfiConverterSequenceString.lower(answers),$0
-    )
-}
-    }
-
-    public func sendReadReceipt(eventId: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_send_read_receipt(self.pointer, 
-        FfiConverterString.lower(eventId),$0
-    )
-}
-    }
-
-    public func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_send_reply(self.pointer, 
-        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),
-        FfiConverterTypeEventTimelineItem.lower(replyItem),$0
-    )
-}
-    }
-
-    public func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
-        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_send_video(self.pointer, 
-        FfiConverterString.lower(url),
-        FfiConverterString.lower(thumbnailUrl),
-        FfiConverterTypeVideoInfo.lower(videoInfo),
-        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
-    )
-}
-        )
-    }
-
-    public func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
-        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_send_voice_message(self.pointer, 
-        FfiConverterString.lower(url),
-        FfiConverterTypeAudioInfo.lower(audioInfo),
-        FfiConverterSequenceUInt16.lower(waveform),
-        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
-    )
-}
-        )
-    }
-
     public func setName(name: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -3832,17 +3540,6 @@ public class Room:
 }
     }
 
-    public func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle {
-        return try  FfiConverterTypeTaskHandle.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_back_pagination_status(self.pointer, 
-        FfiConverterCallbackInterfaceBackPaginationStatusListener.lower(listener),$0
-    )
-}
-        )
-    }
-
     public func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
@@ -3855,15 +3552,23 @@ public class Room:
         )
     }
 
-    public func toggleReaction(eventId: String, key: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_toggle_reaction(self.pointer, 
-        FfiConverterString.lower(eventId),
-        FfiConverterString.lower(key),$0
-    )
-}
+    public func timeline() async  -> Timeline {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_timeline(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeTimeline.lift,
+            errorHandler: nil
+            
+        )
     }
+
+    
 
     public func topic()  -> String? {
         return try!  FfiConverterOptionString.lift(
@@ -5821,6 +5526,407 @@ public func FfiConverterTypeTaskHandle_lower(_ value: TaskHandle) -> UnsafeMutab
 
 
 
+public protocol TimelineProtocol : AnyObject {
+    func addListener(listener: TimelineListener) async  -> RoomTimelineListenerResult
+    func cancelSend(txnId: String) 
+    func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws 
+    func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws 
+    func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) async throws 
+    func endPoll(pollStartId: String, text: String) throws 
+    func fetchDetailsForEvent(eventId: String) throws 
+    func fetchMembers() async 
+    func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem
+    func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation
+    func paginateBackwards(opts: PaginationOptions) throws 
+    func retryDecryption(sessionIds: [String]) 
+    func retrySend(txnId: String) 
+    func send(msg: RoomMessageEventContentWithoutRelation) 
+    func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?) 
+    func sendPollResponse(pollStartId: String, answers: [String]) throws 
+    func sendReadReceipt(eventId: String) throws 
+    func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws 
+    func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle
+    func toggleReaction(eventId: String, key: String) throws 
+    
+}
+
+public class Timeline:
+    TimelineProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timeline(pointer, $0) }
+    }
+
+    
+
+    
+    
+
+    public func addListener(listener: TimelineListener) async  -> RoomTimelineListenerResult {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_add_listener(
+                    self.pointer,
+                    FfiConverterCallbackInterfaceTimelineListener.lower(listener)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomTimelineListenerResult.lift,
+            errorHandler: nil
+            
+        )
+    }
+
+    
+
+    public func cancelSend(txnId: String)  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_cancel_send(self.pointer, 
+        FfiConverterString.lower(txnId),$0
+    )
+}
+    }
+
+    public func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_create_poll(self.pointer, 
+        FfiConverterString.lower(question),
+        FfiConverterSequenceString.lower(answers),
+        FfiConverterUInt8.lower(maxSelections),
+        FfiConverterTypePollKind.lower(pollKind),$0
+    )
+}
+    }
+
+    public func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_edit(self.pointer, 
+        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(newContent),
+        FfiConverterTypeEventTimelineItem.lower(editItem),$0
+    )
+}
+    }
+
+    public func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_edit_poll(
+                    self.pointer,
+                    FfiConverterString.lower(question),
+                    FfiConverterSequenceString.lower(answers),
+                    FfiConverterUInt8.lower(maxSelections),
+                    FfiConverterTypePollKind.lower(pollKind),
+                    FfiConverterTypeEventTimelineItem.lower(editItem)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func endPoll(pollStartId: String, text: String) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_end_poll(self.pointer, 
+        FfiConverterString.lower(pollStartId),
+        FfiConverterString.lower(text),$0
+    )
+}
+    }
+
+    public func fetchDetailsForEvent(eventId: String) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_fetch_details_for_event(self.pointer, 
+        FfiConverterString.lower(eventId),$0
+    )
+}
+    }
+
+    public func fetchMembers() async  {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_fetch_members(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
+        )
+    }
+
+    
+
+    public func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem {
+        return try  FfiConverterTypeEventTimelineItem.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_get_event_timeline_item_by_event_id(self.pointer, 
+        FfiConverterString.lower(eventId),$0
+    )
+}
+        )
+    }
+
+    public func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation {
+        return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_get_timeline_event_content_by_event_id(self.pointer, 
+        FfiConverterString.lower(eventId),$0
+    )
+}
+        )
+    }
+
+    public func paginateBackwards(opts: PaginationOptions) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_paginate_backwards(self.pointer, 
+        FfiConverterTypePaginationOptions.lower(opts),$0
+    )
+}
+    }
+
+    public func retryDecryption(sessionIds: [String])  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_retry_decryption(self.pointer, 
+        FfiConverterSequenceString.lower(sessionIds),$0
+    )
+}
+    }
+
+    public func retrySend(txnId: String)  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_retry_send(self.pointer, 
+        FfiConverterString.lower(txnId),$0
+    )
+}
+    }
+
+    public func send(msg: RoomMessageEventContentWithoutRelation)  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send(self.pointer, 
+        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),$0
+    )
+}
+    }
+
+    public func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_audio(self.pointer, 
+        FfiConverterString.lower(url),
+        FfiConverterTypeAudioInfo.lower(audioInfo),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
+    )
+}
+        )
+    }
+
+    public func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_file(self.pointer, 
+        FfiConverterString.lower(url),
+        FfiConverterTypeFileInfo.lower(fileInfo),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
+    )
+}
+        )
+    }
+
+    public func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_image(self.pointer, 
+        FfiConverterString.lower(url),
+        FfiConverterString.lower(thumbnailUrl),
+        FfiConverterTypeImageInfo.lower(imageInfo),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
+    )
+}
+        )
+    }
+
+    public func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?)  {
+        try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_location(self.pointer, 
+        FfiConverterString.lower(body),
+        FfiConverterString.lower(geoUri),
+        FfiConverterOptionString.lower(description),
+        FfiConverterOptionUInt8.lower(zoomLevel),
+        FfiConverterOptionTypeAssetType.lower(assetType),$0
+    )
+}
+    }
+
+    public func sendPollResponse(pollStartId: String, answers: [String]) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_poll_response(self.pointer, 
+        FfiConverterString.lower(pollStartId),
+        FfiConverterSequenceString.lower(answers),$0
+    )
+}
+    }
+
+    public func sendReadReceipt(eventId: String) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_read_receipt(self.pointer, 
+        FfiConverterString.lower(eventId),$0
+    )
+}
+    }
+
+    public func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_reply(self.pointer, 
+        FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),
+        FfiConverterTypeEventTimelineItem.lower(replyItem),$0
+    )
+}
+    }
+
+    public func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_video(self.pointer, 
+        FfiConverterString.lower(url),
+        FfiConverterString.lower(thumbnailUrl),
+        FfiConverterTypeVideoInfo.lower(videoInfo),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
+    )
+}
+        )
+    }
+
+    public func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+        return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_voice_message(self.pointer, 
+        FfiConverterString.lower(url),
+        FfiConverterTypeAudioInfo.lower(audioInfo),
+        FfiConverterSequenceUInt16.lower(waveform),
+        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
+    )
+}
+        )
+    }
+
+    public func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle {
+        return try  FfiConverterTypeTaskHandle.lift(
+            try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_subscribe_to_back_pagination_status(self.pointer, 
+        FfiConverterCallbackInterfaceBackPaginationStatusListener.lower(listener),$0
+    )
+}
+        )
+    }
+
+    public func toggleReaction(eventId: String, key: String) throws  {
+        try 
+    rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_toggle_reaction(self.pointer, 
+        FfiConverterString.lower(eventId),
+        FfiConverterString.lower(key),$0
+    )
+}
+    }
+
+}
+
+public struct FfiConverterTypeTimeline: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = Timeline
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> Timeline {
+        return Timeline(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: Timeline) -> UnsafeMutableRawPointer {
+        return value.pointer
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Timeline {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: Timeline, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+public func FfiConverterTypeTimeline_lift(_ pointer: UnsafeMutableRawPointer) throws -> Timeline {
+    return try FfiConverterTypeTimeline.lift(pointer)
+}
+
+public func FfiConverterTypeTimeline_lower(_ value: Timeline) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeTimeline.lower(value)
+}
+
+
+
 public protocol TimelineDiffProtocol : AnyObject {
     func append()  -> [TimelineItem]?
     func change()  -> TimelineChange
@@ -6795,10 +6901,11 @@ public struct CreateRoomParameters {
     public var preset: RoomPreset
     public var invite: [String]?
     public var avatar: String?
+    public var powerLevelContentOverride: PowerLevels?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(name: String?, topic: String? = nil, isEncrypted: Bool, isDirect: Bool = false, visibility: RoomVisibility, preset: RoomPreset, invite: [String]? = nil, avatar: String? = nil) {
+    public init(name: String?, topic: String? = nil, isEncrypted: Bool, isDirect: Bool = false, visibility: RoomVisibility, preset: RoomPreset, invite: [String]? = nil, avatar: String? = nil, powerLevelContentOverride: PowerLevels? = nil) {
         self.name = name
         self.topic = topic
         self.isEncrypted = isEncrypted
@@ -6807,6 +6914,7 @@ public struct CreateRoomParameters {
         self.preset = preset
         self.invite = invite
         self.avatar = avatar
+        self.powerLevelContentOverride = powerLevelContentOverride
     }
 }
 
@@ -6837,6 +6945,9 @@ extension CreateRoomParameters: Equatable, Hashable {
         if lhs.avatar != rhs.avatar {
             return false
         }
+        if lhs.powerLevelContentOverride != rhs.powerLevelContentOverride {
+            return false
+        }
         return true
     }
 
@@ -6849,6 +6960,7 @@ extension CreateRoomParameters: Equatable, Hashable {
         hasher.combine(preset)
         hasher.combine(invite)
         hasher.combine(avatar)
+        hasher.combine(powerLevelContentOverride)
     }
 }
 
@@ -6864,7 +6976,8 @@ public struct FfiConverterTypeCreateRoomParameters: FfiConverterRustBuffer {
                 visibility: FfiConverterTypeRoomVisibility.read(from: &buf), 
                 preset: FfiConverterTypeRoomPreset.read(from: &buf), 
                 invite: FfiConverterOptionSequenceString.read(from: &buf), 
-                avatar: FfiConverterOptionString.read(from: &buf)
+                avatar: FfiConverterOptionString.read(from: &buf), 
+                powerLevelContentOverride: FfiConverterOptionTypePowerLevels.read(from: &buf)
         )
     }
 
@@ -6877,6 +6990,7 @@ public struct FfiConverterTypeCreateRoomParameters: FfiConverterRustBuffer {
         FfiConverterTypeRoomPreset.write(value.preset, into: &buf)
         FfiConverterOptionSequenceString.write(value.invite, into: &buf)
         FfiConverterOptionString.write(value.avatar, into: &buf)
+        FfiConverterOptionTypePowerLevels.write(value.powerLevelContentOverride, into: &buf)
     }
 }
 
@@ -7647,6 +7761,54 @@ public func FfiConverterTypeNotificationItem_lower(_ value: NotificationItem) ->
 }
 
 
+public struct NotificationPowerLevels {
+    public var room: Int32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(room: Int32) {
+        self.room = room
+    }
+}
+
+
+extension NotificationPowerLevels: Equatable, Hashable {
+    public static func ==(lhs: NotificationPowerLevels, rhs: NotificationPowerLevels) -> Bool {
+        if lhs.room != rhs.room {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(room)
+    }
+}
+
+
+public struct FfiConverterTypeNotificationPowerLevels: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationPowerLevels {
+        return
+            try NotificationPowerLevels(
+                room: FfiConverterInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NotificationPowerLevels, into buf: inout [UInt8]) {
+        FfiConverterInt32.write(value.room, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeNotificationPowerLevels_lift(_ buf: RustBuffer) throws -> NotificationPowerLevels {
+    return try FfiConverterTypeNotificationPowerLevels.lift(buf)
+}
+
+public func FfiConverterTypeNotificationPowerLevels_lower(_ value: NotificationPowerLevels) -> RustBuffer {
+    return FfiConverterTypeNotificationPowerLevels.lower(value)
+}
+
+
 public struct NotificationRoomInfo {
     public var displayName: String
     public var avatarUrl: String?
@@ -8044,6 +8206,126 @@ public func FfiConverterTypePollAnswer_lift(_ buf: RustBuffer) throws -> PollAns
 
 public func FfiConverterTypePollAnswer_lower(_ value: PollAnswer) -> RustBuffer {
     return FfiConverterTypePollAnswer.lower(value)
+}
+
+
+public struct PowerLevels {
+    public var usersDefault: Int32?
+    public var eventsDefault: Int32?
+    public var stateDefault: Int32?
+    public var ban: Int32?
+    public var kick: Int32?
+    public var redact: Int32?
+    public var invite: Int32?
+    public var notifications: NotificationPowerLevels?
+    public var users: [String: Int32]
+    public var events: [String: Int32]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(usersDefault: Int32?, eventsDefault: Int32?, stateDefault: Int32?, ban: Int32?, kick: Int32?, redact: Int32?, invite: Int32?, notifications: NotificationPowerLevels?, users: [String: Int32], events: [String: Int32]) {
+        self.usersDefault = usersDefault
+        self.eventsDefault = eventsDefault
+        self.stateDefault = stateDefault
+        self.ban = ban
+        self.kick = kick
+        self.redact = redact
+        self.invite = invite
+        self.notifications = notifications
+        self.users = users
+        self.events = events
+    }
+}
+
+
+extension PowerLevels: Equatable, Hashable {
+    public static func ==(lhs: PowerLevels, rhs: PowerLevels) -> Bool {
+        if lhs.usersDefault != rhs.usersDefault {
+            return false
+        }
+        if lhs.eventsDefault != rhs.eventsDefault {
+            return false
+        }
+        if lhs.stateDefault != rhs.stateDefault {
+            return false
+        }
+        if lhs.ban != rhs.ban {
+            return false
+        }
+        if lhs.kick != rhs.kick {
+            return false
+        }
+        if lhs.redact != rhs.redact {
+            return false
+        }
+        if lhs.invite != rhs.invite {
+            return false
+        }
+        if lhs.notifications != rhs.notifications {
+            return false
+        }
+        if lhs.users != rhs.users {
+            return false
+        }
+        if lhs.events != rhs.events {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(usersDefault)
+        hasher.combine(eventsDefault)
+        hasher.combine(stateDefault)
+        hasher.combine(ban)
+        hasher.combine(kick)
+        hasher.combine(redact)
+        hasher.combine(invite)
+        hasher.combine(notifications)
+        hasher.combine(users)
+        hasher.combine(events)
+    }
+}
+
+
+public struct FfiConverterTypePowerLevels: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PowerLevels {
+        return
+            try PowerLevels(
+                usersDefault: FfiConverterOptionInt32.read(from: &buf), 
+                eventsDefault: FfiConverterOptionInt32.read(from: &buf), 
+                stateDefault: FfiConverterOptionInt32.read(from: &buf), 
+                ban: FfiConverterOptionInt32.read(from: &buf), 
+                kick: FfiConverterOptionInt32.read(from: &buf), 
+                redact: FfiConverterOptionInt32.read(from: &buf), 
+                invite: FfiConverterOptionInt32.read(from: &buf), 
+                notifications: FfiConverterOptionTypeNotificationPowerLevels.read(from: &buf), 
+                users: FfiConverterDictionaryStringInt32.read(from: &buf), 
+                events: FfiConverterDictionaryStringInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PowerLevels, into buf: inout [UInt8]) {
+        FfiConverterOptionInt32.write(value.usersDefault, into: &buf)
+        FfiConverterOptionInt32.write(value.eventsDefault, into: &buf)
+        FfiConverterOptionInt32.write(value.stateDefault, into: &buf)
+        FfiConverterOptionInt32.write(value.ban, into: &buf)
+        FfiConverterOptionInt32.write(value.kick, into: &buf)
+        FfiConverterOptionInt32.write(value.redact, into: &buf)
+        FfiConverterOptionInt32.write(value.invite, into: &buf)
+        FfiConverterOptionTypeNotificationPowerLevels.write(value.notifications, into: &buf)
+        FfiConverterDictionaryStringInt32.write(value.users, into: &buf)
+        FfiConverterDictionaryStringInt32.write(value.events, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypePowerLevels_lift(_ buf: RustBuffer) throws -> PowerLevels {
+    return try FfiConverterTypePowerLevels.lift(buf)
+}
+
+public func FfiConverterTypePowerLevels_lower(_ value: PowerLevels) -> RustBuffer {
+    return FfiConverterTypePowerLevels.lower(value)
 }
 
 
@@ -10254,7 +10536,6 @@ extension BackupState: Equatable, Hashable {}
 public enum BackupUploadState {
     
     case waiting
-    case checkingIfUploadNeeded(backedUpCount: UInt32, totalCount: UInt32)
     case uploading(backedUpCount: UInt32, totalCount: UInt32)
     case error
     case done
@@ -10269,19 +10550,14 @@ public struct FfiConverterTypeBackupUploadState: FfiConverterRustBuffer {
         
         case 1: return .waiting
         
-        case 2: return .checkingIfUploadNeeded(
+        case 2: return .uploading(
             backedUpCount: try FfiConverterUInt32.read(from: &buf), 
             totalCount: try FfiConverterUInt32.read(from: &buf)
         )
         
-        case 3: return .uploading(
-            backedUpCount: try FfiConverterUInt32.read(from: &buf), 
-            totalCount: try FfiConverterUInt32.read(from: &buf)
-        )
+        case 3: return .error
         
-        case 4: return .error
-        
-        case 5: return .done
+        case 4: return .done
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -10295,24 +10571,18 @@ public struct FfiConverterTypeBackupUploadState: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case let .checkingIfUploadNeeded(backedUpCount,totalCount):
+        case let .uploading(backedUpCount,totalCount):
             writeInt(&buf, Int32(2))
             FfiConverterUInt32.write(backedUpCount, into: &buf)
             FfiConverterUInt32.write(totalCount, into: &buf)
             
         
-        case let .uploading(backedUpCount,totalCount):
-            writeInt(&buf, Int32(3))
-            FfiConverterUInt32.write(backedUpCount, into: &buf)
-            FfiConverterUInt32.write(totalCount, into: &buf)
-            
-        
         case .error:
-            writeInt(&buf, Int32(4))
+            writeInt(&buf, Int32(3))
         
         
         case .done:
-            writeInt(&buf, Int32(5))
+            writeInt(&buf, Int32(4))
         
         }
     }
@@ -10386,9 +10656,11 @@ extension ClientError: Error { }
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum EnableRecoveryProgress {
     
+    case starting
     case creatingBackup
     case creatingRecoveryKey
     case backingUp(backedUpCount: UInt32, totalCount: UInt32)
+    case roomKeyUploadError
     case done(recoveryKey: String)
 }
 
@@ -10399,16 +10671,20 @@ public struct FfiConverterTypeEnableRecoveryProgress: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .creatingBackup
+        case 1: return .starting
         
-        case 2: return .creatingRecoveryKey
+        case 2: return .creatingBackup
         
-        case 3: return .backingUp(
+        case 3: return .creatingRecoveryKey
+        
+        case 4: return .backingUp(
             backedUpCount: try FfiConverterUInt32.read(from: &buf), 
             totalCount: try FfiConverterUInt32.read(from: &buf)
         )
         
-        case 4: return .done(
+        case 5: return .roomKeyUploadError
+        
+        case 6: return .done(
             recoveryKey: try FfiConverterString.read(from: &buf)
         )
         
@@ -10420,22 +10696,30 @@ public struct FfiConverterTypeEnableRecoveryProgress: FfiConverterRustBuffer {
         switch value {
         
         
-        case .creatingBackup:
+        case .starting:
             writeInt(&buf, Int32(1))
         
         
-        case .creatingRecoveryKey:
+        case .creatingBackup:
             writeInt(&buf, Int32(2))
         
         
-        case let .backingUp(backedUpCount,totalCount):
+        case .creatingRecoveryKey:
             writeInt(&buf, Int32(3))
+        
+        
+        case let .backingUp(backedUpCount,totalCount):
+            writeInt(&buf, Int32(4))
             FfiConverterUInt32.write(backedUpCount, into: &buf)
             FfiConverterUInt32.write(totalCount, into: &buf)
             
         
+        case .roomKeyUploadError:
+            writeInt(&buf, Int32(5))
+        
+        
         case let .done(recoveryKey):
-            writeInt(&buf, Int32(4))
+            writeInt(&buf, Int32(6))
             FfiConverterString.write(recoveryKey, into: &buf)
             
         }
@@ -13873,7 +14157,7 @@ public enum SteadyStateError {
     
     case BackupDisabled
     case Connection
-    case Laged
+    case Lagged
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeSteadyStateError.lift(error)
@@ -13893,7 +14177,7 @@ public struct FfiConverterTypeSteadyStateError: FfiConverterRustBuffer {
         
         case 1: return .BackupDisabled
         case 2: return .Connection
-        case 3: return .Laged
+        case 3: return .Lagged
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -13914,7 +14198,7 @@ public struct FfiConverterTypeSteadyStateError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(2))
         
         
-        case .Laged:
+        case .Lagged:
             writeInt(&buf, Int32(3))
         
         }
@@ -16766,6 +17050,27 @@ fileprivate struct FfiConverterOptionTypeNotificationItem: FfiConverterRustBuffe
     }
 }
 
+fileprivate struct FfiConverterOptionTypeNotificationPowerLevels: FfiConverterRustBuffer {
+    typealias SwiftType = NotificationPowerLevels?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeNotificationPowerLevels.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeNotificationPowerLevels.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeOidcConfiguration: FfiConverterRustBuffer {
     typealias SwiftType = OidcConfiguration?
 
@@ -16782,6 +17087,27 @@ fileprivate struct FfiConverterOptionTypeOidcConfiguration: FfiConverterRustBuff
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeOidcConfiguration.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypePowerLevels: FfiConverterRustBuffer {
+    typealias SwiftType = PowerLevels?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypePowerLevels.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypePowerLevels.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -17664,6 +17990,29 @@ fileprivate struct FfiConverterSequenceTypeWidgetEventFilter: FfiConverterRustBu
     }
 }
 
+fileprivate struct FfiConverterDictionaryStringInt32: FfiConverterRustBuffer {
+    public static func write(_ value: [String: Int32], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterString.write(key, into: &buf)
+            FfiConverterInt32.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: Int32] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [String: Int32]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterString.read(from: &buf)
+            let value = try FfiConverterInt32.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
 fileprivate struct FfiConverterDictionaryStringString: FfiConverterRustBuffer {
     public static func write(_ value: [String: String], into buf: inout [UInt8]) {
         let len = Int32(value.count)
@@ -18185,10 +18534,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 13489) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_fix_recovery_issues() != 24283) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 30199) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 30199) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover() != 29174) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 16535) {
@@ -18353,9 +18702,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_active_room_call_participants() != 5256) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_add_timeline_listener() != 43137) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 25219) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18383,37 +18729,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_trigger_room_notification() != 8288) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_cancel_send() != 22141) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 15084) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_create_poll() != 62592) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 38216) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 38490) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit_poll() != 18073) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_end_poll() != 42646) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_details_for_event() != 23233) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_members() != 64110) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_event_timeline_item_by_event_id() != 50554) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_timeline_event_content_by_event_id() != 4338) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_has_active_room_call() != 59850) {
@@ -18479,7 +18798,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_own_user_id() != 26241) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_paginate_backwards() != 28035) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_poll_history() != 58381) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 12809) {
@@ -18488,49 +18807,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 24698) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_timeline() != 13720) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 58629) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_retry_decryption() != 17014) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_retry_send() != 39997) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 45186) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send() != 974) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_audio() != 19498) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_file() != 54377) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_image() != 56510) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_location() != 25452) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_poll_response() != 21289) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_read_receipt() != 6919) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_reply() != 12091) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_video() != 38775) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_voice_message() != 15857) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 56429) {
@@ -18539,13 +18819,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 55348) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_back_pagination_status() != 27757) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 43609) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_toggle_reaction() != 25672) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 49618) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 23413) {
@@ -18756,6 +19033,81 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 3905) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_add_listener() != 48101) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_cancel_send() != 51132) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_create_poll() != 38825) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit() != 58303) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit_poll() != 54368) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_end_poll() != 53347) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_details_for_event() != 20642) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_members() != 11365) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_event_timeline_item_by_event_id() != 62347) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_timeline_event_content_by_event_id() != 56265) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 50423) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_decryption() != 26528) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_send() != 51479) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send() != 36960) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_audio() != 25012) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_file() != 34478) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_image() != 36106) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_location() != 61646) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_poll_response() != 51038) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_read_receipt() != 32920) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_reply() != 11052) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_video() != 29712) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 7512) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 38905) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction() != 32033) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_append() != 24298) {
