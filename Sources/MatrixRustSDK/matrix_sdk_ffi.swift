@@ -1439,7 +1439,7 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
+            errorHandler: FfiConverterTypeRecoveryError.lift
         )
     }
 
@@ -1456,7 +1456,7 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
+            errorHandler: FfiConverterTypeRecoveryError.lift
         )
     }
 
@@ -1475,7 +1475,7 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeClientError.lift
+            errorHandler: FfiConverterTypeRecoveryError.lift
         )
     }
 
@@ -1492,7 +1492,7 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
             liftFunc: FfiConverterBool.lift,
-            errorHandler: FfiConverterTypeClientError.lift
+            errorHandler: FfiConverterTypeRecoveryError.lift
         )
     }
 
@@ -1510,7 +1510,7 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
+            errorHandler: FfiConverterTypeRecoveryError.lift
         )
     }
 
@@ -1528,7 +1528,7 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeClientError.lift
+            errorHandler: FfiConverterTypeRecoveryError.lift
         )
     }
 
@@ -1568,7 +1568,7 @@ public class Encryption:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeClientError.lift
+            errorHandler: FfiConverterTypeRecoveryError.lift
         )
     }
 
@@ -12764,6 +12764,71 @@ extension PusherKind: Equatable, Hashable {}
 
 
 
+public enum RecoveryError {
+
+    
+    
+    case BackupExistsOnServer
+    case Client(source: ClientError)
+    case SecretStorage(message: String)
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeRecoveryError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeRecoveryError: FfiConverterRustBuffer {
+    typealias SwiftType = RecoveryError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RecoveryError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .BackupExistsOnServer
+        case 2: return .Client(
+            source: try FfiConverterTypeClientError.read(from: &buf)
+            )
+        case 3: return .SecretStorage(
+            message: try FfiConverterString.read(from: &buf)
+            )
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RecoveryError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case .BackupExistsOnServer:
+            writeInt(&buf, Int32(1))
+        
+        
+        case let .Client(source):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeClientError.write(source, into: &buf)
+            
+        
+        case let .SecretStorage(message):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(message, into: &buf)
+            
+        }
+    }
+}
+
+
+extension RecoveryError: Equatable, Hashable {}
+
+extension RecoveryError: Error { }
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum RecoveryState {
@@ -14155,9 +14220,15 @@ public enum SteadyStateError {
 
     
     
-    case BackupDisabled
-    case Connection
-    case Lagged
+    // Simple error enums only carry a message
+    case BackupDisabled(message: String)
+    
+    // Simple error enums only carry a message
+    case Connection(message: String)
+    
+    // Simple error enums only carry a message
+    case Lagged(message: String)
+    
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeSteadyStateError.lift(error)
@@ -14175,11 +14246,20 @@ public struct FfiConverterTypeSteadyStateError: FfiConverterRustBuffer {
         
 
         
-        case 1: return .BackupDisabled
-        case 2: return .Connection
-        case 3: return .Lagged
+        case 1: return .BackupDisabled(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .Connection(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .Lagged(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
 
-         default: throw UniffiInternalError.unexpectedEnumCase
+        default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
@@ -14189,17 +14269,13 @@ public struct FfiConverterTypeSteadyStateError: FfiConverterRustBuffer {
         
 
         
-        
-        case .BackupDisabled:
+        case .BackupDisabled(_ /* message is ignored*/):
             writeInt(&buf, Int32(1))
-        
-        
-        case .Connection:
+        case .Connection(_ /* message is ignored*/):
             writeInt(&buf, Int32(2))
-        
-        
-        case .Lagged:
+        case .Lagged(_ /* message is ignored*/):
             writeInt(&buf, Int32(3))
+
         
         }
     }
@@ -18525,22 +18601,22 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state_listener() != 29) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 56498) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 38729) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 38094) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 30690) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 13489) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 60849) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 30199) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 34446) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover() != 29174) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover() != 34668) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 16535) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 52410) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state() != 7187) {
@@ -18549,7 +18625,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state_listener() != 11439) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 55362) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 40510) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 37083) {
