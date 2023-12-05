@@ -2501,12 +2501,14 @@ public protocol NotificationSettingsProtocol : AnyObject {
     func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String]
     func getUserDefinedRoomNotificationMode(roomId: String) async throws  -> RoomNotificationMode?
     func isCallEnabled() async throws  -> Bool
+    func isInviteForMeEnabled() async throws  -> Bool
     func isRoomMentionEnabled() async throws  -> Bool
     func isUserMentionEnabled() async throws  -> Bool
     func restoreDefaultRoomNotificationMode(roomId: String) async throws 
     func setCallEnabled(enabled: Bool) async throws 
     func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws 
     func setDelegate(delegate: NotificationSettingsDelegate?) 
+    func setInviteForMeEnabled(enabled: Bool) async throws 
     func setRoomMentionEnabled(enabled: Bool) async throws 
     func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws 
     func setUserMentionEnabled(enabled: Bool) async throws 
@@ -2664,6 +2666,23 @@ public class NotificationSettings:
 
     
 
+    public func isInviteForMeEnabled() async throws  -> Bool {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_invite_for_me_enabled(
+                    self.pointer
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
+    }
+
+    
+
     public func isRoomMentionEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2763,6 +2782,24 @@ public class NotificationSettings:
     )
 }
     }
+
+    public func setInviteForMeEnabled(enabled: Bool) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_invite_for_me_enabled(
+                    self.pointer,
+                    FfiConverterBool.lower(enabled)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeNotificationSettingsError.lift
+        )
+    }
+
+    
 
     public func setRoomMentionEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
@@ -3008,6 +3045,7 @@ public protocol RoomProtocol : AnyObject {
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle
     func timeline() async  -> Timeline
     func topic()  -> String?
+    func typingNotice(isTyping: Bool) async throws 
     func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws 
     
 }
@@ -3580,6 +3618,24 @@ public class Room:
 }
         )
     }
+
+    public func typingNotice(isTyping: Bool) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_typing_notice(
+                    self.pointer,
+                    FfiConverterBool.lower(isTyping)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
 
     public func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws  {
         try 
@@ -12770,7 +12826,7 @@ public enum RecoveryError {
     
     case BackupExistsOnServer
     case Client(source: ClientError)
-    case SecretStorage(message: String)
+    case SecretStorage(errorMessage: String)
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeRecoveryError.lift(error)
@@ -12793,7 +12849,7 @@ public struct FfiConverterTypeRecoveryError: FfiConverterRustBuffer {
             source: try FfiConverterTypeClientError.read(from: &buf)
             )
         case 3: return .SecretStorage(
-            message: try FfiConverterString.read(from: &buf)
+            errorMessage: try FfiConverterString.read(from: &buf)
             )
 
          default: throw UniffiInternalError.unexpectedEnumCase
@@ -12816,9 +12872,9 @@ public struct FfiConverterTypeRecoveryError: FfiConverterRustBuffer {
             FfiConverterTypeClientError.write(source, into: &buf)
             
         
-        case let .SecretStorage(message):
+        case let .SecretStorage(errorMessage):
             writeInt(&buf, Int32(3))
-            FfiConverterString.write(message, into: &buf)
+            FfiConverterString.write(errorMessage, into: &buf)
             
         }
     }
@@ -14035,6 +14091,7 @@ extension StateEventContent: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum StateEventType {
     
+    case callMember
     case policyRuleRoom
     case policyRuleServer
     case policyRuleUser
@@ -14065,47 +14122,49 @@ public struct FfiConverterTypeStateEventType: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .policyRuleRoom
+        case 1: return .callMember
         
-        case 2: return .policyRuleServer
+        case 2: return .policyRuleRoom
         
-        case 3: return .policyRuleUser
+        case 3: return .policyRuleServer
         
-        case 4: return .roomAliases
+        case 4: return .policyRuleUser
         
-        case 5: return .roomAvatar
+        case 5: return .roomAliases
         
-        case 6: return .roomCanonicalAlias
+        case 6: return .roomAvatar
         
-        case 7: return .roomCreate
+        case 7: return .roomCanonicalAlias
         
-        case 8: return .roomEncryption
+        case 8: return .roomCreate
         
-        case 9: return .roomGuestAccess
+        case 9: return .roomEncryption
         
-        case 10: return .roomHistoryVisibility
+        case 10: return .roomGuestAccess
         
-        case 11: return .roomJoinRules
+        case 11: return .roomHistoryVisibility
         
-        case 12: return .roomMemberEvent
+        case 12: return .roomJoinRules
         
-        case 13: return .roomName
+        case 13: return .roomMemberEvent
         
-        case 14: return .roomPinnedEvents
+        case 14: return .roomName
         
-        case 15: return .roomPowerLevels
+        case 15: return .roomPinnedEvents
         
-        case 16: return .roomServerAcl
+        case 16: return .roomPowerLevels
         
-        case 17: return .roomThirdPartyInvite
+        case 17: return .roomServerAcl
         
-        case 18: return .roomTombstone
+        case 18: return .roomThirdPartyInvite
         
-        case 19: return .roomTopic
+        case 19: return .roomTombstone
         
-        case 20: return .spaceChild
+        case 20: return .roomTopic
         
-        case 21: return .spaceParent
+        case 21: return .spaceChild
+        
+        case 22: return .spaceParent
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -14115,88 +14174,92 @@ public struct FfiConverterTypeStateEventType: FfiConverterRustBuffer {
         switch value {
         
         
-        case .policyRuleRoom:
+        case .callMember:
             writeInt(&buf, Int32(1))
         
         
-        case .policyRuleServer:
+        case .policyRuleRoom:
             writeInt(&buf, Int32(2))
         
         
-        case .policyRuleUser:
+        case .policyRuleServer:
             writeInt(&buf, Int32(3))
         
         
-        case .roomAliases:
+        case .policyRuleUser:
             writeInt(&buf, Int32(4))
         
         
-        case .roomAvatar:
+        case .roomAliases:
             writeInt(&buf, Int32(5))
         
         
-        case .roomCanonicalAlias:
+        case .roomAvatar:
             writeInt(&buf, Int32(6))
         
         
-        case .roomCreate:
+        case .roomCanonicalAlias:
             writeInt(&buf, Int32(7))
         
         
-        case .roomEncryption:
+        case .roomCreate:
             writeInt(&buf, Int32(8))
         
         
-        case .roomGuestAccess:
+        case .roomEncryption:
             writeInt(&buf, Int32(9))
         
         
-        case .roomHistoryVisibility:
+        case .roomGuestAccess:
             writeInt(&buf, Int32(10))
         
         
-        case .roomJoinRules:
+        case .roomHistoryVisibility:
             writeInt(&buf, Int32(11))
         
         
-        case .roomMemberEvent:
+        case .roomJoinRules:
             writeInt(&buf, Int32(12))
         
         
-        case .roomName:
+        case .roomMemberEvent:
             writeInt(&buf, Int32(13))
         
         
-        case .roomPinnedEvents:
+        case .roomName:
             writeInt(&buf, Int32(14))
         
         
-        case .roomPowerLevels:
+        case .roomPinnedEvents:
             writeInt(&buf, Int32(15))
         
         
-        case .roomServerAcl:
+        case .roomPowerLevels:
             writeInt(&buf, Int32(16))
         
         
-        case .roomThirdPartyInvite:
+        case .roomServerAcl:
             writeInt(&buf, Int32(17))
         
         
-        case .roomTombstone:
+        case .roomThirdPartyInvite:
             writeInt(&buf, Int32(18))
         
         
-        case .roomTopic:
+        case .roomTombstone:
             writeInt(&buf, Int32(19))
         
         
-        case .spaceChild:
+        case .roomTopic:
             writeInt(&buf, Int32(20))
         
         
-        case .spaceParent:
+        case .spaceChild:
             writeInt(&buf, Int32(21))
+        
+        
+        case .spaceParent:
+            writeInt(&buf, Int32(22))
         
         }
     }
@@ -18739,6 +18802,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled() != 38110) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_invite_for_me_enabled() != 50408) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_room_mention_enabled() != 36336) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18755,6 +18821,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_delegate() != 22622) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_invite_for_me_enabled() != 7240) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_mention_enabled() != 50730) {
@@ -18902,6 +18971,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 23413) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_typing_notice() != 46496) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 46437) {
