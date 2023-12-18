@@ -640,9 +640,9 @@ public protocol ClientProtocol : AnyObject {
     func displayName() throws  -> String
     func encryption()  -> Encryption
     func getDmRoom(userId: String) throws  -> Room?
-    func getMediaContent(mediaSource: MediaSource) throws  -> Data
-    func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) throws  -> MediaFileHandle
-    func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) throws  -> Data
+    func getMediaContent(mediaSource: MediaSource) async throws  -> Data
+    func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) async throws  -> MediaFileHandle
+    func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) async throws  -> Data
     func getNotificationSettings()  -> NotificationSettings
     func getProfile(userId: String) throws  -> UserProfile
     func getSessionVerificationController() throws  -> SessionVerificationController
@@ -663,7 +663,7 @@ public protocol ClientProtocol : AnyObject {
     func syncService()  -> SyncServiceBuilder
     func unignoreUser(userId: String) throws 
     func uploadAvatar(mimeType: String, data: Data) throws 
-    func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) throws  -> String
+    func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) async throws  -> String
     func userId() throws  -> String
     
 }
@@ -783,44 +783,65 @@ public class Client:
         )
     }
 
-    public func getMediaContent(mediaSource: MediaSource) throws  -> Data {
-        return try  FfiConverterData.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_get_media_content(self.pointer, 
-        FfiConverterTypeMediaSource.lower(mediaSource),$0
-    )
-}
+    public func getMediaContent(mediaSource: MediaSource) async throws  -> Data {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_media_content(
+                    self.pointer,
+                    FfiConverterTypeMediaSource.lower(mediaSource)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterData.lift,
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
 
-    public func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) throws  -> MediaFileHandle {
-        return try  FfiConverterTypeMediaFileHandle.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_get_media_file(self.pointer, 
-        FfiConverterTypeMediaSource.lower(mediaSource),
-        FfiConverterOptionString.lower(body),
-        FfiConverterString.lower(mimeType),
-        FfiConverterBool.lower(useCache),
-        FfiConverterOptionString.lower(tempDir),$0
-    )
-}
+    
+
+    public func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) async throws  -> MediaFileHandle {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_media_file(
+                    self.pointer,
+                    FfiConverterTypeMediaSource.lower(mediaSource),
+                    FfiConverterOptionString.lower(body),
+                    FfiConverterString.lower(mimeType),
+                    FfiConverterBool.lower(useCache),
+                    FfiConverterOptionString.lower(tempDir)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeMediaFileHandle.lift,
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
 
-    public func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) throws  -> Data {
-        return try  FfiConverterData.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_get_media_thumbnail(self.pointer, 
-        FfiConverterTypeMediaSource.lower(mediaSource),
-        FfiConverterUInt64.lower(width),
-        FfiConverterUInt64.lower(height),$0
-    )
-}
+    
+
+    public func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) async throws  -> Data {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_media_thumbnail(
+                    self.pointer,
+                    FfiConverterTypeMediaSource.lower(mediaSource),
+                    FfiConverterUInt64.lower(width),
+                    FfiConverterUInt64.lower(height)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterData.lift,
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
+
+    
 
     public func getNotificationSettings()  -> NotificationSettings {
         return try!  FfiConverterTypeNotificationSettings.lift(
@@ -1032,18 +1053,25 @@ public class Client:
 }
     }
 
-    public func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) throws  -> String {
-        return try  FfiConverterString.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_upload_media(self.pointer, 
-        FfiConverterString.lower(mimeType),
-        FfiConverterData.lower(data),
-        FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
-    )
-}
+    public func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) async throws  -> String {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_upload_media(
+                    self.pointer,
+                    FfiConverterString.lower(mimeType),
+                    FfiConverterData.lower(data),
+                    FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
+
+    
 
     public func userId() throws  -> String {
         return try  FfiConverterString.lift(
@@ -3005,6 +3033,7 @@ public protocol RoomProtocol : AnyObject {
     func activeRoomCallParticipants()  -> [String]
     func alternativeAliases()  -> [String]
     func avatarUrl()  -> String?
+    func banUser(userId: String, reason: String?) async throws 
     func canUserBan(userId: String) async throws  -> Bool
     func canUserInvite(userId: String) async throws  -> Bool
     func canUserKick(userId: String) async throws  -> Bool
@@ -3027,6 +3056,7 @@ public protocol RoomProtocol : AnyObject {
     func isTombstoned()  -> Bool
     func join() throws 
     func joinedMembersCount()  -> UInt64
+    func kickUser(userId: String, reason: String?) async throws 
     func leave() throws 
     func member(userId: String) async throws  -> RoomMember
     func memberAvatarUrl(userId: String) throws  -> String?
@@ -3046,6 +3076,7 @@ public protocol RoomProtocol : AnyObject {
     func timeline() async  -> Timeline
     func topic()  -> String?
     func typingNotice(isTyping: Bool) async throws 
+    func unbanUser(userId: String, reason: String?) async throws 
     func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws 
     
 }
@@ -3113,6 +3144,25 @@ public class Room:
 }
         )
     }
+
+    public func banUser(userId: String, reason: String?) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_ban_user(
+                    self.pointer,
+                    FfiConverterString.lower(userId),
+                    FfiConverterOptionString.lower(reason)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
 
     public func canUserBan(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
@@ -3398,6 +3448,25 @@ public class Room:
         )
     }
 
+    public func kickUser(userId: String, reason: String?) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_kick_user(
+                    self.pointer,
+                    FfiConverterString.lower(userId),
+                    FfiConverterOptionString.lower(reason)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
     public func leave() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -3625,6 +3694,25 @@ public class Room:
                 uniffi_matrix_sdk_ffi_fn_method_room_typing_notice(
                     self.pointer,
                     FfiConverterBool.lower(isTyping)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+
+    public func unbanUser(userId: String, reason: String?) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_unban_user(
+                    self.pointer,
+                    FfiConverterString.lower(userId),
+                    FfiConverterOptionString.lower(reason)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5599,12 +5687,12 @@ public protocol TimelineProtocol : AnyObject {
     func send(msg: RoomMessageEventContentWithoutRelation) 
     func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
     func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
-    func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    func sendImage(url: String, thumbnailUrl: String?, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
     func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?) 
     func sendPollResponse(pollStartId: String, answers: [String]) throws 
-    func sendReadReceipt(eventId: String) throws 
+    func sendReadReceipt(receiptType: ReceiptType, eventId: String) throws 
     func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws 
-    func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    func sendVideo(url: String, thumbnailUrl: String?, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
     func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
     func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle
     func toggleReaction(eventId: String, key: String) throws 
@@ -5830,14 +5918,14 @@ public class Timeline:
         )
     }
 
-    public func sendImage(url: String, thumbnailUrl: String, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+    public func sendImage(url: String, thumbnailUrl: String?, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_timeline_send_image(self.pointer, 
         FfiConverterString.lower(url),
-        FfiConverterString.lower(thumbnailUrl),
+        FfiConverterOptionString.lower(thumbnailUrl),
         FfiConverterTypeImageInfo.lower(imageInfo),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
     )
@@ -5869,10 +5957,11 @@ public class Timeline:
 }
     }
 
-    public func sendReadReceipt(eventId: String) throws  {
+    public func sendReadReceipt(receiptType: ReceiptType, eventId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_send_read_receipt(self.pointer, 
+        FfiConverterTypeReceiptType.lower(receiptType),
         FfiConverterString.lower(eventId),$0
     )
 }
@@ -5888,14 +5977,14 @@ public class Timeline:
 }
     }
 
-    public func sendVideo(url: String, thumbnailUrl: String, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+    public func sendVideo(url: String, thumbnailUrl: String?, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_timeline_send_video(self.pointer, 
         FfiConverterString.lower(url),
-        FfiConverterString.lower(thumbnailUrl),
+        FfiConverterOptionString.lower(thumbnailUrl),
         FfiConverterTypeVideoInfo.lower(videoInfo),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
     )
@@ -12820,6 +12909,65 @@ extension PusherKind: Equatable, Hashable {}
 
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum ReceiptType {
+    
+    case read
+    case readPrivate
+    case fullyRead
+}
+
+public struct FfiConverterTypeReceiptType: FfiConverterRustBuffer {
+    typealias SwiftType = ReceiptType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReceiptType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .read
+        
+        case 2: return .readPrivate
+        
+        case 3: return .fullyRead
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ReceiptType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .read:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .readPrivate:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .fullyRead:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeReceiptType_lift(_ buf: RustBuffer) throws -> ReceiptType {
+    return try FfiConverterTypeReceiptType.lift(buf)
+}
+
+public func FfiConverterTypeReceiptType_lower(_ value: ReceiptType) -> RustBuffer {
+    return FfiConverterTypeReceiptType.lower(value)
+}
+
+
+extension ReceiptType: Equatable, Hashable {}
+
+
+
 public enum RecoveryError {
 
     
@@ -13894,6 +14042,64 @@ public func FfiConverterTypeRoomVisibility_lower(_ value: RoomVisibility) -> Rus
 
 
 extension RoomVisibility: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum SessionVerificationData {
+    
+    case emojis(emojis: [SessionVerificationEmoji], indices: Data)
+    case decimals(values: [UInt16])
+}
+
+public struct FfiConverterTypeSessionVerificationData: FfiConverterRustBuffer {
+    typealias SwiftType = SessionVerificationData
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SessionVerificationData {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .emojis(
+            emojis: try FfiConverterSequenceTypeSessionVerificationEmoji.read(from: &buf), 
+            indices: try FfiConverterData.read(from: &buf)
+        )
+        
+        case 2: return .decimals(
+            values: try FfiConverterSequenceUInt16.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SessionVerificationData, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .emojis(emojis,indices):
+            writeInt(&buf, Int32(1))
+            FfiConverterSequenceTypeSessionVerificationEmoji.write(emojis, into: &buf)
+            FfiConverterData.write(indices, into: &buf)
+            
+        
+        case let .decimals(values):
+            writeInt(&buf, Int32(2))
+            FfiConverterSequenceUInt16.write(values, into: &buf)
+            
+        }
+    }
+}
+
+
+public func FfiConverterTypeSessionVerificationData_lift(_ buf: RustBuffer) throws -> SessionVerificationData {
+    return try FfiConverterTypeSessionVerificationData.lift(buf)
+}
+
+public func FfiConverterTypeSessionVerificationData_lower(_ value: SessionVerificationData) -> RustBuffer {
+    return FfiConverterTypeSessionVerificationData.lower(value)
+}
+
 
 
 
@@ -16247,7 +16453,7 @@ extension FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener : Ff
 public protocol SessionVerificationControllerDelegate : AnyObject {
     func didAcceptVerificationRequest() 
     func didStartSasVerification() 
-    func didReceiveVerificationData(data: [SessionVerificationEmoji]) 
+    func didReceiveVerificationData(data: SessionVerificationData) 
     func didFail() 
     func didCancel() 
     func didFinish() 
@@ -16283,7 +16489,7 @@ fileprivate let uniffiCallbackHandlerSessionVerificationControllerDelegate : For
         var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
         func makeCall() throws -> Int32 {
             swiftCallbackInterface.didReceiveVerificationData(
-                    data:  try FfiConverterSequenceTypeSessionVerificationEmoji.read(from: &reader)
+                    data:  try FfiConverterTypeSessionVerificationData.read(from: &reader)
                     )
             return UNIFFI_CALLBACK_SUCCESS
         }
@@ -18538,13 +18744,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 2581) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 25167) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 28329) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 60005) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 22652) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 51889) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 8016) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_settings() != 43752) {
@@ -18607,7 +18813,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 65133) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 20769) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 29165) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 55803) {
@@ -18853,6 +19059,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 38267) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ban_user() != 15134) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_ban() != 47371) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18919,6 +19128,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_joined_members_count() != 44345) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_kick_user() != 50409) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 11928) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -18974,6 +19186,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_typing_notice() != 46496) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_unban_user() != 46653) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 46437) {
@@ -19231,7 +19446,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_file() != 34478) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_image() != 36106) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_image() != 21504) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_location() != 61646) {
@@ -19240,13 +19455,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_poll_response() != 51038) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_read_receipt() != 32920) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_read_receipt() != 47087) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_reply() != 11052) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_video() != 29712) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_video() != 37642) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 7512) {
@@ -19399,7 +19614,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_start_sas_verification() != 15715) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_data() != 46941) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_data() != 37461) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_fail() != 52235) {
