@@ -8776,10 +8776,13 @@ public struct RoomInfo {
     public var userDefinedNotificationMode: RoomNotificationMode?
     public var hasRoomCall: Bool
     public var activeRoomCallParticipants: [String]
+    public var numUnreadMessages: UInt64
+    public var numUnreadNotifications: UInt64
+    public var numUnreadMentions: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?, hasRoomCall: Bool, activeRoomCallParticipants: [String]) {
+    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?, hasRoomCall: Bool, activeRoomCallParticipants: [String], numUnreadMessages: UInt64, numUnreadNotifications: UInt64, numUnreadMentions: UInt64) {
         self.id = id
         self.name = name
         self.topic = topic
@@ -8801,6 +8804,9 @@ public struct RoomInfo {
         self.userDefinedNotificationMode = userDefinedNotificationMode
         self.hasRoomCall = hasRoomCall
         self.activeRoomCallParticipants = activeRoomCallParticipants
+        self.numUnreadMessages = numUnreadMessages
+        self.numUnreadNotifications = numUnreadNotifications
+        self.numUnreadMentions = numUnreadMentions
     }
 }
 
@@ -8830,7 +8836,10 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
                 notificationCount: FfiConverterUInt64.read(from: &buf), 
                 userDefinedNotificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf), 
                 hasRoomCall: FfiConverterBool.read(from: &buf), 
-                activeRoomCallParticipants: FfiConverterSequenceString.read(from: &buf)
+                activeRoomCallParticipants: FfiConverterSequenceString.read(from: &buf), 
+                numUnreadMessages: FfiConverterUInt64.read(from: &buf), 
+                numUnreadNotifications: FfiConverterUInt64.read(from: &buf), 
+                numUnreadMentions: FfiConverterUInt64.read(from: &buf)
         )
     }
 
@@ -8856,6 +8865,9 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterOptionTypeRoomNotificationMode.write(value.userDefinedNotificationMode, into: &buf)
         FfiConverterBool.write(value.hasRoomCall, into: &buf)
         FfiConverterSequenceString.write(value.activeRoomCallParticipants, into: &buf)
+        FfiConverterUInt64.write(value.numUnreadMessages, into: &buf)
+        FfiConverterUInt64.write(value.numUnreadNotifications, into: &buf)
+        FfiConverterUInt64.write(value.numUnreadMentions, into: &buf)
     }
 }
 
