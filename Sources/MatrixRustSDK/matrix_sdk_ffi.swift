@@ -489,15 +489,35 @@ fileprivate struct FfiConverterDuration: FfiConverterRustBuffer {
 
 
 
+
 public protocol AuthenticationServiceProtocol : AnyObject {
+    
+    /**
+     * Updates the service to authenticate with the homeserver for the
+     * specified address.
+     */
     func configureHomeserver(serverNameOrHomeserverUrl: String) throws 
+    
     func homeserverDetails()  -> HomeserverLoginDetails?
+    
+    /**
+     * Performs a password login using the current homeserver.
+     */
     func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  -> Client
+    
+    /**
+     * Completes the OIDC login process.
+     */
     func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) throws  -> Client
+    
+    /**
+     * Requests the URL needed for login in a web view using OIDC. Once the web
+     * view has succeeded, call `login_with_oidc_callback` with the callback it
+     * returns.
+     */
     func urlForOidcLogin() throws  -> OidcAuthenticationData
     
 }
-
 public class AuthenticationService:
     AuthenticationServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -508,6 +528,13 @@ public class AuthenticationService:
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
+
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_authenticationservice(self.pointer, $0) }
+    }
+    /**
+     * Creates a new service to authenticate a user with.
+     */
     public convenience init(basePath: String, passphrase: String?, userAgent: String?, oidcConfiguration: OidcConfiguration?, customSlidingSyncProxy: String?, sessionDelegate: ClientSessionDelegate?, crossProcessRefreshLockId: String?)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_authenticationservice_new(
@@ -529,32 +556,36 @@ public class AuthenticationService:
 
     
     
-
+    /**
+     * Updates the service to authenticate with the homeserver for the
+     * specified address.
+     */
     public func configureHomeserver(serverNameOrHomeserverUrl: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_configure_homeserver(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_configure_homeserver(self.uniffiClonePointer(), 
         FfiConverterString.lower(serverNameOrHomeserverUrl),$0
     )
 }
     }
-
     public func homeserverDetails()  -> HomeserverLoginDetails? {
         return try!  FfiConverterOptionTypeHomeserverLoginDetails.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_homeserver_details(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_homeserver_details(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Performs a password login using the current homeserver.
+     */
     public func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  -> Client {
         return try  FfiConverterTypeClient.lift(
             try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login(self.uniffiClonePointer(), 
         FfiConverterString.lower(username),
         FfiConverterString.lower(password),
         FfiConverterOptionString.lower(initialDeviceName),
@@ -563,24 +594,30 @@ public class AuthenticationService:
 }
         )
     }
-
+    /**
+     * Completes the OIDC login process.
+     */
     public func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) throws  -> Client {
         return try  FfiConverterTypeClient.lift(
             try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login_with_oidc_callback(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login_with_oidc_callback(self.uniffiClonePointer(), 
         FfiConverterTypeOidcAuthenticationData.lower(authenticationData),
         FfiConverterString.lower(callbackUrl),$0
     )
 }
         )
     }
-
+    /**
+     * Requests the URL needed for login in a web view using OIDC. Once the web
+     * view has succeeded, call `login_with_oidc_callback` with the callback it
+     * returns.
+     */
     public func urlForOidcLogin() throws  -> OidcAuthenticationData {
         return try  FfiConverterTypeOidcAuthenticationData.lift(
             try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_url_for_oidc_login(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_url_for_oidc_login(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -598,7 +635,7 @@ public struct FfiConverterTypeAuthenticationService: FfiConverter {
     }
 
     public static func lower(_ value: AuthenticationService) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AuthenticationService {
@@ -630,44 +667,106 @@ public func FfiConverterTypeAuthenticationService_lower(_ value: AuthenticationS
 
 
 
+
 public protocol ClientProtocol : AnyObject {
+    
+    /**
+     * Get the content of the event of the given type out of the account data
+     * store.
+     *
+     * It will be returned as a JSON string.
+     */
     func accountData(eventType: String) throws  -> String?
+    
     func accountUrl(action: AccountManagementAction?) throws  -> String?
+    
     func avatarUrl() throws  -> String?
+    
     func cachedAvatarUrl() throws  -> String?
+    
     func createRoom(request: CreateRoomParameters) throws  -> String
+    
     func deviceId() throws  -> String
+    
     func displayName() throws  -> String
+    
     func encryption()  -> Encryption
+    
     func getDmRoom(userId: String) throws  -> Room?
+    
     func getMediaContent(mediaSource: MediaSource) async throws  -> Data
+    
     func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) async throws  -> MediaFileHandle
+    
     func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) async throws  -> Data
+    
     func getNotificationSettings()  -> NotificationSettings
+    
     func getProfile(userId: String) throws  -> UserProfile
+    
     func getSessionVerificationController() throws  -> SessionVerificationController
+    
+    /**
+     * The homeserver this client is configured to use.
+     */
     func homeserver()  -> String
+    
     func ignoreUser(userId: String) throws 
+    
+    /**
+     * Login using a username and password.
+     */
     func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws 
+    
+    /**
+     * Log out the current user. This method returns an optional URL that
+     * should be presented to the user to complete logout (in the case of
+     * Session having been authenticated using OIDC).
+     */
     func logout() throws  -> String?
+    
     func notificationClient(processSetup: NotificationProcessSetup) throws  -> NotificationClientBuilder
+    
     func removeAvatar() throws 
+    
+    /**
+     * Restores the client from a `Session`.
+     */
     func restoreSession(session: Session) throws 
+    
     func rooms()  -> [Room]
+    
     func searchUsers(searchTerm: String, limit: UInt64) throws  -> SearchUsersResults
+    
     func session() throws  -> Session
+    
+    /**
+     * Set the given account data content for the given event type.
+     *
+     * It should be supplied as a JSON string.
+     */
     func setAccountData(eventType: String, content: String) throws 
+    
     func setDelegate(delegate: ClientDelegate?)  -> TaskHandle?
+    
     func setDisplayName(name: String) throws 
+    
+    /**
+     * Registers a pusher with given parameters
+     */
     func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) throws 
+    
     func syncService()  -> SyncServiceBuilder
+    
     func unignoreUser(userId: String) throws 
+    
     func uploadAvatar(mimeType: String, data: Data) throws 
+    
     func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) async throws  -> String
+    
     func userId() throws  -> String
     
 }
-
 public class Client:
     ClientProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -679,6 +778,10 @@ public class Client:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_client(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_client(pointer, $0) }
     }
@@ -687,107 +790,103 @@ public class Client:
 
     
     
-
+    /**
+     * Get the content of the event of the given type out of the account data
+     * store.
+     *
+     * It will be returned as a JSON string.
+     */
     public func accountData(eventType: String) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_account_data(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_account_data(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventType),$0
     )
 }
         )
     }
-
     public func accountUrl(action: AccountManagementAction?) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_account_url(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_account_url(self.uniffiClonePointer(), 
         FfiConverterOptionTypeAccountManagementAction.lower(action),$0
     )
 }
         )
     }
-
     public func avatarUrl() throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_avatar_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_avatar_url(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func cachedAvatarUrl() throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_cached_avatar_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_cached_avatar_url(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func createRoom(request: CreateRoomParameters) throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_create_room(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_create_room(self.uniffiClonePointer(), 
         FfiConverterTypeCreateRoomParameters.lower(request),$0
     )
 }
         )
     }
-
     public func deviceId() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_device_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_device_id(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func displayName() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_display_name(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_display_name(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func encryption()  -> Encryption {
         return try!  FfiConverterTypeEncryption.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_client_encryption(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_encryption(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func getDmRoom(userId: String) throws  -> Room? {
         return try  FfiConverterOptionTypeRoom.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_get_dm_room(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_get_dm_room(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
         )
     }
-
     public func getMediaContent(mediaSource: MediaSource) async throws  -> Data {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_get_media_content(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterTypeMediaSource.lower(mediaSource)
                 )
             },
@@ -800,12 +899,11 @@ public class Client:
     }
 
     
-
     public func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) async throws  -> MediaFileHandle {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_get_media_file(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterTypeMediaSource.lower(mediaSource),
                     FfiConverterOptionString.lower(body),
                     FfiConverterString.lower(mimeType),
@@ -822,12 +920,11 @@ public class Client:
     }
 
     
-
     public func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) async throws  -> Data {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_get_media_thumbnail(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterTypeMediaSource.lower(mediaSource),
                     FfiConverterUInt64.lower(width),
                     FfiConverterUInt64.lower(height)
@@ -842,63 +939,63 @@ public class Client:
     }
 
     
-
     public func getNotificationSettings()  -> NotificationSettings {
         return try!  FfiConverterTypeNotificationSettings.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_client_get_notification_settings(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_get_notification_settings(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func getProfile(userId: String) throws  -> UserProfile {
         return try  FfiConverterTypeUserProfile.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_get_profile(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_get_profile(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
         )
     }
-
     public func getSessionVerificationController() throws  -> SessionVerificationController {
         return try  FfiConverterTypeSessionVerificationController.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_get_session_verification_controller(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_get_session_verification_controller(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * The homeserver this client is configured to use.
+     */
     public func homeserver()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_client_homeserver(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_homeserver(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func ignoreUser(userId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_ignore_user(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_ignore_user(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
     }
-
+    /**
+     * Login using a username and password.
+     */
     public func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_login(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_login(self.uniffiClonePointer(), 
         FfiConverterString.lower(username),
         FfiConverterString.lower(password),
         FfiConverterOptionString.lower(initialDeviceName),
@@ -906,113 +1003,118 @@ public class Client:
     )
 }
     }
-
+    /**
+     * Log out the current user. This method returns an optional URL that
+     * should be presented to the user to complete logout (in the case of
+     * Session having been authenticated using OIDC).
+     */
     public func logout() throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_logout(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_logout(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func notificationClient(processSetup: NotificationProcessSetup) throws  -> NotificationClientBuilder {
         return try  FfiConverterTypeNotificationClientBuilder.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_notification_client(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_notification_client(self.uniffiClonePointer(), 
         FfiConverterTypeNotificationProcessSetup.lower(processSetup),$0
     )
 }
         )
     }
-
     public func removeAvatar() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_remove_avatar(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_remove_avatar(self.uniffiClonePointer(), $0
     )
 }
     }
-
+    /**
+     * Restores the client from a `Session`.
+     */
     public func restoreSession(session: Session) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_restore_session(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_restore_session(self.uniffiClonePointer(), 
         FfiConverterTypeSession.lower(session),$0
     )
 }
     }
-
     public func rooms()  -> [Room] {
         return try!  FfiConverterSequenceTypeRoom.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_client_rooms(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_rooms(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func searchUsers(searchTerm: String, limit: UInt64) throws  -> SearchUsersResults {
         return try  FfiConverterTypeSearchUsersResults.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_search_users(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_search_users(self.uniffiClonePointer(), 
         FfiConverterString.lower(searchTerm),
         FfiConverterUInt64.lower(limit),$0
     )
 }
         )
     }
-
     public func session() throws  -> Session {
         return try  FfiConverterTypeSession.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_session(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_session(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Set the given account data content for the given event type.
+     *
+     * It should be supplied as a JSON string.
+     */
     public func setAccountData(eventType: String, content: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_set_account_data(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_set_account_data(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventType),
         FfiConverterString.lower(content),$0
     )
 }
     }
-
     public func setDelegate(delegate: ClientDelegate?)  -> TaskHandle? {
         return try!  FfiConverterOptionTypeTaskHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_client_set_delegate(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_set_delegate(self.uniffiClonePointer(), 
         FfiConverterOptionCallbackInterfaceClientDelegate.lower(delegate),$0
     )
 }
         )
     }
-
     public func setDisplayName(name: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_set_display_name(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_set_display_name(self.uniffiClonePointer(), 
         FfiConverterString.lower(name),$0
     )
 }
     }
-
+    /**
+     * Registers a pusher with given parameters
+     */
     public func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_set_pusher(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_set_pusher(self.uniffiClonePointer(), 
         FfiConverterTypePusherIdentifiers.lower(identifiers),
         FfiConverterTypePusherKind.lower(kind),
         FfiConverterString.lower(appDisplayName),
@@ -1022,42 +1124,38 @@ public class Client:
     )
 }
     }
-
     public func syncService()  -> SyncServiceBuilder {
         return try!  FfiConverterTypeSyncServiceBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_client_sync_service(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_sync_service(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func unignoreUser(userId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_unignore_user(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_unignore_user(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
     }
-
     public func uploadAvatar(mimeType: String, data: Data) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_upload_avatar(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_client_upload_avatar(self.uniffiClonePointer(), 
         FfiConverterString.lower(mimeType),
         FfiConverterData.lower(data),$0
     )
 }
     }
-
     public func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_upload_media(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(mimeType),
                     FfiConverterData.lower(data),
                     FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher)
@@ -1072,12 +1170,11 @@ public class Client:
     }
 
     
-
     public func userId() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_user_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_client_user_id(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -1095,7 +1192,7 @@ public struct FfiConverterTypeClient: FfiConverter {
     }
 
     public static func lower(_ value: Client) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Client {
@@ -1127,24 +1224,38 @@ public func FfiConverterTypeClient_lower(_ value: Client) -> UnsafeMutableRawPoi
 
 
 
+
 public protocol ClientBuilderProtocol : AnyObject {
+    
     func basePath(path: String)  -> ClientBuilder
+    
     func build() throws  -> Client
+    
     func disableAutomaticTokenRefresh()  -> ClientBuilder
+    
     func disableSslVerification()  -> ClientBuilder
+    
     func enableCrossProcessRefreshLock(processId: String, sessionDelegate: ClientSessionDelegate)  -> ClientBuilder
+    
     func homeserverUrl(url: String)  -> ClientBuilder
+    
     func passphrase(passphrase: String?)  -> ClientBuilder
+    
     func proxy(url: String)  -> ClientBuilder
+    
     func serverName(serverName: String)  -> ClientBuilder
+    
     func serverVersions(versions: [String])  -> ClientBuilder
+    
     func setSessionDelegate(sessionDelegate: ClientSessionDelegate)  -> ClientBuilder
+    
     func slidingSyncProxy(slidingSyncProxy: String?)  -> ClientBuilder
+    
     func userAgent(userAgent: String)  -> ClientBuilder
+    
     func username(username: String)  -> ClientBuilder
     
 }
-
 public class ClientBuilder:
     ClientBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -1154,6 +1265,10 @@ public class ClientBuilder:
     // make it `required` without making it `public`.
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_clientbuilder(self.pointer, $0) }
     }
     public convenience init()  {
         self.init(unsafeFromRawPointer: try! rustCall() {
@@ -1169,166 +1284,152 @@ public class ClientBuilder:
 
     
     
-
     public func basePath(path: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_base_path(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_base_path(self.uniffiClonePointer(), 
         FfiConverterString.lower(path),$0
     )
 }
         )
     }
-
     public func build() throws  -> Client {
         return try  FfiConverterTypeClient.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_build(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_build(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func disableAutomaticTokenRefresh()  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_disable_automatic_token_refresh(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_disable_automatic_token_refresh(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func disableSslVerification()  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_disable_ssl_verification(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_disable_ssl_verification(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func enableCrossProcessRefreshLock(processId: String, sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_enable_cross_process_refresh_lock(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_enable_cross_process_refresh_lock(self.uniffiClonePointer(), 
         FfiConverterString.lower(processId),
         FfiConverterCallbackInterfaceClientSessionDelegate.lower(sessionDelegate),$0
     )
 }
         )
     }
-
     public func homeserverUrl(url: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_homeserver_url(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_homeserver_url(self.uniffiClonePointer(), 
         FfiConverterString.lower(url),$0
     )
 }
         )
     }
-
     public func passphrase(passphrase: String?)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_passphrase(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_passphrase(self.uniffiClonePointer(), 
         FfiConverterOptionString.lower(passphrase),$0
     )
 }
         )
     }
-
     public func proxy(url: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_proxy(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_proxy(self.uniffiClonePointer(), 
         FfiConverterString.lower(url),$0
     )
 }
         )
     }
-
     public func serverName(serverName: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_server_name(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_server_name(self.uniffiClonePointer(), 
         FfiConverterString.lower(serverName),$0
     )
 }
         )
     }
-
     public func serverVersions(versions: [String])  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_server_versions(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_server_versions(self.uniffiClonePointer(), 
         FfiConverterSequenceString.lower(versions),$0
     )
 }
         )
     }
-
     public func setSessionDelegate(sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_set_session_delegate(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_set_session_delegate(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceClientSessionDelegate.lower(sessionDelegate),$0
     )
 }
         )
     }
-
     public func slidingSyncProxy(slidingSyncProxy: String?)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_sliding_sync_proxy(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_sliding_sync_proxy(self.uniffiClonePointer(), 
         FfiConverterOptionString.lower(slidingSyncProxy),$0
     )
 }
         )
     }
-
     public func userAgent(userAgent: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_user_agent(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_user_agent(self.uniffiClonePointer(), 
         FfiConverterString.lower(userAgent),$0
     )
 }
         )
     }
-
     public func username(username: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_username(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_username(self.uniffiClonePointer(), 
         FfiConverterString.lower(username),$0
     )
 }
@@ -1347,7 +1448,7 @@ public struct FfiConverterTypeClientBuilder: FfiConverter {
     }
 
     public static func lower(_ value: ClientBuilder) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ClientBuilder {
@@ -1379,23 +1480,47 @@ public func FfiConverterTypeClientBuilder_lower(_ value: ClientBuilder) -> Unsaf
 
 
 
+
 public protocol EncryptionProtocol : AnyObject {
+    
+    /**
+     * Does a backup exist on the server?
+     *
+     * Because the homeserver doesn't notify us about changes to the backup
+     * version, the [`BackupState`] and its listener are a bit crippled.
+     * The `BackupState::Unknown` state might mean there is no backup at all or
+     * a backup exists but we don't have access to it.
+     *
+     * Therefore it is necessary to poll the server for an answer every time
+     * you want to differentiate between those two states.
+     */
     func backupExistsOnServer() async throws  -> Bool
+    
     func backupState()  -> BackupState
+    
     func backupStateListener(listener: BackupStateListener)  -> TaskHandle
+    
     func disableRecovery() async throws 
+    
     func enableBackups() async throws 
+    
     func enableRecovery(waitForBackupsToUpload: Bool, progressListener: EnableRecoveryProgressListener) async throws  -> String
+    
     func isLastDevice() async throws  -> Bool
+    
     func recover(recoveryKey: String) async throws 
+    
     func recoverAndReset(oldRecoveryKey: String) async throws  -> String
+    
     func recoveryState()  -> RecoveryState
+    
     func recoveryStateListener(listener: RecoveryStateListener)  -> TaskHandle
+    
     func resetRecoveryKey() async throws  -> String
+    
     func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws 
     
 }
-
 public class Encryption:
     EncryptionProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -1407,6 +1532,10 @@ public class Encryption:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_encryption(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_encryption(pointer, $0) }
     }
@@ -1415,12 +1544,22 @@ public class Encryption:
 
     
     
-
+    /**
+     * Does a backup exist on the server?
+     *
+     * Because the homeserver doesn't notify us about changes to the backup
+     * version, the [`BackupState`] and its listener are a bit crippled.
+     * The `BackupState::Unknown` state might mean there is no backup at all or
+     * a backup exists but we don't have access to it.
+     *
+     * Therefore it is necessary to poll the server for an answer every time
+     * you want to differentiate between those two states.
+     */
     public func backupExistsOnServer() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_backup_exists_on_server(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -1432,35 +1571,32 @@ public class Encryption:
     }
 
     
-
     public func backupState()  -> BackupState {
         return try!  FfiConverterTypeBackupState.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_encryption_backup_state(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_encryption_backup_state(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func backupStateListener(listener: BackupStateListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_encryption_backup_state_listener(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_encryption_backup_state_listener(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceBackupStateListener.lower(listener),$0
     )
 }
         )
     }
-
     public func disableRecovery() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_disable_recovery(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -1472,12 +1608,11 @@ public class Encryption:
     }
 
     
-
     public func enableBackups() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_enable_backups(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -1489,12 +1624,11 @@ public class Encryption:
     }
 
     
-
     public func enableRecovery(waitForBackupsToUpload: Bool, progressListener: EnableRecoveryProgressListener) async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_enable_recovery(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(waitForBackupsToUpload),
                     FfiConverterCallbackInterfaceEnableRecoveryProgressListener.lower(progressListener)
                 )
@@ -1508,12 +1642,11 @@ public class Encryption:
     }
 
     
-
     public func isLastDevice() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_is_last_device(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -1525,12 +1658,11 @@ public class Encryption:
     }
 
     
-
     public func recover(recoveryKey: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_recover(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(recoveryKey)
                 )
             },
@@ -1543,12 +1675,11 @@ public class Encryption:
     }
 
     
-
     public func recoverAndReset(oldRecoveryKey: String) async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_recover_and_reset(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(oldRecoveryKey)
                 )
             },
@@ -1561,35 +1692,32 @@ public class Encryption:
     }
 
     
-
     public func recoveryState()  -> RecoveryState {
         return try!  FfiConverterTypeRecoveryState.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_encryption_recovery_state(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_encryption_recovery_state(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func recoveryStateListener(listener: RecoveryStateListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_encryption_recovery_state_listener(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_encryption_recovery_state_listener(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceRecoveryStateListener.lower(listener),$0
     )
 }
         )
     }
-
     public func resetRecoveryKey() async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_reset_recovery_key(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
@@ -1601,12 +1729,11 @@ public class Encryption:
     }
 
     
-
     public func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_wait_for_backup_upload_steady_state(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterOptionCallbackInterfaceBackupSteadyStateListener.lower(progressListener)
                 )
             },
@@ -1632,7 +1759,7 @@ public struct FfiConverterTypeEncryption: FfiConverter {
     }
 
     public static func lower(_ value: Encryption) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Encryption {
@@ -1664,26 +1791,42 @@ public func FfiConverterTypeEncryption_lower(_ value: Encryption) -> UnsafeMutab
 
 
 
+
 public protocol EventTimelineItemProtocol : AnyObject {
+    
     func canBeRepliedTo()  -> Bool
+    
     func content()  -> TimelineItemContent
+    
     func debugInfo()  -> EventTimelineItemDebugInfo
+    
     func eventId()  -> String?
+    
     func isEditable()  -> Bool
+    
     func isLocal()  -> Bool
+    
     func isOwn()  -> Bool
+    
     func isRemote()  -> Bool
+    
     func localSendState()  -> EventSendState?
+    
     func origin()  -> EventItemOrigin?
+    
     func reactions()  -> [Reaction]
+    
     func readReceipts()  -> [String: Receipt]
+    
     func sender()  -> String
+    
     func senderProfile()  -> ProfileDetails
+    
     func timestamp()  -> UInt64
+    
     func transactionId()  -> String?
     
 }
-
 public class EventTimelineItem:
     EventTimelineItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -1695,6 +1838,10 @@ public class EventTimelineItem:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_eventtimelineitem(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_eventtimelineitem(pointer, $0) }
     }
@@ -1703,178 +1850,162 @@ public class EventTimelineItem:
 
     
     
-
     public func canBeRepliedTo()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_can_be_replied_to(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_can_be_replied_to(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func content()  -> TimelineItemContent {
         return try!  FfiConverterTypeTimelineItemContent.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_content(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_content(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func debugInfo()  -> EventTimelineItemDebugInfo {
         return try!  FfiConverterTypeEventTimelineItemDebugInfo.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_debug_info(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_debug_info(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func eventId()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_event_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_event_id(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isEditable()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_editable(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_editable(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isLocal()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_local(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_local(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isOwn()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_own(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_own(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isRemote()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_remote(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_is_remote(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func localSendState()  -> EventSendState? {
         return try!  FfiConverterOptionTypeEventSendState.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_local_send_state(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_local_send_state(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func origin()  -> EventItemOrigin? {
         return try!  FfiConverterOptionTypeEventItemOrigin.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_origin(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_origin(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func reactions()  -> [Reaction] {
         return try!  FfiConverterSequenceTypeReaction.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_reactions(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_reactions(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func readReceipts()  -> [String: Receipt] {
         return try!  FfiConverterDictionaryStringTypeReceipt.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_read_receipts(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_read_receipts(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func sender()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_sender(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_sender(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func senderProfile()  -> ProfileDetails {
         return try!  FfiConverterTypeProfileDetails.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_sender_profile(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_sender_profile(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func timestamp()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_timestamp(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_timestamp(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func transactionId()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_transaction_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_eventtimelineitem_transaction_id(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -1892,7 +2023,7 @@ public struct FfiConverterTypeEventTimelineItem: FfiConverter {
     }
 
     public static func lower(_ value: EventTimelineItem) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EventTimelineItem {
@@ -1924,13 +2055,25 @@ public func FfiConverterTypeEventTimelineItem_lower(_ value: EventTimelineItem) 
 
 
 
+
 public protocol HomeserverLoginDetailsProtocol : AnyObject {
+    
+    /**
+     * Whether the current homeserver supports login using OIDC.
+     */
     func supportsOidcLogin()  -> Bool
+    
+    /**
+     * Whether the current homeserver supports the password login flow.
+     */
     func supportsPasswordLogin()  -> Bool
+    
+    /**
+     * The URL of the currently configured homeserver.
+     */
     func url()  -> String
     
 }
-
 public class HomeserverLoginDetails:
     HomeserverLoginDetailsProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -1942,6 +2085,10 @@ public class HomeserverLoginDetails:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_homeserverlogindetails(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_homeserverlogindetails(pointer, $0) }
     }
@@ -1950,35 +2097,41 @@ public class HomeserverLoginDetails:
 
     
     
-
+    /**
+     * Whether the current homeserver supports login using OIDC.
+     */
     public func supportsOidcLogin()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_homeserverlogindetails_supports_oidc_login(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_homeserverlogindetails_supports_oidc_login(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Whether the current homeserver supports the password login flow.
+     */
     public func supportsPasswordLogin()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_homeserverlogindetails_supports_password_login(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_homeserverlogindetails_supports_password_login(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * The URL of the currently configured homeserver.
+     */
     public func url()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_homeserverlogindetails_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_homeserverlogindetails_url(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -1996,7 +2149,7 @@ public struct FfiConverterTypeHomeserverLoginDetails: FfiConverter {
     }
 
     public static func lower(_ value: HomeserverLoginDetails) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HomeserverLoginDetails {
@@ -2028,12 +2181,25 @@ public func FfiConverterTypeHomeserverLoginDetails_lower(_ value: HomeserverLogi
 
 
 
+
+/**
+ * A file handle that takes ownership of a media file on disk. When the handle
+ * is dropped, the file will be removed from the disk.
+ */
 public protocol MediaFileHandleProtocol : AnyObject {
+    
+    /**
+     * Get the media file's path.
+     */
     func path() throws  -> String
+    
     func persist(path: String) throws  -> Bool
     
 }
-
+/**
+ * A file handle that takes ownership of a media file on disk. When the handle
+ * is dropped, the file will be removed from the disk.
+ */
 public class MediaFileHandle:
     MediaFileHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2045,6 +2211,10 @@ public class MediaFileHandle:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_mediafilehandle(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_mediafilehandle(pointer, $0) }
     }
@@ -2053,22 +2223,23 @@ public class MediaFileHandle:
 
     
     
-
+    /**
+     * Get the media file's path.
+     */
     public func path() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_mediafilehandle_path(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_mediafilehandle_path(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func persist(path: String) throws  -> Bool {
         return try  FfiConverterBool.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_mediafilehandle_persist(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_mediafilehandle_persist(self.uniffiClonePointer(), 
         FfiConverterString.lower(path),$0
     )
 }
@@ -2087,7 +2258,7 @@ public struct FfiConverterTypeMediaFileHandle: FfiConverter {
     }
 
     public static func lower(_ value: MediaFileHandle) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaFileHandle {
@@ -2119,12 +2290,14 @@ public func FfiConverterTypeMediaFileHandle_lower(_ value: MediaFileHandle) -> U
 
 
 
+
 public protocol MediaSourceProtocol : AnyObject {
+    
     func toJson()  -> String
+    
     func url()  -> String
     
 }
-
 public class MediaSource:
     MediaSourceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2136,12 +2309,15 @@ public class MediaSource:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_mediasource(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_mediasource(pointer, $0) }
     }
 
     
-
     public static func fromJson(json: String) throws  -> MediaSource {
         return MediaSource(unsafeFromRawPointer: try rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_constructor_mediasource_from_json(
@@ -2153,24 +2329,22 @@ public class MediaSource:
 
     
     
-
     public func toJson()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_mediasource_to_json(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_mediasource_to_json(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func url()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_mediasource_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_mediasource_url(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -2188,7 +2362,7 @@ public struct FfiConverterTypeMediaSource: FfiConverter {
     }
 
     public static func lower(_ value: MediaSource) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaSource {
@@ -2220,15 +2394,20 @@ public func FfiConverterTypeMediaSource_lower(_ value: MediaSource) -> UnsafeMut
 
 
 
+
 public protocol MessageProtocol : AnyObject {
+    
     func body()  -> String
+    
     func inReplyTo()  -> InReplyToDetails?
+    
     func isEdited()  -> Bool
+    
     func isThreaded()  -> Bool
+    
     func msgtype()  -> MessageType
     
 }
-
 public class Message:
     MessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2240,6 +2419,10 @@ public class Message:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_message(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_message(pointer, $0) }
     }
@@ -2248,57 +2431,52 @@ public class Message:
 
     
     
-
     public func body()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_message_body(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_message_body(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func inReplyTo()  -> InReplyToDetails? {
         return try!  FfiConverterOptionTypeInReplyToDetails.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_message_in_reply_to(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_message_in_reply_to(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isEdited()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_message_is_edited(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_message_is_edited(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isThreaded()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_message_is_threaded(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_message_is_threaded(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func msgtype()  -> MessageType {
         return try!  FfiConverterTypeMessageType.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_message_msgtype(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_message_msgtype(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -2316,7 +2494,7 @@ public struct FfiConverterTypeMessage: FfiConverter {
     }
 
     public static func lower(_ value: Message) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Message {
@@ -2348,11 +2526,16 @@ public func FfiConverterTypeMessage_lower(_ value: Message) -> UnsafeMutableRawP
 
 
 
+
 public protocol NotificationClientProtocol : AnyObject {
+    
+    /**
+     * See also documentation of
+     * `MatrixNotificationClient::get_notification`.
+     */
     func getNotification(roomId: String, eventId: String) throws  -> NotificationItem?
     
 }
-
 public class NotificationClient:
     NotificationClientProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2364,6 +2547,10 @@ public class NotificationClient:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_notificationclient(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationclient(pointer, $0) }
     }
@@ -2372,12 +2559,15 @@ public class NotificationClient:
 
     
     
-
+    /**
+     * See also documentation of
+     * `MatrixNotificationClient::get_notification`.
+     */
     public func getNotification(roomId: String, eventId: String) throws  -> NotificationItem? {
         return try  FfiConverterOptionTypeNotificationItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_notificationclient_get_notification(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_notificationclient_get_notification(self.uniffiClonePointer(), 
         FfiConverterString.lower(roomId),
         FfiConverterString.lower(eventId),$0
     )
@@ -2397,7 +2587,7 @@ public struct FfiConverterTypeNotificationClient: FfiConverter {
     }
 
     public static func lower(_ value: NotificationClient) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationClient {
@@ -2429,12 +2619,18 @@ public func FfiConverterTypeNotificationClient_lower(_ value: NotificationClient
 
 
 
+
 public protocol NotificationClientBuilderProtocol : AnyObject {
+    
+    /**
+     * Filter out the notification event according to the push rules present in
+     * the event.
+     */
     func filterByPushRules()  -> NotificationClientBuilder
+    
     func finish()  -> NotificationClient
     
 }
-
 public class NotificationClientBuilder:
     NotificationClientBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2446,6 +2642,10 @@ public class NotificationClientBuilder:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_notificationclientbuilder(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationclientbuilder(pointer, $0) }
     }
@@ -2454,24 +2654,26 @@ public class NotificationClientBuilder:
 
     
     
-
+    /**
+     * Filter out the notification event according to the push rules present in
+     * the event.
+     */
     public func filterByPushRules()  -> NotificationClientBuilder {
         return try!  FfiConverterTypeNotificationClientBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_notificationclientbuilder_filter_by_push_rules(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_notificationclientbuilder_filter_by_push_rules(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func finish()  -> NotificationClient {
         return try!  FfiConverterTypeNotificationClient.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_notificationclientbuilder_finish(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_notificationclientbuilder_finish(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -2489,7 +2691,7 @@ public struct FfiConverterTypeNotificationClientBuilder: FfiConverter {
     }
 
     public static func lower(_ value: NotificationClientBuilder) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationClientBuilder {
@@ -2521,29 +2723,134 @@ public func FfiConverterTypeNotificationClientBuilder_lower(_ value: Notificatio
 
 
 
+
 public protocol NotificationSettingsProtocol : AnyObject {
-    func canHomeserverPushEncryptedEventToDevice() async  -> Bool
+    
+    /**
+     * Returns true if [MSC 4028 push rule][rule] is supported and enabled.
+     *
+     * [rule]: https://github.com/matrix-org/matrix-spec-proposals/blob/giomfo/push_encrypted_events/proposals/4028-push-all-encrypted-events-except-for-muted-rooms.md
+     */
+    func canPushEncryptedEventToDevice() async  -> Bool
+    
+    /**
+     * Get whether some enabled keyword rules exist.
+     */
     func containsKeywordsRules() async  -> Bool
+    
+    /**
+     * Get the default room notification mode
+     *
+     * The mode will depend on the associated `PushRule` based on whether the
+     * room is encrypted or not, and on the number of members.
+     *
+     * # Arguments
+     *
+     * * `is_encrypted` - whether the room is encrypted
+     * * `is_one_to_one` - whether the room is a direct chats involving two
+     * people
+     */
     func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode
+    
+    /**
+     * Get the notification settings for a room.
+     *
+     * # Arguments
+     *
+     * * `room_id` - the room ID
+     * * `is_encrypted` - whether the room is encrypted
+     * * `is_one_to_one` - whether the room is a direct chat involving two
+     * people
+     */
     func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  -> RoomNotificationSettings
+    
+    /**
+     * Get all room IDs for which a user-defined rule exists.
+     */
     func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String]
+    
+    /**
+     * Get the user defined room notification mode
+     */
     func getUserDefinedRoomNotificationMode(roomId: String) async throws  -> RoomNotificationMode?
+    
+    /**
+     * Get whether the `.m.rule.call` push rule is enabled
+     */
     func isCallEnabled() async throws  -> Bool
+    
+    /**
+     * Get whether the `.m.rule.invite_for_me` push rule is enabled
+     */
     func isInviteForMeEnabled() async throws  -> Bool
+    
+    /**
+     * Get whether room mentions are enabled.
+     */
     func isRoomMentionEnabled() async throws  -> Bool
+    
+    /**
+     * Get whether user mentions are enabled.
+     */
     func isUserMentionEnabled() async throws  -> Bool
+    
+    /**
+     * Restore the default notification mode for a room
+     */
     func restoreDefaultRoomNotificationMode(roomId: String) async throws 
+    
+    /**
+     * Set whether the `.m.rule.call` push rule is enabled
+     */
     func setCallEnabled(enabled: Bool) async throws 
+    
+    /**
+     * Set the default room notification mode
+     *
+     * # Arguments
+     *
+     * * `is_encrypted` - whether the mode is for encrypted rooms
+     * * `is_one_to_one` - whether the mode is for direct chats involving two
+     * people
+     * * `mode` - the new default mode
+     */
     func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws 
+    
     func setDelegate(delegate: NotificationSettingsDelegate?) 
+    
+    /**
+     * Set whether the `.m.rule.invite_for_me` push rule is enabled
+     */
     func setInviteForMeEnabled(enabled: Bool) async throws 
+    
+    /**
+     * Set whether room mentions are enabled.
+     */
     func setRoomMentionEnabled(enabled: Bool) async throws 
+    
+    /**
+     * Set the notification mode for a room.
+     */
     func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws 
+    
+    /**
+     * Set whether user mentions are enabled.
+     */
     func setUserMentionEnabled(enabled: Bool) async throws 
+    
+    /**
+     * Unmute a room.
+     *
+     * # Arguments
+     *
+     * * `room_id` - the room to unmute
+     * * `is_encrypted` - whether the room is encrypted
+     * * `is_one_to_one` - whether the room is a direct chat involving two
+     * people
+     */
     func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws 
     
 }
-
 public class NotificationSettings:
     NotificationSettingsProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2555,6 +2862,10 @@ public class NotificationSettings:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_notificationsettings(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationsettings(pointer, $0) }
     }
@@ -2563,12 +2874,16 @@ public class NotificationSettings:
 
     
     
-
-    public func canHomeserverPushEncryptedEventToDevice() async  -> Bool {
+    /**
+     * Returns true if [MSC 4028 push rule][rule] is supported and enabled.
+     *
+     * [rule]: https://github.com/matrix-org/matrix-spec-proposals/blob/giomfo/push_encrypted_events/proposals/4028-push-all-encrypted-events-except-for-muted-rooms.md
+     */
+    public func canPushEncryptedEventToDevice() async  -> Bool {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_can_homeserver_push_encrypted_event_to_device(
-                    self.pointer
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_can_push_encrypted_event_to_device(
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -2581,12 +2896,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get whether some enabled keyword rules exist.
+     */
     public func containsKeywordsRules() async  -> Bool {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_contains_keywords_rules(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -2599,12 +2916,23 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get the default room notification mode
+     *
+     * The mode will depend on the associated `PushRule` based on whether the
+     * room is encrypted or not, and on the number of members.
+     *
+     * # Arguments
+     *
+     * * `is_encrypted` - whether the room is encrypted
+     * * `is_one_to_one` - whether the room is a direct chats involving two
+     * people
+     */
     public func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_default_room_notification_mode(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(isEncrypted),
                     FfiConverterBool.lower(isOneToOne)
                 )
@@ -2619,12 +2947,21 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get the notification settings for a room.
+     *
+     * # Arguments
+     *
+     * * `room_id` - the room ID
+     * * `is_encrypted` - whether the room is encrypted
+     * * `is_one_to_one` - whether the room is a direct chat involving two
+     * people
+     */
     public func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  -> RoomNotificationSettings {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_room_notification_settings(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(roomId),
                     FfiConverterBool.lower(isEncrypted),
                     FfiConverterBool.lower(isOneToOne)
@@ -2639,12 +2976,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get all room IDs for which a user-defined rule exists.
+     */
     public func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String] {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_rooms_with_user_defined_rules(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterOptionBool.lower(enabled)
                 )
             },
@@ -2658,12 +2997,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get the user defined room notification mode
+     */
     public func getUserDefinedRoomNotificationMode(roomId: String) async throws  -> RoomNotificationMode? {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_user_defined_room_notification_mode(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(roomId)
                 )
             },
@@ -2676,12 +3017,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get whether the `.m.rule.call` push rule is enabled
+     */
     public func isCallEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_call_enabled(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -2693,12 +3036,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get whether the `.m.rule.invite_for_me` push rule is enabled
+     */
     public func isInviteForMeEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_invite_for_me_enabled(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -2710,12 +3055,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get whether room mentions are enabled.
+     */
     public func isRoomMentionEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_room_mention_enabled(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -2727,12 +3074,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Get whether user mentions are enabled.
+     */
     public func isUserMentionEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_user_mention_enabled(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -2744,12 +3093,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Restore the default notification mode for a room
+     */
     public func restoreDefaultRoomNotificationMode(roomId: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_restore_default_room_notification_mode(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(roomId)
                 )
             },
@@ -2762,12 +3113,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Set whether the `.m.rule.call` push rule is enabled
+     */
     public func setCallEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_call_enabled(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(enabled)
                 )
             },
@@ -2780,12 +3133,21 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Set the default room notification mode
+     *
+     * # Arguments
+     *
+     * * `is_encrypted` - whether the mode is for encrypted rooms
+     * * `is_one_to_one` - whether the mode is for direct chats involving two
+     * people
+     * * `mode` - the new default mode
+     */
     public func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_default_room_notification_mode(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(isEncrypted),
                     FfiConverterBool.lower(isOneToOne),
                     FfiConverterTypeRoomNotificationMode.lower(mode)
@@ -2800,22 +3162,23 @@ public class NotificationSettings:
     }
 
     
-
     public func setDelegate(delegate: NotificationSettingsDelegate?)  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_delegate(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_delegate(self.uniffiClonePointer(), 
         FfiConverterOptionCallbackInterfaceNotificationSettingsDelegate.lower(delegate),$0
     )
 }
     }
-
+    /**
+     * Set whether the `.m.rule.invite_for_me` push rule is enabled
+     */
     public func setInviteForMeEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_invite_for_me_enabled(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(enabled)
                 )
             },
@@ -2828,12 +3191,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Set whether room mentions are enabled.
+     */
     public func setRoomMentionEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_mention_enabled(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(enabled)
                 )
             },
@@ -2846,12 +3211,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Set the notification mode for a room.
+     */
     public func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_notification_mode(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(roomId),
                     FfiConverterTypeRoomNotificationMode.lower(mode)
                 )
@@ -2865,12 +3232,14 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Set whether user mentions are enabled.
+     */
     public func setUserMentionEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_user_mention_enabled(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(enabled)
                 )
             },
@@ -2883,12 +3252,21 @@ public class NotificationSettings:
     }
 
     
-
+    /**
+     * Unmute a room.
+     *
+     * # Arguments
+     *
+     * * `room_id` - the room to unmute
+     * * `is_encrypted` - whether the room is encrypted
+     * * `is_one_to_one` - whether the room is a direct chat involving two
+     * people
+     */
     public func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_unmute_room(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(roomId),
                     FfiConverterBool.lower(isEncrypted),
                     FfiConverterBool.lower(isOneToOne)
@@ -2916,7 +3294,7 @@ public struct FfiConverterTypeNotificationSettings: FfiConverter {
     }
 
     public static func lower(_ value: NotificationSettings) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationSettings {
@@ -2948,11 +3326,21 @@ public func FfiConverterTypeNotificationSettings_lower(_ value: NotificationSett
 
 
 
+
+/**
+ * The data required to authenticate against an OIDC server.
+ */
 public protocol OidcAuthenticationDataProtocol : AnyObject {
+    
+    /**
+     * The login URL to use for authentication.
+     */
     func loginUrl()  -> String
     
 }
-
+/**
+ * The data required to authenticate against an OIDC server.
+ */
 public class OidcAuthenticationData:
     OidcAuthenticationDataProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2964,6 +3352,10 @@ public class OidcAuthenticationData:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_oidcauthenticationdata(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_oidcauthenticationdata(pointer, $0) }
     }
@@ -2972,13 +3364,15 @@ public class OidcAuthenticationData:
 
     
     
-
+    /**
+     * The login URL to use for authentication.
+     */
     public func loginUrl()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_oidcauthenticationdata_login_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_oidcauthenticationdata_login_url(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -2996,7 +3390,7 @@ public struct FfiConverterTypeOidcAuthenticationData: FfiConverter {
     }
 
     public static func lower(_ value: OidcAuthenticationData) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OidcAuthenticationData {
@@ -3028,59 +3422,187 @@ public func FfiConverterTypeOidcAuthenticationData_lower(_ value: OidcAuthentica
 
 
 
+
 public protocol RoomProtocol : AnyObject {
+    
     func activeMembersCount()  -> UInt64
+    
+    /**
+     * Returns a Vec of userId's that participate in the room call.
+     *
+     * matrix_rtc memberships with application "m.call" and scope "m.room" are
+     * considered. A user can occur twice if they join with two devices.
+     * convert to a set depending if the different users are required or the
+     * amount of sessions.
+     *
+     * The vector is ordered by oldest membership user to newest.
+     */
     func activeRoomCallParticipants()  -> [String]
+    
     func alternativeAliases()  -> [String]
+    
     func avatarUrl()  -> String?
+    
     func banUser(userId: String, reason: String?) async throws 
+    
     func canUserBan(userId: String) async throws  -> Bool
+    
     func canUserInvite(userId: String) async throws  -> Bool
+    
     func canUserKick(userId: String) async throws  -> Bool
+    
     func canUserRedact(userId: String) async throws  -> Bool
+    
     func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws  -> Bool
+    
     func canUserSendState(userId: String, stateEvent: StateEventType) async throws  -> Bool
+    
     func canUserTriggerRoomNotification(userId: String) async throws  -> Bool
+    
     func canonicalAlias()  -> String?
+    
     func displayName() throws  -> String
+    
+    /**
+     * Is there a non expired membership with application "m.call" and scope
+     * "m.room" in this room.
+     */
     func hasActiveRoomCall()  -> Bool
+    
     func id()  -> String
+    
+    /**
+     * Ignores a user.
+     *
+     * # Arguments
+     *
+     * * `event_id` - The ID of the user to ignore.
+     */
     func ignoreUser(userId: String) throws 
+    
     func inviteUserById(userId: String) throws 
+    
     func invitedMembersCount()  -> UInt64
+    
     func inviter()  -> RoomMember?
+    
     func isDirect()  -> Bool
+    
     func isEncrypted() throws  -> Bool
+    
     func isPublic()  -> Bool
+    
     func isSpace()  -> Bool
+    
     func isTombstoned()  -> Bool
+    
+    /**
+     * Join this room.
+     *
+     * Only invited and left rooms can be joined via this method.
+     */
     func join() throws 
+    
     func joinedMembersCount()  -> UInt64
+    
     func kickUser(userId: String, reason: String?) async throws 
+    
+    /**
+     * Leave this room.
+     *
+     * Only invited and joined rooms can be left.
+     */
     func leave() throws 
+    
     func member(userId: String) async throws  -> RoomMember
+    
     func memberAvatarUrl(userId: String) throws  -> String?
+    
     func memberDisplayName(userId: String) throws  -> String?
+    
     func members() async throws  -> RoomMembersIterator
+    
+    func membersNoSync() async throws  -> RoomMembersIterator
+    
     func membership()  -> Membership
+    
     func name()  -> String?
+    
     func ownUserId()  -> String
+    
     func pollHistory() async  -> Timeline
+    
+    /**
+     * Redacts an event from the room.
+     *
+     * # Arguments
+     *
+     * * `event_id` - The ID of the event to redact
+     *
+     * * `reason` - The reason for the event being redacted (optional).
+     * its transaction ID (optional). If not given one is created.
+     */
     func redact(eventId: String, reason: String?) throws 
+    
+    /**
+     * Removes the current room avatar
+     */
     func removeAvatar() throws 
+    
+    /**
+     * Reports an event from the room.
+     *
+     * # Arguments
+     *
+     * * `event_id` - The ID of the event to report
+     *
+     * * `reason` - The reason for the event being reported (optional).
+     *
+     * * `score` - The score to rate this content as where -100 is most
+     * offensive and 0 is inoffensive (optional).
+     */
     func reportContent(eventId: String, score: Int32?, reason: String?) throws 
+    
     func roomInfo() async throws  -> RoomInfo
+    
+    /**
+     * Sets a new name to the room.
+     */
     func setName(name: String) throws 
+    
+    /**
+     * Sets a new topic in the room.
+     */
     func setTopic(topic: String) throws 
+    
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle
+    
     func timeline() async  -> Timeline
+    
     func topic()  -> String?
+    
     func typingNotice(isTyping: Bool) async throws 
+    
     func unbanUser(userId: String, reason: String?) async throws 
+    
+    /**
+     * Upload and set the room's avatar.
+     *
+     * This will upload the data produced by the reader to the homeserver's
+     * content repository, and set the room's avatar to the MXC URI for the
+     * uploaded file.
+     *
+     * # Arguments
+     *
+     * * `mime_type` - The mime description of the avatar, for example
+     * image/jpeg
+     * * `data` - The raw data that will be uploaded to the homeserver's
+     * content repository
+     * * `media_info` - The media info used as avatar image info.
+     */
     func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws 
     
 }
-
 public class Room:
     RoomProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -3092,6 +3614,10 @@ public class Room:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_room(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_room(pointer, $0) }
     }
@@ -3100,56 +3626,61 @@ public class Room:
 
     
     
-
     public func activeMembersCount()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_active_members_count(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_active_members_count(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Returns a Vec of userId's that participate in the room call.
+     *
+     * matrix_rtc memberships with application "m.call" and scope "m.room" are
+     * considered. A user can occur twice if they join with two devices.
+     * convert to a set depending if the different users are required or the
+     * amount of sessions.
+     *
+     * The vector is ordered by oldest membership user to newest.
+     */
     public func activeRoomCallParticipants()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_active_room_call_participants(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_active_room_call_participants(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func alternativeAliases()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_alternative_aliases(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_alternative_aliases(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func avatarUrl()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_avatar_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_avatar_url(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func banUser(userId: String, reason: String?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_ban_user(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId),
                     FfiConverterOptionString.lower(reason)
                 )
@@ -3163,12 +3694,11 @@ public class Room:
     }
 
     
-
     public func canUserBan(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_ban(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId)
                 )
             },
@@ -3181,12 +3711,11 @@ public class Room:
     }
 
     
-
     public func canUserInvite(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_invite(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId)
                 )
             },
@@ -3199,12 +3728,11 @@ public class Room:
     }
 
     
-
     public func canUserKick(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_kick(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId)
                 )
             },
@@ -3217,12 +3745,11 @@ public class Room:
     }
 
     
-
     public func canUserRedact(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId)
                 )
             },
@@ -3235,12 +3762,11 @@ public class Room:
     }
 
     
-
     public func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_message(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId),
                     FfiConverterTypeMessageLikeEventType.lower(message)
                 )
@@ -3254,12 +3780,11 @@ public class Room:
     }
 
     
-
     public func canUserSendState(userId: String, stateEvent: StateEventType) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_state(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId),
                     FfiConverterTypeStateEventType.lower(stateEvent)
                 )
@@ -3273,12 +3798,11 @@ public class Room:
     }
 
     
-
     public func canUserTriggerRoomNotification(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_trigger_room_notification(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId)
                 )
             },
@@ -3291,168 +3815,168 @@ public class Room:
     }
 
     
-
     public func canonicalAlias()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_canonical_alias(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_canonical_alias(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func displayName() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_display_name(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_display_name(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Is there a non expired membership with application "m.call" and scope
+     * "m.room" in this room.
+     */
     public func hasActiveRoomCall()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_has_active_room_call(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_has_active_room_call(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func id()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_id(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Ignores a user.
+     *
+     * # Arguments
+     *
+     * * `event_id` - The ID of the user to ignore.
+     */
     public func ignoreUser(userId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_ignore_user(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_ignore_user(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
     }
-
     public func inviteUserById(userId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_invite_user_by_id(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_invite_user_by_id(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
     }
-
     public func invitedMembersCount()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_invited_members_count(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_invited_members_count(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func inviter()  -> RoomMember? {
         return try!  FfiConverterOptionTypeRoomMember.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_inviter(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_inviter(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isDirect()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_is_direct(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_is_direct(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isEncrypted() throws  -> Bool {
         return try  FfiConverterBool.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_is_encrypted(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_is_encrypted(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isPublic()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_is_public(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_is_public(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isSpace()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_is_space(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_is_space(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isTombstoned()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_is_tombstoned(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_is_tombstoned(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Join this room.
+     *
+     * Only invited and left rooms can be joined via this method.
+     */
     public func join() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_join(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_join(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func joinedMembersCount()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_joined_members_count(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_joined_members_count(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func kickUser(userId: String, reason: String?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_kick_user(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId),
                     FfiConverterOptionString.lower(reason)
                 )
@@ -3466,20 +3990,23 @@ public class Room:
     }
 
     
-
+    /**
+     * Leave this room.
+     *
+     * Only invited and joined rooms can be left.
+     */
     public func leave() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_leave(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_leave(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func member(userId: String) async throws  -> RoomMember {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_member(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId)
                 )
             },
@@ -3492,34 +4019,31 @@ public class Room:
     }
 
     
-
     public func memberAvatarUrl(userId: String) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_member_avatar_url(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_member_avatar_url(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
         )
     }
-
     public func memberDisplayName(userId: String) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_member_display_name(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_member_display_name(self.uniffiClonePointer(), 
         FfiConverterString.lower(userId),$0
     )
 }
         )
     }
-
     public func members() async throws  -> RoomMembersIterator {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_members(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -3531,45 +4055,57 @@ public class Room:
     }
 
     
+    public func membersNoSync() async throws  -> RoomMembersIterator {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_members_no_sync(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoomMembersIterator.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
 
+    
     public func membership()  -> Membership {
         return try!  FfiConverterTypeMembership.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_membership(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_membership(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func name()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_name(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_name(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func ownUserId()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_own_user_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_own_user_id(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func pollHistory() async  -> Timeline {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_poll_history(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -3582,41 +4118,62 @@ public class Room:
     }
 
     
-
+    /**
+     * Redacts an event from the room.
+     *
+     * # Arguments
+     *
+     * * `event_id` - The ID of the event to redact
+     *
+     * * `reason` - The reason for the event being redacted (optional).
+     * its transaction ID (optional). If not given one is created.
+     */
     public func redact(eventId: String, reason: String?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_redact(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_redact(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventId),
         FfiConverterOptionString.lower(reason),$0
     )
 }
     }
-
+    /**
+     * Removes the current room avatar
+     */
     public func removeAvatar() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_remove_avatar(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_remove_avatar(self.uniffiClonePointer(), $0
     )
 }
     }
-
+    /**
+     * Reports an event from the room.
+     *
+     * # Arguments
+     *
+     * * `event_id` - The ID of the event to report
+     *
+     * * `reason` - The reason for the event being reported (optional).
+     *
+     * * `score` - The score to rate this content as where -100 is most
+     * offensive and 0 is inoffensive (optional).
+     */
     public func reportContent(eventId: String, score: Int32?, reason: String?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_report_content(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_report_content(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventId),
         FfiConverterOptionInt32.lower(score),
         FfiConverterOptionString.lower(reason),$0
     )
 }
     }
-
     public func roomInfo() async throws  -> RoomInfo {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_room_info(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
@@ -3628,42 +4185,44 @@ public class Room:
     }
 
     
-
+    /**
+     * Sets a new name to the room.
+     */
     public func setName(name: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_set_name(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_set_name(self.uniffiClonePointer(), 
         FfiConverterString.lower(name),$0
     )
 }
     }
-
+    /**
+     * Sets a new topic in the room.
+     */
     public func setTopic(topic: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_set_topic(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_set_topic(self.uniffiClonePointer(), 
         FfiConverterString.lower(topic),$0
     )
 }
     }
-
     public func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_room_info_updates(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_room_info_updates(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceRoomInfoListener.lower(listener),$0
     )
 }
         )
     }
-
     public func timeline() async  -> Timeline {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_timeline(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -3676,23 +4235,21 @@ public class Room:
     }
 
     
-
     public func topic()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_room_topic(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_room_topic(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func typingNotice(isTyping: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_typing_notice(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterBool.lower(isTyping)
                 )
             },
@@ -3705,12 +4262,11 @@ public class Room:
     }
 
     
-
     public func unbanUser(userId: String, reason: String?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_unban_user(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(userId),
                     FfiConverterOptionString.lower(reason)
                 )
@@ -3724,11 +4280,25 @@ public class Room:
     }
 
     
-
+    /**
+     * Upload and set the room's avatar.
+     *
+     * This will upload the data produced by the reader to the homeserver's
+     * content repository, and set the room's avatar to the MXC URI for the
+     * uploaded file.
+     *
+     * # Arguments
+     *
+     * * `mime_type` - The mime description of the avatar, for example
+     * image/jpeg
+     * * `data` - The raw data that will be uploaded to the homeserver's
+     * content repository
+     * * `media_info` - The media info used as avatar image info.
+     */
     public func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_upload_avatar(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_room_upload_avatar(self.uniffiClonePointer(), 
         FfiConverterString.lower(mimeType),
         FfiConverterData.lower(data),
         FfiConverterOptionTypeImageInfo.lower(mediaInfo),$0
@@ -3748,7 +4318,7 @@ public struct FfiConverterTypeRoom: FfiConverter {
     }
 
     public static func lower(_ value: Room) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Room {
@@ -3780,14 +4350,18 @@ public func FfiConverterTypeRoom_lower(_ value: Room) -> UnsafeMutableRawPointer
 
 
 
+
 public protocol RoomListProtocol : AnyObject {
+    
     func entries(listener: RoomListEntriesListener)  -> RoomListEntriesResult
+    
     func entriesWithDynamicAdapters(pageSize: UInt32, listener: RoomListEntriesListener)  -> RoomListEntriesWithDynamicAdaptersResult
+    
     func loadingState(listener: RoomListLoadingStateListener) throws  -> RoomListLoadingStateResult
+    
     func room(roomId: String) throws  -> RoomListItem
     
 }
-
 public class RoomList:
     RoomListProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -3799,6 +4373,10 @@ public class RoomList:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roomlist(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlist(pointer, $0) }
     }
@@ -3807,48 +4385,44 @@ public class RoomList:
 
     
     
-
     public func entries(listener: RoomListEntriesListener)  -> RoomListEntriesResult {
         return try!  FfiConverterTypeRoomListEntriesResult.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlist_entries(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_entries(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceRoomListEntriesListener.lower(listener),$0
     )
 }
         )
     }
-
     public func entriesWithDynamicAdapters(pageSize: UInt32, listener: RoomListEntriesListener)  -> RoomListEntriesWithDynamicAdaptersResult {
         return try!  FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlist_entries_with_dynamic_adapters(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_entries_with_dynamic_adapters(self.uniffiClonePointer(), 
         FfiConverterUInt32.lower(pageSize),
         FfiConverterCallbackInterfaceRoomListEntriesListener.lower(listener),$0
     )
 }
         )
     }
-
     public func loadingState(listener: RoomListLoadingStateListener) throws  -> RoomListLoadingStateResult {
         return try  FfiConverterTypeRoomListLoadingStateResult.lift(
             try 
     rustCallWithError(FfiConverterTypeRoomListError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_roomlist_loading_state(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_loading_state(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceRoomListLoadingStateListener.lower(listener),$0
     )
 }
         )
     }
-
     public func room(roomId: String) throws  -> RoomListItem {
         return try  FfiConverterTypeRoomListItem.lift(
             try 
     rustCallWithError(FfiConverterTypeRoomListError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_roomlist_room(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlist_room(self.uniffiClonePointer(), 
         FfiConverterString.lower(roomId),$0
     )
 }
@@ -3867,7 +4441,7 @@ public struct FfiConverterTypeRoomList: FfiConverter {
     }
 
     public static func lower(_ value: RoomList) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomList {
@@ -3899,13 +4473,16 @@ public func FfiConverterTypeRoomList_lower(_ value: RoomList) -> UnsafeMutableRa
 
 
 
+
 public protocol RoomListDynamicEntriesControllerProtocol : AnyObject {
+    
     func addOnePage() 
+    
     func resetToOnePage() 
+    
     func setFilter(kind: RoomListEntriesDynamicFilterKind)  -> Bool
     
 }
-
 public class RoomListDynamicEntriesController:
     RoomListDynamicEntriesControllerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -3917,6 +4494,10 @@ public class RoomListDynamicEntriesController:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roomlistdynamicentriescontroller(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistdynamicentriescontroller(pointer, $0) }
     }
@@ -3925,31 +4506,28 @@ public class RoomListDynamicEntriesController:
 
     
     
-
     public func addOnePage()  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_add_one_page(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_add_one_page(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func resetToOnePage()  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_reset_to_one_page(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_reset_to_one_page(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func setFilter(kind: RoomListEntriesDynamicFilterKind)  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_set_filter(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlistdynamicentriescontroller_set_filter(self.uniffiClonePointer(), 
         FfiConverterTypeRoomListEntriesDynamicFilterKind.lower(kind),$0
     )
 }
@@ -3968,7 +4546,7 @@ public struct FfiConverterTypeRoomListDynamicEntriesController: FfiConverter {
     }
 
     public static func lower(_ value: RoomListDynamicEntriesController) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListDynamicEntriesController {
@@ -4000,23 +4578,42 @@ public func FfiConverterTypeRoomListDynamicEntriesController_lower(_ value: Room
 
 
 
+
 public protocol RoomListItemProtocol : AnyObject {
+    
     func avatarUrl()  -> String?
+    
     func canonicalAlias()  -> String?
+    
+    /**
+     * Building a `Room`.
+     *
+     * Be careful that building a `Room` builds its entire `Timeline` at the
+     * same time.
+     */
     func fullRoom() async  -> Room
+    
     func fullRoomBlocking()  -> Room
+    
     func hasUnreadNotifications()  -> Bool
+    
     func id()  -> String
+    
     func isDirect()  -> Bool
+    
     func latestEvent() async  -> EventTimelineItem?
+    
     func name()  -> String?
+    
     func roomInfo() async throws  -> RoomInfo
+    
     func subscribe(settings: RoomSubscription?) 
+    
     func unreadNotifications()  -> UnreadNotificationsCount
+    
     func unsubscribe() 
     
 }
-
 public class RoomListItem:
     RoomListItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4028,6 +4625,10 @@ public class RoomListItem:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roomlistitem(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistitem(pointer, $0) }
     }
@@ -4036,34 +4637,37 @@ public class RoomListItem:
 
     
     
-
     public func avatarUrl()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_avatar_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_avatar_url(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func canonicalAlias()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_canonical_alias(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_canonical_alias(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Building a `Room`.
+     *
+     * Be careful that building a `Room` builds its entire `Timeline` at the
+     * same time.
+     */
     public func fullRoom() async  -> Room {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -4076,56 +4680,51 @@ public class RoomListItem:
     }
 
     
-
     public func fullRoomBlocking()  -> Room {
         return try!  FfiConverterTypeRoom.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room_blocking(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room_blocking(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func hasUnreadNotifications()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_has_unread_notifications(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_has_unread_notifications(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func id()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_id(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isDirect()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_is_direct(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_is_direct(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func latestEvent() async  -> EventTimelineItem? {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_latest_event(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
@@ -4138,23 +4737,21 @@ public class RoomListItem:
     }
 
     
-
     public func name()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_name(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_name(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func roomInfo() async throws  -> RoomInfo {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_room_info(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
@@ -4166,33 +4763,30 @@ public class RoomListItem:
     }
 
     
-
     public func subscribe(settings: RoomSubscription?)  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_subscribe(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_subscribe(self.uniffiClonePointer(), 
         FfiConverterOptionTypeRoomSubscription.lower(settings),$0
     )
 }
     }
-
     public func unreadNotifications()  -> UnreadNotificationsCount {
         return try!  FfiConverterTypeUnreadNotificationsCount.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_unread_notifications(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_unread_notifications(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func unsubscribe()  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_unsubscribe(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_unsubscribe(self.uniffiClonePointer(), $0
     )
 }
     }
@@ -4209,7 +4803,7 @@ public struct FfiConverterTypeRoomListItem: FfiConverter {
     }
 
     public static func lower(_ value: RoomListItem) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListItem {
@@ -4241,16 +4835,22 @@ public func FfiConverterTypeRoomListItem_lower(_ value: RoomListItem) -> UnsafeM
 
 
 
+
 public protocol RoomListServiceProtocol : AnyObject {
+    
     func allRooms() async throws  -> RoomList
+    
     func applyInput(input: RoomListInput) async throws 
+    
     func invites() async throws  -> RoomList
+    
     func room(roomId: String) throws  -> RoomListItem
+    
     func state(listener: RoomListServiceStateListener)  -> TaskHandle
+    
     func syncIndicator(delayBeforeShowingInMs: UInt32, delayBeforeHidingInMs: UInt32, listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle
     
 }
-
 public class RoomListService:
     RoomListServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4262,6 +4862,10 @@ public class RoomListService:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roomlistservice(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistservice(pointer, $0) }
     }
@@ -4270,12 +4874,11 @@ public class RoomListService:
 
     
     
-
     public func allRooms() async throws  -> RoomList {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_all_rooms(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -4287,12 +4890,11 @@ public class RoomListService:
     }
 
     
-
     public func applyInput(input: RoomListInput) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_apply_input(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterTypeRoomListInput.lower(input)
                 )
             },
@@ -4305,12 +4907,11 @@ public class RoomListService:
     }
 
     
-
     public func invites() async throws  -> RoomList {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_invites(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -4322,36 +4923,33 @@ public class RoomListService:
     }
 
     
-
     public func room(roomId: String) throws  -> RoomListItem {
         return try  FfiConverterTypeRoomListItem.lift(
             try 
     rustCallWithError(FfiConverterTypeRoomListError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_roomlistservice_room(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlistservice_room(self.uniffiClonePointer(), 
         FfiConverterString.lower(roomId),$0
     )
 }
         )
     }
-
     public func state(listener: RoomListServiceStateListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistservice_state(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlistservice_state(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceRoomListServiceStateListener.lower(listener),$0
     )
 }
         )
     }
-
     public func syncIndicator(delayBeforeShowingInMs: UInt32, delayBeforeHidingInMs: UInt32, listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roomlistservice_sync_indicator(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roomlistservice_sync_indicator(self.uniffiClonePointer(), 
         FfiConverterUInt32.lower(delayBeforeShowingInMs),
         FfiConverterUInt32.lower(delayBeforeHidingInMs),
         FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.lower(listener),$0
@@ -4372,7 +4970,7 @@ public struct FfiConverterTypeRoomListService: FfiConverter {
     }
 
     public static func lower(_ value: RoomListService) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListService {
@@ -4404,28 +5002,54 @@ public func FfiConverterTypeRoomListService_lower(_ value: RoomListService) -> U
 
 
 
+
 public protocol RoomMemberProtocol : AnyObject {
+    
     func avatarUrl()  -> String?
+    
     func canBan()  -> Bool
+    
     func canInvite()  -> Bool
+    
     func canKick()  -> Bool
+    
     func canRedact()  -> Bool
+    
     func canSendMessage(event: MessageLikeEventType)  -> Bool
+    
     func canSendState(stateEvent: StateEventType)  -> Bool
+    
     func canTriggerRoomNotification()  -> Bool
+    
     func displayName()  -> String?
+    
+    /**
+     * Adds the room member to the current account data's ignore list
+     * which will ignore the user across all rooms.
+     */
     func ignore() throws 
+    
     func isAccountUser()  -> Bool
+    
     func isIgnored()  -> Bool
+    
     func isNameAmbiguous()  -> Bool
+    
     func membership()  -> MembershipState
+    
     func normalizedPowerLevel()  -> Int64
+    
     func powerLevel()  -> Int64
+    
+    /**
+     * Removes the room member from the current account data's ignore list
+     * which will unignore the user across all rooms.
+     */
     func unignore() throws 
+    
     func userId()  -> String
     
 }
-
 public class RoomMember:
     RoomMemberProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4437,6 +5061,10 @@ public class RoomMember:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roommember(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommember(pointer, $0) }
     }
@@ -4445,196 +5073,186 @@ public class RoomMember:
 
     
     
-
     public func avatarUrl()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_avatar_url(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_avatar_url(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func canBan()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_ban(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_ban(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func canInvite()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_invite(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_invite(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func canKick()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_kick(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_kick(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func canRedact()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func canSendMessage(event: MessageLikeEventType)  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_message(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_message(self.uniffiClonePointer(), 
         FfiConverterTypeMessageLikeEventType.lower(event),$0
     )
 }
         )
     }
-
     public func canSendState(stateEvent: StateEventType)  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_state(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_state(self.uniffiClonePointer(), 
         FfiConverterTypeStateEventType.lower(stateEvent),$0
     )
 }
         )
     }
-
     public func canTriggerRoomNotification()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_trigger_room_notification(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_trigger_room_notification(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func displayName()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_display_name(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_display_name(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Adds the room member to the current account data's ignore list
+     * which will ignore the user across all rooms.
+     */
     public func ignore() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_roommember_ignore(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_ignore(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func isAccountUser()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_is_account_user(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_is_account_user(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isIgnored()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_is_ignored(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_is_ignored(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func isNameAmbiguous()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_is_name_ambiguous(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_is_name_ambiguous(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func membership()  -> MembershipState {
         return try!  FfiConverterTypeMembershipState.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_membership(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_membership(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func normalizedPowerLevel()  -> Int64 {
         return try!  FfiConverterInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_normalized_power_level(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_normalized_power_level(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func powerLevel()  -> Int64 {
         return try!  FfiConverterInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_power_level(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_power_level(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
+    /**
+     * Removes the room member from the current account data's ignore list
+     * which will unignore the user across all rooms.
+     */
     public func unignore() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_roommember_unignore(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_unignore(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func userId()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_user_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_user_id(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -4652,7 +5270,7 @@ public struct FfiConverterTypeRoomMember: FfiConverter {
     }
 
     public static func lower(_ value: RoomMember) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMember {
@@ -4684,12 +5302,14 @@ public func FfiConverterTypeRoomMember_lower(_ value: RoomMember) -> UnsafeMutab
 
 
 
+
 public protocol RoomMembersIteratorProtocol : AnyObject {
+    
     func len()  -> UInt32
+    
     func nextChunk(chunkSize: UInt32)  -> [RoomMember]?
     
 }
-
 public class RoomMembersIterator:
     RoomMembersIteratorProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4701,6 +5321,10 @@ public class RoomMembersIterator:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roommembersiterator(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommembersiterator(pointer, $0) }
     }
@@ -4709,24 +5333,22 @@ public class RoomMembersIterator:
 
     
     
-
     public func len()  -> UInt32 {
         return try!  FfiConverterUInt32.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommembersiterator_len(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_roommembersiterator_len(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func nextChunk(chunkSize: UInt32)  -> [RoomMember]? {
         return try!  FfiConverterOptionSequenceTypeRoomMember.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommembersiterator_next_chunk(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roommembersiterator_next_chunk(self.uniffiClonePointer(), 
         FfiConverterUInt32.lower(chunkSize),$0
     )
 }
@@ -4745,7 +5367,7 @@ public struct FfiConverterTypeRoomMembersIterator: FfiConverter {
     }
 
     public static func lower(_ value: RoomMembersIterator) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMembersIterator {
@@ -4777,11 +5399,12 @@ public func FfiConverterTypeRoomMembersIterator_lower(_ value: RoomMembersIterat
 
 
 
+
 public protocol RoomMessageEventContentWithoutRelationProtocol : AnyObject {
+    
     func withMentions(mentions: Mentions)  -> RoomMessageEventContentWithoutRelation
     
 }
-
 public class RoomMessageEventContentWithoutRelation:
     RoomMessageEventContentWithoutRelationProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4793,6 +5416,10 @@ public class RoomMessageEventContentWithoutRelation:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roommessageeventcontentwithoutrelation(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommessageeventcontentwithoutrelation(pointer, $0) }
     }
@@ -4801,13 +5428,12 @@ public class RoomMessageEventContentWithoutRelation:
 
     
     
-
     public func withMentions(mentions: Mentions)  -> RoomMessageEventContentWithoutRelation {
         return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommessageeventcontentwithoutrelation_with_mentions(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_roommessageeventcontentwithoutrelation_with_mentions(self.uniffiClonePointer(), 
         FfiConverterTypeMentions.lower(mentions),$0
     )
 }
@@ -4826,7 +5452,7 @@ public struct FfiConverterTypeRoomMessageEventContentWithoutRelation: FfiConvert
     }
 
     public static func lower(_ value: RoomMessageEventContentWithoutRelation) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMessageEventContentWithoutRelation {
@@ -4858,12 +5484,14 @@ public func FfiConverterTypeRoomMessageEventContentWithoutRelation_lower(_ value
 
 
 
+
 public protocol SendAttachmentJoinHandleProtocol : AnyObject {
+    
     func cancel() 
+    
     func join() async throws 
     
 }
-
 public class SendAttachmentJoinHandle:
     SendAttachmentJoinHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4875,6 +5503,10 @@ public class SendAttachmentJoinHandle:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_sendattachmentjoinhandle(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sendattachmentjoinhandle(pointer, $0) }
     }
@@ -4883,21 +5515,19 @@ public class SendAttachmentJoinHandle:
 
     
     
-
     public func cancel()  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_cancel(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_cancel(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func join() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -4922,7 +5552,7 @@ public struct FfiConverterTypeSendAttachmentJoinHandle: FfiConverter {
     }
 
     public static func lower(_ value: SendAttachmentJoinHandle) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SendAttachmentJoinHandle {
@@ -4954,17 +5584,24 @@ public func FfiConverterTypeSendAttachmentJoinHandle_lower(_ value: SendAttachme
 
 
 
+
 public protocol SessionVerificationControllerProtocol : AnyObject {
+    
     func approveVerification() async throws 
+    
     func cancelVerification() async throws 
+    
     func declineVerification() async throws 
+    
     func isVerified() async throws  -> Bool
+    
     func requestVerification() async throws 
+    
     func setDelegate(delegate: SessionVerificationControllerDelegate?) 
+    
     func startSasVerification() async throws 
     
 }
-
 public class SessionVerificationController:
     SessionVerificationControllerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4976,6 +5613,10 @@ public class SessionVerificationController:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_sessionverificationcontroller(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sessionverificationcontroller(pointer, $0) }
     }
@@ -4984,12 +5625,11 @@ public class SessionVerificationController:
 
     
     
-
     public func approveVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_approve_verification(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5001,12 +5641,11 @@ public class SessionVerificationController:
     }
 
     
-
     public func cancelVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_cancel_verification(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5018,12 +5657,11 @@ public class SessionVerificationController:
     }
 
     
-
     public func declineVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_decline_verification(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5035,12 +5673,11 @@ public class SessionVerificationController:
     }
 
     
-
     public func isVerified() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_is_verified(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -5052,12 +5689,11 @@ public class SessionVerificationController:
     }
 
     
-
     public func requestVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_request_verification(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5069,22 +5705,20 @@ public class SessionVerificationController:
     }
 
     
-
     public func setDelegate(delegate: SessionVerificationControllerDelegate?)  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_set_delegate(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_set_delegate(self.uniffiClonePointer(), 
         FfiConverterOptionCallbackInterfaceSessionVerificationControllerDelegate.lower(delegate),$0
     )
 }
     }
-
     public func startSasVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_start_sas_verification(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5109,7 +5743,7 @@ public struct FfiConverterTypeSessionVerificationController: FfiConverter {
     }
 
     public static func lower(_ value: SessionVerificationController) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SessionVerificationController {
@@ -5141,12 +5775,14 @@ public func FfiConverterTypeSessionVerificationController_lower(_ value: Session
 
 
 
+
 public protocol SessionVerificationEmojiProtocol : AnyObject {
+    
     func description()  -> String
+    
     func symbol()  -> String
     
 }
-
 public class SessionVerificationEmoji:
     SessionVerificationEmojiProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5158,6 +5794,10 @@ public class SessionVerificationEmoji:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_sessionverificationemoji(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sessionverificationemoji(pointer, $0) }
     }
@@ -5166,24 +5806,22 @@ public class SessionVerificationEmoji:
 
     
     
-
     public func description()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_sessionverificationemoji_description(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationemoji_description(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func symbol()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_sessionverificationemoji_symbol(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_sessionverificationemoji_symbol(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -5201,7 +5839,7 @@ public struct FfiConverterTypeSessionVerificationEmoji: FfiConverter {
     }
 
     public static func lower(_ value: SessionVerificationEmoji) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SessionVerificationEmoji {
@@ -5233,13 +5871,16 @@ public func FfiConverterTypeSessionVerificationEmoji_lower(_ value: SessionVerif
 
 
 
+
 public protocol SpanProtocol : AnyObject {
+    
     func enter() 
+    
     func exit() 
+    
     func isNone()  -> Bool
     
 }
-
 public class Span:
     SpanProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5250,6 +5891,36 @@ public class Span:
     required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
     }
+
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_span(self.pointer, $0) }
+    }
+    /**
+     * Create a span originating at the given callsite (file, line and column).
+     *
+     * The target should be something like a module path, and can be referenced
+     * in the filter string given to `setup_tracing`. `level` and `target`
+     * for a callsite are fixed at the first creation of a span for that
+     * callsite and can not be changed afterwards, i.e. the level and
+     * target passed for second and following creation of a span with the same
+     * callsite will be ignored.
+     *
+     * This function leaks a little bit of memory for each unique (file + line
+     * + level + target + name) it is called with. Please make sure that the
+     * number of different combinations of those parameters this can be called
+     * with is constant in the final executable.
+     *
+     * For a span to have an effect, you must `.enter()` it at the start of a
+     * logical unit of work and `.exit()` it at the end of the same (including
+     * on failure). Entering registers the span in thread-local storage, so
+     * future calls to `log_event` on the same thread are able to attach the
+     * events they create to the span, exiting unregisters it. For this to
+     * work, exiting a span must be done on the same thread where it was
+     * entered. It is possible to enter a span on multiple threads, in which
+     * case it should also be exited on all of them individually; that is,
+     * unless you *want* the span to be attached to all further events created
+     * on that thread.
+     */
     public convenience init(file: String, line: UInt32?, level: LogLevel, target: String, name: String)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_span_new(
@@ -5266,7 +5937,6 @@ public class Span:
     }
 
     
-
     public static func current()  -> Span {
         return Span(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_span_current($0)
@@ -5277,31 +5947,28 @@ public class Span:
 
     
     
-
     public func enter()  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_span_enter(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_span_enter(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func exit()  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_span_exit(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_span_exit(self.uniffiClonePointer(), $0
     )
 }
     }
-
     public func isNone()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_span_is_none(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_span_is_none(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -5319,7 +5986,7 @@ public struct FfiConverterTypeSpan: FfiConverter {
     }
 
     public static func lower(_ value: Span) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Span {
@@ -5351,14 +6018,18 @@ public func FfiConverterTypeSpan_lower(_ value: Span) -> UnsafeMutableRawPointer
 
 
 
+
 public protocol SyncServiceProtocol : AnyObject {
+    
     func roomListService()  -> RoomListService
+    
     func start() async 
+    
     func state(listener: SyncServiceStateObserver)  -> TaskHandle
+    
     func stop() async throws 
     
 }
-
 public class SyncService:
     SyncServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5370,6 +6041,10 @@ public class SyncService:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_syncservice(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_syncservice(pointer, $0) }
     }
@@ -5378,23 +6053,21 @@ public class SyncService:
 
     
     
-
     public func roomListService()  -> RoomListService {
         return try!  FfiConverterTypeRoomListService.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_syncservice_room_list_service(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_syncservice_room_list_service(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func start() async  {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservice_start(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5407,24 +6080,22 @@ public class SyncService:
     }
 
     
-
     public func state(listener: SyncServiceStateObserver)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_syncservice_state(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_syncservice_state(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceSyncServiceStateObserver.lower(listener),$0
     )
 }
         )
     }
-
     public func stop() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservice_stop(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5449,7 +6120,7 @@ public struct FfiConverterTypeSyncService: FfiConverter {
     }
 
     public static func lower(_ value: SyncService) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SyncService {
@@ -5481,12 +6152,14 @@ public func FfiConverterTypeSyncService_lower(_ value: SyncService) -> UnsafeMut
 
 
 
+
 public protocol SyncServiceBuilderProtocol : AnyObject {
+    
     func finish() async throws  -> SyncService
+    
     func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder
     
 }
-
 public class SyncServiceBuilder:
     SyncServiceBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5498,6 +6171,10 @@ public class SyncServiceBuilder:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_syncservicebuilder(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_syncservicebuilder(pointer, $0) }
     }
@@ -5506,12 +6183,11 @@ public class SyncServiceBuilder:
 
     
     
-
     public func finish() async throws  -> SyncService {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_finish(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -5523,13 +6199,12 @@ public class SyncServiceBuilder:
     }
 
     
-
     public func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder {
         return try!  FfiConverterTypeSyncServiceBuilder.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_cross_process_lock(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_cross_process_lock(self.uniffiClonePointer(), 
         FfiConverterOptionString.lower(appIdentifier),$0
     )
 }
@@ -5548,7 +6223,7 @@ public struct FfiConverterTypeSyncServiceBuilder: FfiConverter {
     }
 
     public static func lower(_ value: SyncServiceBuilder) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SyncServiceBuilder {
@@ -5580,12 +6255,29 @@ public func FfiConverterTypeSyncServiceBuilder_lower(_ value: SyncServiceBuilder
 
 
 
+
+/**
+ * A task handle is a way to keep the handle a task running by itself in
+ * detached mode.
+ *
+ * It's a thin wrapper around [`JoinHandle`].
+ */
 public protocol TaskHandleProtocol : AnyObject {
+    
     func cancel() 
+    
+    /**
+     * Check whether the handle is finished.
+     */
     func isFinished()  -> Bool
     
 }
-
+/**
+ * A task handle is a way to keep the handle a task running by itself in
+ * detached mode.
+ *
+ * It's a thin wrapper around [`JoinHandle`].
+ */
 public class TaskHandle:
     TaskHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5597,6 +6289,10 @@ public class TaskHandle:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_taskhandle(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_taskhandle(pointer, $0) }
     }
@@ -5605,22 +6301,23 @@ public class TaskHandle:
 
     
     
-
     public func cancel()  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_taskhandle_cancel(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_taskhandle_cancel(self.uniffiClonePointer(), $0
     )
 }
     }
-
+    /**
+     * Check whether the handle is finished.
+     */
     public func isFinished()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_taskhandle_is_finished(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_taskhandle_is_finished(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -5638,7 +6335,7 @@ public struct FfiConverterTypeTaskHandle: FfiConverter {
     }
 
     public static func lower(_ value: TaskHandle) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TaskHandle {
@@ -5670,35 +6367,65 @@ public func FfiConverterTypeTaskHandle_lower(_ value: TaskHandle) -> UnsafeMutab
 
 
 
+
 public protocol TimelineProtocol : AnyObject {
+    
     func addListener(listener: TimelineListener) async  -> RoomTimelineListenerResult
+    
     func cancelSend(txnId: String) 
+    
     func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws 
+    
     func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws 
+    
     func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) async throws 
+    
     func endPoll(pollStartId: String, text: String) throws 
+    
     func fetchDetailsForEvent(eventId: String) throws 
+    
     func fetchMembers() async 
+    
     func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem
+    
     func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation
+    
+    /**
+     * Loads older messages into the timeline.
+     *
+     * Raises an exception if there are no timeline listeners.
+     */
     func paginateBackwards(opts: PaginationOptions) throws 
+    
     func retryDecryption(sessionIds: [String]) 
+    
     func retrySend(txnId: String) 
+    
     func send(msg: RoomMessageEventContentWithoutRelation) 
+    
     func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    
     func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    
     func sendImage(url: String, thumbnailUrl: String?, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    
     func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?) 
+    
     func sendPollResponse(pollStartId: String, answers: [String]) throws 
+    
     func sendReadReceipt(receiptType: ReceiptType, eventId: String) throws 
+    
     func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws 
+    
     func sendVideo(url: String, thumbnailUrl: String?, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    
     func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
+    
     func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle
+    
     func toggleReaction(eventId: String, key: String) throws 
     
 }
-
 public class Timeline:
     TimelineProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5710,6 +6437,10 @@ public class Timeline:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_timeline(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timeline(pointer, $0) }
     }
@@ -5718,12 +6449,11 @@ public class Timeline:
 
     
     
-
     public func addListener(listener: TimelineListener) async  -> RoomTimelineListenerResult {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_add_listener(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterCallbackInterfaceTimelineListener.lower(listener)
                 )
             },
@@ -5737,21 +6467,19 @@ public class Timeline:
     }
 
     
-
     public func cancelSend(txnId: String)  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_cancel_send(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_cancel_send(self.uniffiClonePointer(), 
         FfiConverterString.lower(txnId),$0
     )
 }
     }
-
     public func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_create_poll(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_create_poll(self.uniffiClonePointer(), 
         FfiConverterString.lower(question),
         FfiConverterSequenceString.lower(answers),
         FfiConverterUInt8.lower(maxSelections),
@@ -5759,22 +6487,20 @@ public class Timeline:
     )
 }
     }
-
     public func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_edit(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_edit(self.uniffiClonePointer(), 
         FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(newContent),
         FfiConverterTypeEventTimelineItem.lower(editItem),$0
     )
 }
     }
-
     public func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_edit_poll(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(question),
                     FfiConverterSequenceString.lower(answers),
                     FfiConverterUInt8.lower(maxSelections),
@@ -5791,31 +6517,28 @@ public class Timeline:
     }
 
     
-
     public func endPoll(pollStartId: String, text: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_end_poll(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_end_poll(self.uniffiClonePointer(), 
         FfiConverterString.lower(pollStartId),
         FfiConverterString.lower(text),$0
     )
 }
     }
-
     public func fetchDetailsForEvent(eventId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_fetch_details_for_event(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_fetch_details_for_event(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventId),$0
     )
 }
     }
-
     public func fetchMembers() async  {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_fetch_members(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5828,74 +6551,72 @@ public class Timeline:
     }
 
     
-
     public func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem {
         return try  FfiConverterTypeEventTimelineItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_get_event_timeline_item_by_event_id(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_get_event_timeline_item_by_event_id(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventId),$0
     )
 }
         )
     }
-
     public func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation {
         return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_get_timeline_event_content_by_event_id(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_get_timeline_event_content_by_event_id(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventId),$0
     )
 }
         )
     }
-
+    /**
+     * Loads older messages into the timeline.
+     *
+     * Raises an exception if there are no timeline listeners.
+     */
     public func paginateBackwards(opts: PaginationOptions) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_paginate_backwards(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_paginate_backwards(self.uniffiClonePointer(), 
         FfiConverterTypePaginationOptions.lower(opts),$0
     )
 }
     }
-
     public func retryDecryption(sessionIds: [String])  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_retry_decryption(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_retry_decryption(self.uniffiClonePointer(), 
         FfiConverterSequenceString.lower(sessionIds),$0
     )
 }
     }
-
     public func retrySend(txnId: String)  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_retry_send(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_retry_send(self.uniffiClonePointer(), 
         FfiConverterString.lower(txnId),$0
     )
 }
     }
-
     public func send(msg: RoomMessageEventContentWithoutRelation)  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send(self.uniffiClonePointer(), 
         FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),$0
     )
 }
     }
-
     public func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_audio(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_audio(self.uniffiClonePointer(), 
         FfiConverterString.lower(url),
         FfiConverterTypeAudioInfo.lower(audioInfo),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
@@ -5903,13 +6624,12 @@ public class Timeline:
 }
         )
     }
-
     public func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_file(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_file(self.uniffiClonePointer(), 
         FfiConverterString.lower(url),
         FfiConverterTypeFileInfo.lower(fileInfo),
         FfiConverterOptionCallbackInterfaceProgressWatcher.lower(progressWatcher),$0
@@ -5917,13 +6637,12 @@ public class Timeline:
 }
         )
     }
-
     public func sendImage(url: String, thumbnailUrl: String?, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_image(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_image(self.uniffiClonePointer(), 
         FfiConverterString.lower(url),
         FfiConverterOptionString.lower(thumbnailUrl),
         FfiConverterTypeImageInfo.lower(imageInfo),
@@ -5932,12 +6651,11 @@ public class Timeline:
 }
         )
     }
-
     public func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?)  {
         try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_location(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_location(self.uniffiClonePointer(), 
         FfiConverterString.lower(body),
         FfiConverterString.lower(geoUri),
         FfiConverterOptionString.lower(description),
@@ -5946,43 +6664,39 @@ public class Timeline:
     )
 }
     }
-
     public func sendPollResponse(pollStartId: String, answers: [String]) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_poll_response(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_poll_response(self.uniffiClonePointer(), 
         FfiConverterString.lower(pollStartId),
         FfiConverterSequenceString.lower(answers),$0
     )
 }
     }
-
     public func sendReadReceipt(receiptType: ReceiptType, eventId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_read_receipt(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_read_receipt(self.uniffiClonePointer(), 
         FfiConverterTypeReceiptType.lower(receiptType),
         FfiConverterString.lower(eventId),$0
     )
 }
     }
-
     public func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_reply(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_reply(self.uniffiClonePointer(), 
         FfiConverterTypeRoomMessageEventContentWithoutRelation.lower(msg),
         FfiConverterTypeEventTimelineItem.lower(replyItem),$0
     )
 }
     }
-
     public func sendVideo(url: String, thumbnailUrl: String?, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_video(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_video(self.uniffiClonePointer(), 
         FfiConverterString.lower(url),
         FfiConverterOptionString.lower(thumbnailUrl),
         FfiConverterTypeVideoInfo.lower(videoInfo),
@@ -5991,13 +6705,12 @@ public class Timeline:
 }
         )
     }
-
     public func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_voice_message(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_voice_message(self.uniffiClonePointer(), 
         FfiConverterString.lower(url),
         FfiConverterTypeAudioInfo.lower(audioInfo),
         FfiConverterSequenceUInt16.lower(waveform),
@@ -6006,22 +6719,20 @@ public class Timeline:
 }
         )
     }
-
     public func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle {
         return try  FfiConverterTypeTaskHandle.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_subscribe_to_back_pagination_status(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_subscribe_to_back_pagination_status(self.uniffiClonePointer(), 
         FfiConverterCallbackInterfaceBackPaginationStatusListener.lower(listener),$0
     )
 }
         )
     }
-
     public func toggleReaction(eventId: String, key: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_toggle_reaction(self.pointer, 
+    uniffi_matrix_sdk_ffi_fn_method_timeline_toggle_reaction(self.uniffiClonePointer(), 
         FfiConverterString.lower(eventId),
         FfiConverterString.lower(key),$0
     )
@@ -6040,7 +6751,7 @@ public struct FfiConverterTypeTimeline: FfiConverter {
     }
 
     public static func lower(_ value: Timeline) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Timeline {
@@ -6072,18 +6783,26 @@ public func FfiConverterTypeTimeline_lower(_ value: Timeline) -> UnsafeMutableRa
 
 
 
+
 public protocol TimelineDiffProtocol : AnyObject {
+    
     func append()  -> [TimelineItem]?
+    
     func change()  -> TimelineChange
+    
     func insert()  -> InsertData?
+    
     func pushBack()  -> TimelineItem?
+    
     func pushFront()  -> TimelineItem?
+    
     func remove()  -> UInt32?
+    
     func reset()  -> [TimelineItem]?
+    
     func set()  -> SetData?
     
 }
-
 public class TimelineDiff:
     TimelineDiffProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6095,6 +6814,10 @@ public class TimelineDiff:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_timelinediff(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelinediff(pointer, $0) }
     }
@@ -6103,90 +6826,82 @@ public class TimelineDiff:
 
     
     
-
     public func append()  -> [TimelineItem]? {
         return try!  FfiConverterOptionSequenceTypeTimelineItem.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_append(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_append(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func change()  -> TimelineChange {
         return try!  FfiConverterTypeTimelineChange.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_change(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_change(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func insert()  -> InsertData? {
         return try!  FfiConverterOptionTypeInsertData.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_insert(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_insert(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func pushBack()  -> TimelineItem? {
         return try!  FfiConverterOptionTypeTimelineItem.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_push_back(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_push_back(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func pushFront()  -> TimelineItem? {
         return try!  FfiConverterOptionTypeTimelineItem.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_push_front(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_push_front(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func remove()  -> UInt32? {
         return try!  FfiConverterOptionUInt32.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_remove(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_remove(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func reset()  -> [TimelineItem]? {
         return try!  FfiConverterOptionSequenceTypeTimelineItem.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_reset(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_reset(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func set()  -> SetData? {
         return try!  FfiConverterOptionTypeSetData.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelinediff_set(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelinediff_set(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -6204,7 +6919,7 @@ public struct FfiConverterTypeTimelineDiff: FfiConverter {
     }
 
     public static func lower(_ value: TimelineDiff) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineDiff {
@@ -6236,14 +6951,18 @@ public func FfiConverterTypeTimelineDiff_lower(_ value: TimelineDiff) -> UnsafeM
 
 
 
+
 public protocol TimelineEventProtocol : AnyObject {
+    
     func eventId()  -> String
+    
     func eventType() throws  -> TimelineEventType
+    
     func senderId()  -> String
+    
     func timestamp()  -> UInt64
     
 }
-
 public class TimelineEvent:
     TimelineEventProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6255,6 +6974,10 @@ public class TimelineEvent:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_timelineevent(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineevent(pointer, $0) }
     }
@@ -6263,45 +6986,41 @@ public class TimelineEvent:
 
     
     
-
     public func eventId()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineevent_event_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineevent_event_id(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func eventType() throws  -> TimelineEventType {
         return try  FfiConverterTypeTimelineEventType.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timelineevent_event_type(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineevent_event_type(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func senderId()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineevent_sender_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineevent_sender_id(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func timestamp()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineevent_timestamp(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineevent_timestamp(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -6319,7 +7038,7 @@ public struct FfiConverterTypeTimelineEvent: FfiConverter {
     }
 
     public static func lower(_ value: TimelineEvent) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineEvent {
@@ -6351,14 +7070,18 @@ public func FfiConverterTypeTimelineEvent_lower(_ value: TimelineEvent) -> Unsaf
 
 
 
+
 public protocol TimelineItemProtocol : AnyObject {
+    
     func asEvent()  -> EventTimelineItem?
+    
     func asVirtual()  -> VirtualTimelineItem?
+    
     func fmtDebug()  -> String
+    
     func uniqueId()  -> UInt64
     
 }
-
 public class TimelineItem:
     TimelineItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6370,6 +7093,10 @@ public class TimelineItem:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_timelineitem(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineitem(pointer, $0) }
     }
@@ -6378,46 +7105,42 @@ public class TimelineItem:
 
     
     
-
     public func asEvent()  -> EventTimelineItem? {
         return try!  FfiConverterOptionTypeEventTimelineItem.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineitem_as_event(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineitem_as_event(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func asVirtual()  -> VirtualTimelineItem? {
         return try!  FfiConverterOptionTypeVirtualTimelineItem.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineitem_as_virtual(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineitem_as_virtual(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func fmtDebug()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineitem_fmt_debug(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineitem_fmt_debug(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func uniqueId()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineitem_unique_id(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineitem_unique_id(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -6435,7 +7158,7 @@ public struct FfiConverterTypeTimelineItem: FfiConverter {
     }
 
     public static func lower(_ value: TimelineItem) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineItem {
@@ -6467,12 +7190,14 @@ public func FfiConverterTypeTimelineItem_lower(_ value: TimelineItem) -> UnsafeM
 
 
 
+
 public protocol TimelineItemContentProtocol : AnyObject {
+    
     func asMessage()  -> Message?
+    
     func kind()  -> TimelineItemContentKind
     
 }
-
 public class TimelineItemContent:
     TimelineItemContentProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6484,6 +7209,10 @@ public class TimelineItemContent:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_timelineitemcontent(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineitemcontent(pointer, $0) }
     }
@@ -6492,24 +7221,22 @@ public class TimelineItemContent:
 
     
     
-
     public func asMessage()  -> Message? {
         return try!  FfiConverterOptionTypeMessage.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineitemcontent_as_message(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineitemcontent_as_message(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func kind()  -> TimelineItemContentKind {
         return try!  FfiConverterTypeTimelineItemContentKind.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_timelineitemcontent_kind(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_timelineitemcontent_kind(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -6527,7 +7254,7 @@ public struct FfiConverterTypeTimelineItemContent: FfiConverter {
     }
 
     public static func lower(_ value: TimelineItemContent) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineItemContent {
@@ -6559,13 +7286,16 @@ public func FfiConverterTypeTimelineItemContent_lower(_ value: TimelineItemConte
 
 
 
+
 public protocol UnreadNotificationsCountProtocol : AnyObject {
+    
     func hasNotifications()  -> Bool
+    
     func highlightCount()  -> UInt32
+    
     func notificationCount()  -> UInt32
     
 }
-
 public class UnreadNotificationsCount:
     UnreadNotificationsCountProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6577,6 +7307,10 @@ public class UnreadNotificationsCount:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_unreadnotificationscount(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_unreadnotificationscount(pointer, $0) }
     }
@@ -6585,35 +7319,32 @@ public class UnreadNotificationsCount:
 
     
     
-
     public func hasNotifications()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_unreadnotificationscount_has_notifications(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_unreadnotificationscount_has_notifications(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func highlightCount()  -> UInt32 {
         return try!  FfiConverterUInt32.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_unreadnotificationscount_highlight_count(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_unreadnotificationscount_highlight_count(self.uniffiClonePointer(), $0
     )
 }
         )
     }
-
     public func notificationCount()  -> UInt32 {
         return try!  FfiConverterUInt32.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_unreadnotificationscount_notification_count(self.pointer, $0
+    uniffi_matrix_sdk_ffi_fn_method_unreadnotificationscount_notification_count(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -6631,7 +7362,7 @@ public struct FfiConverterTypeUnreadNotificationsCount: FfiConverter {
     }
 
     public static func lower(_ value: UnreadNotificationsCount) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UnreadNotificationsCount {
@@ -6663,11 +7394,20 @@ public func FfiConverterTypeUnreadNotificationsCount_lower(_ value: UnreadNotifi
 
 
 
+
+/**
+ * An object that handles all interactions of a widget living inside a webview
+ * or IFrame with the Matrix world.
+ */
 public protocol WidgetDriverProtocol : AnyObject {
+    
     func run(room: Room, capabilitiesProvider: WidgetCapabilitiesProvider) async 
     
 }
-
+/**
+ * An object that handles all interactions of a widget living inside a webview
+ * or IFrame with the Matrix world.
+ */
 public class WidgetDriver:
     WidgetDriverProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6679,6 +7419,10 @@ public class WidgetDriver:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_widgetdriver(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriver(pointer, $0) }
     }
@@ -6687,12 +7431,11 @@ public class WidgetDriver:
 
     
     
-
     public func run(room: Room, capabilitiesProvider: WidgetCapabilitiesProvider) async  {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriver_run(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterTypeRoom.lower(room),
                     FfiConverterCallbackInterfaceWidgetCapabilitiesProvider.lower(capabilitiesProvider)
                 )
@@ -6720,7 +7463,7 @@ public struct FfiConverterTypeWidgetDriver: FfiConverter {
     }
 
     public static func lower(_ value: WidgetDriver) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetDriver {
@@ -6752,12 +7495,33 @@ public func FfiConverterTypeWidgetDriver_lower(_ value: WidgetDriver) -> UnsafeM
 
 
 
+
+/**
+ * A handle that encapsulates the communication between a widget driver and the
+ * corresponding widget (inside a webview or IFrame).
+ */
 public protocol WidgetDriverHandleProtocol : AnyObject {
+    
+    /**
+     * Receive a message from the widget driver.
+     *
+     * The message must be passed on to the widget.
+     *
+     * Returns `None` if the widget driver is no longer running.
+     */
     func recv() async  -> String?
+    
+    /**
+     *
+     * Returns `false` if the widget driver is no longer running.
+     */
     func send(msg: String) async  -> Bool
     
 }
-
+/**
+ * A handle that encapsulates the communication between a widget driver and the
+ * corresponding widget (inside a webview or IFrame).
+ */
 public class WidgetDriverHandle:
     WidgetDriverHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6769,6 +7533,10 @@ public class WidgetDriverHandle:
         self.pointer = pointer
     }
 
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_widgetdriverhandle(self.pointer, $0) }
+    }
+
     deinit {
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriverhandle(pointer, $0) }
     }
@@ -6777,12 +7545,18 @@ public class WidgetDriverHandle:
 
     
     
-
+    /**
+     * Receive a message from the widget driver.
+     *
+     * The message must be passed on to the widget.
+     *
+     * Returns `None` if the widget driver is no longer running.
+     */
     public func recv() async  -> String? {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_recv(
-                    self.pointer
+                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
@@ -6795,12 +7569,15 @@ public class WidgetDriverHandle:
     }
 
     
-
+    /**
+     *
+     * Returns `false` if the widget driver is no longer running.
+     */
     public func send(msg: String) async  -> Bool {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_send(
-                    self.pointer,
+                    self.uniffiClonePointer(),
                     FfiConverterString.lower(msg)
                 )
             },
@@ -6827,7 +7604,7 @@ public struct FfiConverterTypeWidgetDriverHandle: FfiConverter {
     }
 
     public static func lower(_ value: WidgetDriverHandle) -> UnsafeMutableRawPointer {
-        return value.pointer
+        return value.uniffiClonePointer()
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WidgetDriverHandle {
@@ -6865,7 +7642,10 @@ public struct AudioInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(duration: TimeInterval?, size: UInt64?, mimetype: String?) {
+    public init(
+        duration: TimeInterval?, 
+        size: UInt64?, 
+        mimetype: String?) {
         self.duration = duration
         self.size = size
         self.mimetype = mimetype
@@ -6931,7 +7711,12 @@ public struct AudioMessageContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, source: MediaSource, info: AudioInfo?, audio: UnstableAudioDetailsContent?, voice: UnstableVoiceContent?) {
+    public init(
+        body: String, 
+        source: MediaSource, 
+        info: AudioInfo?, 
+        audio: UnstableAudioDetailsContent?, 
+        voice: UnstableVoiceContent?) {
         self.body = body
         self.source = source
         self.info = info
@@ -6974,13 +7759,40 @@ public func FfiConverterTypeAudioMessageContent_lower(_ value: AudioMessageConte
 
 
 public struct ClientProperties {
+    /**
+     * The client_id provides the widget with the option to behave differently
+     * for different clients. e.g org.example.ios.
+     */
     public var clientId: String
+    /**
+     * The language tag the client is set to e.g. en-us. (Undefined and invalid
+     * becomes: `en-US`)
+     */
     public var languageTag: String?
+    /**
+     * A string describing the theme (dark, light) or org.example.dark.
+     * (default: `light`)
+     */
     public var theme: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(clientId: String, languageTag: String?, theme: String?) {
+    public init(
+        /**
+         * The client_id provides the widget with the option to behave differently
+         * for different clients. e.g org.example.ios.
+         */
+        clientId: String, 
+        /**
+         * The language tag the client is set to e.g. en-us. (Undefined and invalid
+         * becomes: `en-US`)
+         */
+        languageTag: String?, 
+        /**
+         * A string describing the theme (dark, light) or org.example.dark.
+         * (default: `light`)
+         */
+        theme: String?) {
         self.clientId = clientId
         self.languageTag = languageTag
         self.theme = theme
@@ -7050,7 +7862,16 @@ public struct CreateRoomParameters {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(name: String?, topic: String? = nil, isEncrypted: Bool, isDirect: Bool = false, visibility: RoomVisibility, preset: RoomPreset, invite: [String]? = nil, avatar: String? = nil, powerLevelContentOverride: PowerLevels? = nil) {
+    public init(
+        name: String?, 
+        topic: String? = nil, 
+        isEncrypted: Bool, 
+        isDirect: Bool = false, 
+        visibility: RoomVisibility, 
+        preset: RoomPreset, 
+        invite: [String]? = nil, 
+        avatar: String? = nil, 
+        powerLevelContentOverride: PowerLevels? = nil) {
         self.name = name
         self.topic = topic
         self.isEncrypted = isEncrypted
@@ -7155,7 +7976,9 @@ public struct EmoteMessageContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, formatted: FormattedBody?) {
+    public init(
+        body: String, 
+        formatted: FormattedBody?) {
         self.body = body
         self.formatted = formatted
     }
@@ -7212,7 +8035,10 @@ public struct EventTimelineItemDebugInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(model: String, originalJson: String?, latestEditJson: String?) {
+    public init(
+        model: String, 
+        originalJson: String?, 
+        latestEditJson: String?) {
         self.model = model
         self.originalJson = originalJson
         self.latestEditJson = latestEditJson
@@ -7277,7 +8103,11 @@ public struct FileInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(mimetype: String?, size: UInt64?, thumbnailInfo: ThumbnailInfo?, thumbnailSource: MediaSource?) {
+    public init(
+        mimetype: String?, 
+        size: UInt64?, 
+        thumbnailInfo: ThumbnailInfo?, 
+        thumbnailSource: MediaSource?) {
         self.mimetype = mimetype
         self.size = size
         self.thumbnailInfo = thumbnailInfo
@@ -7324,7 +8154,11 @@ public struct FileMessageContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, filename: String?, source: MediaSource, info: FileInfo?) {
+    public init(
+        body: String, 
+        filename: String?, 
+        source: MediaSource, 
+        info: FileInfo?) {
         self.body = body
         self.filename = filename
         self.source = source
@@ -7369,7 +8203,9 @@ public struct FormattedBody {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(format: MessageFormat, body: String) {
+    public init(
+        format: MessageFormat, 
+        body: String) {
         self.format = format
         self.body = body
     }
@@ -7426,7 +8262,10 @@ public struct HttpPusherData {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(url: String, format: PushFormat?, defaultPayload: String?) {
+    public init(
+        url: String, 
+        format: PushFormat?, 
+        defaultPayload: String?) {
         self.url = url
         self.format = format
         self.defaultPayload = defaultPayload
@@ -7494,7 +8333,14 @@ public struct ImageInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(height: UInt64?, width: UInt64?, mimetype: String?, size: UInt64?, thumbnailInfo: ThumbnailInfo?, thumbnailSource: MediaSource?, blurhash: String?) {
+    public init(
+        height: UInt64?, 
+        width: UInt64?, 
+        mimetype: String?, 
+        size: UInt64?, 
+        thumbnailInfo: ThumbnailInfo?, 
+        thumbnailSource: MediaSource?, 
+        blurhash: String?) {
         self.height = height
         self.width = width
         self.mimetype = mimetype
@@ -7549,7 +8395,10 @@ public struct ImageMessageContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, source: MediaSource, info: ImageInfo?) {
+    public init(
+        body: String, 
+        source: MediaSource, 
+        info: ImageInfo?) {
         self.body = body
         self.source = source
         self.info = info
@@ -7591,7 +8440,9 @@ public struct InReplyToDetails {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(eventId: String, event: RepliedToEventDetails) {
+    public init(
+        eventId: String, 
+        event: RepliedToEventDetails) {
         self.eventId = eventId
         self.event = event
     }
@@ -7630,7 +8481,9 @@ public struct InsertData {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(index: UInt32, item: TimelineItem) {
+    public init(
+        index: UInt32, 
+        item: TimelineItem) {
         self.index = index
         self.item = item
     }
@@ -7672,7 +8525,12 @@ public struct LocationContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, asset: AssetType?) {
+    public init(
+        body: String, 
+        geoUri: String, 
+        description: String?, 
+        zoomLevel: UInt8?, 
+        asset: AssetType?) {
         self.body = body
         self.geoUri = geoUri
         self.description = description
@@ -7749,7 +8607,9 @@ public struct Mentions {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(userIds: [String], room: Bool) {
+    public init(
+        userIds: [String], 
+        room: Bool) {
         self.userIds = userIds
         self.room = room
     }
@@ -7805,7 +8665,9 @@ public struct NoticeMessageContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, formatted: FormattedBody?) {
+    public init(
+        body: String, 
+        formatted: FormattedBody?) {
         self.body = body
         self.formatted = formatted
     }
@@ -7859,12 +8721,27 @@ public struct NotificationItem {
     public var event: NotificationEvent
     public var senderInfo: NotificationSenderInfo
     public var roomInfo: NotificationRoomInfo
+    /**
+     * Is the notification supposed to be at the "noisy" level?
+     * Can be `None` if we couldn't determine this, because we lacked
+     * information to create a push context.
+     */
     public var isNoisy: Bool?
     public var hasMention: Bool?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(event: NotificationEvent, senderInfo: NotificationSenderInfo, roomInfo: NotificationRoomInfo, isNoisy: Bool?, hasMention: Bool?) {
+    public init(
+        event: NotificationEvent, 
+        senderInfo: NotificationSenderInfo, 
+        roomInfo: NotificationRoomInfo, 
+        /**
+         * Is the notification supposed to be at the "noisy" level?
+         * Can be `None` if we couldn't determine this, because we lacked
+         * information to create a push context.
+         */
+        isNoisy: Bool?, 
+        hasMention: Bool?) {
         self.event = event
         self.senderInfo = senderInfo
         self.roomInfo = roomInfo
@@ -7911,7 +8788,8 @@ public struct NotificationPowerLevels {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(room: Int32) {
+    public init(
+        room: Int32) {
         self.room = room
     }
 }
@@ -7964,7 +8842,13 @@ public struct NotificationRoomInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(displayName: String, avatarUrl: String?, canonicalAlias: String?, joinedMembersCount: UInt64, isEncrypted: Bool?, isDirect: Bool) {
+    public init(
+        displayName: String, 
+        avatarUrl: String?, 
+        canonicalAlias: String?, 
+        joinedMembersCount: UInt64, 
+        isEncrypted: Bool?, 
+        isDirect: Bool) {
         self.displayName = displayName
         self.avatarUrl = avatarUrl
         self.canonicalAlias = canonicalAlias
@@ -8048,7 +8932,9 @@ public struct NotificationSenderInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(displayName: String?, avatarUrl: String?) {
+    public init(
+        displayName: String?, 
+        avatarUrl: String?) {
         self.displayName = displayName
         self.avatarUrl = avatarUrl
     }
@@ -8098,19 +8984,82 @@ public func FfiConverterTypeNotificationSenderInfo_lower(_ value: NotificationSe
 }
 
 
+/**
+ * The configuration to use when authenticating with OIDC.
+ */
 public struct OidcConfiguration {
+    /**
+     * The name of the client that will be shown during OIDC authentication.
+     */
     public var clientName: String?
+    /**
+     * The redirect URI that will be used when OIDC authentication is
+     * successful.
+     */
     public var redirectUri: String
+    /**
+     * A URI that contains information about the client.
+     */
     public var clientUri: String?
+    /**
+     * A URI that contains the client's logo.
+     */
     public var logoUri: String?
+    /**
+     * A URI that contains the client's terms of service.
+     */
     public var tosUri: String?
+    /**
+     * A URI that contains the client's privacy policy.
+     */
     public var policyUri: String?
+    /**
+     * An array of e-mail addresses of people responsible for this client.
+     */
     public var contacts: [String]?
+    /**
+     * Pre-configured registrations for use with issuers that don't support
+     * dynamic client registration.
+     */
     public var staticRegistrations: [String: String]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(clientName: String?, redirectUri: String, clientUri: String?, logoUri: String?, tosUri: String?, policyUri: String?, contacts: [String]?, staticRegistrations: [String: String]) {
+    public init(
+        /**
+         * The name of the client that will be shown during OIDC authentication.
+         */
+        clientName: String?, 
+        /**
+         * The redirect URI that will be used when OIDC authentication is
+         * successful.
+         */
+        redirectUri: String, 
+        /**
+         * A URI that contains information about the client.
+         */
+        clientUri: String?, 
+        /**
+         * A URI that contains the client's logo.
+         */
+        logoUri: String?, 
+        /**
+         * A URI that contains the client's terms of service.
+         */
+        tosUri: String?, 
+        /**
+         * A URI that contains the client's privacy policy.
+         */
+        policyUri: String?, 
+        /**
+         * An array of e-mail addresses of people responsible for this client.
+         */
+        contacts: [String]?, 
+        /**
+         * Pre-configured registrations for use with issuers that don't support
+         * dynamic client registration.
+         */
+        staticRegistrations: [String: String]) {
         self.clientName = clientName
         self.redirectUri = redirectUri
         self.clientUri = clientUri
@@ -8208,12 +9157,27 @@ public struct OtlpTracingConfiguration {
     public var password: String
     public var otlpEndpoint: String
     public var filter: String
+    /**
+     * Controls whether to print to stdout or, equivalent, the system logs on
+     * Android.
+     */
     public var writeToStdoutOrSystem: Bool
     public var writeToFiles: TracingFileConfiguration?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(clientName: String, user: String, password: String, otlpEndpoint: String, filter: String, writeToStdoutOrSystem: Bool, writeToFiles: TracingFileConfiguration?) {
+    public init(
+        clientName: String, 
+        user: String, 
+        password: String, 
+        otlpEndpoint: String, 
+        filter: String, 
+        /**
+         * Controls whether to print to stdout or, equivalent, the system logs on
+         * Android.
+         */
+        writeToStdoutOrSystem: Bool, 
+        writeToFiles: TracingFileConfiguration?) {
         self.clientName = clientName
         self.user = user
         self.password = password
@@ -8304,7 +9268,9 @@ public struct PollAnswer {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, text: String) {
+    public init(
+        id: String, 
+        text: String) {
         self.id = id
         self.text = text
     }
@@ -8368,7 +9334,17 @@ public struct PowerLevels {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(usersDefault: Int32?, eventsDefault: Int32?, stateDefault: Int32?, ban: Int32?, kick: Int32?, redact: Int32?, invite: Int32?, notifications: NotificationPowerLevels?, users: [String: Int32], events: [String: Int32]) {
+    public init(
+        usersDefault: Int32?, 
+        eventsDefault: Int32?, 
+        stateDefault: Int32?, 
+        ban: Int32?, 
+        kick: Int32?, 
+        redact: Int32?, 
+        invite: Int32?, 
+        notifications: NotificationPowerLevels?, 
+        users: [String: Int32], 
+        events: [String: Int32]) {
         self.usersDefault = usersDefault
         self.eventsDefault = eventsDefault
         self.stateDefault = stateDefault
@@ -8480,7 +9456,9 @@ public struct PusherIdentifiers {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(pushkey: String, appId: String) {
+    public init(
+        pushkey: String, 
+        appId: String) {
         self.pushkey = pushkey
         self.appId = appId
     }
@@ -8537,7 +9515,10 @@ public struct Reaction {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(key: String, count: UInt64, senders: [ReactionSenderData]) {
+    public init(
+        key: String, 
+        count: UInt64, 
+        senders: [ReactionSenderData]) {
         self.key = key
         self.count = count
         self.senders = senders
@@ -8600,7 +9581,9 @@ public struct ReactionSenderData {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(senderId: String, timestamp: UInt64) {
+    public init(
+        senderId: String, 
+        timestamp: UInt64) {
         self.senderId = senderId
         self.timestamp = timestamp
     }
@@ -8655,7 +9638,8 @@ public struct Receipt {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(timestamp: UInt64?) {
+    public init(
+        timestamp: UInt64?) {
         self.timestamp = timestamp
     }
 }
@@ -8704,7 +9688,9 @@ public struct RequiredState {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(key: String, value: String) {
+    public init(
+        key: String, 
+        value: String) {
         self.key = key
         self.value = value
     }
@@ -8776,13 +9762,61 @@ public struct RoomInfo {
     public var userDefinedNotificationMode: RoomNotificationMode?
     public var hasRoomCall: Bool
     public var activeRoomCallParticipants: [String]
+    /**
+     * "Interesting" messages received in that room, independently of the
+     * notification settings.
+     */
     public var numUnreadMessages: UInt64
+    /**
+     * Events that will notify the user, according to their
+     * notification settings.
+     */
     public var numUnreadNotifications: UInt64
+    /**
+     * Events causing mentions/highlights for the user, according to their
+     * notification settings.
+     */
     public var numUnreadMentions: UInt64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?, hasRoomCall: Bool, activeRoomCallParticipants: [String], numUnreadMessages: UInt64, numUnreadNotifications: UInt64, numUnreadMentions: UInt64) {
+    public init(
+        id: String, 
+        name: String?, 
+        topic: String?, 
+        avatarUrl: String?, 
+        isDirect: Bool, 
+        isPublic: Bool, 
+        isSpace: Bool, 
+        isTombstoned: Bool, 
+        canonicalAlias: String?, 
+        alternativeAliases: [String], 
+        membership: Membership, 
+        latestEvent: EventTimelineItem?, 
+        inviter: RoomMember?, 
+        activeMembersCount: UInt64, 
+        invitedMembersCount: UInt64, 
+        joinedMembersCount: UInt64, 
+        highlightCount: UInt64, 
+        notificationCount: UInt64, 
+        userDefinedNotificationMode: RoomNotificationMode?, 
+        hasRoomCall: Bool, 
+        activeRoomCallParticipants: [String], 
+        /**
+         * "Interesting" messages received in that room, independently of the
+         * notification settings.
+         */
+        numUnreadMessages: UInt64, 
+        /**
+         * Events that will notify the user, according to their
+         * notification settings.
+         */
+        numUnreadNotifications: UInt64, 
+        /**
+         * Events causing mentions/highlights for the user, according to their
+         * notification settings.
+         */
+        numUnreadMentions: UInt64) {
         self.id = id
         self.name = name
         self.topic = topic
@@ -8887,7 +9921,9 @@ public struct RoomListEntriesResult {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(entries: [RoomListEntry], entriesStream: TaskHandle) {
+    public init(
+        entries: [RoomListEntry], 
+        entriesStream: TaskHandle) {
         self.entries = entries
         self.entriesStream = entriesStream
     }
@@ -8926,7 +9962,9 @@ public struct RoomListEntriesWithDynamicAdaptersResult {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(controller: RoomListDynamicEntriesController, entriesStream: TaskHandle) {
+    public init(
+        controller: RoomListDynamicEntriesController, 
+        entriesStream: TaskHandle) {
         self.controller = controller
         self.entriesStream = entriesStream
     }
@@ -8965,7 +10003,9 @@ public struct RoomListLoadingStateResult {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(state: RoomListLoadingState, stateStream: TaskHandle) {
+    public init(
+        state: RoomListLoadingState, 
+        stateStream: TaskHandle) {
         self.state = state
         self.stateStream = stateStream
     }
@@ -9004,7 +10044,9 @@ public struct RoomListRange {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(start: UInt32, endInclusive: UInt32) {
+    public init(
+        start: UInt32, 
+        endInclusive: UInt32) {
         self.start = start
         self.endInclusive = endInclusive
     }
@@ -9054,13 +10096,30 @@ public func FfiConverterTypeRoomListRange_lower(_ value: RoomListRange) -> RustB
 }
 
 
+/**
+ * `RoomNotificationSettings` represents the current settings for a `Room`
+ */
 public struct RoomNotificationSettings {
+    /**
+     * The room notification mode
+     */
     public var mode: RoomNotificationMode
+    /**
+     * Whether the mode is the default one
+     */
     public var isDefault: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(mode: RoomNotificationMode, isDefault: Bool) {
+    public init(
+        /**
+         * The room notification mode
+         */
+        mode: RoomNotificationMode, 
+        /**
+         * Whether the mode is the default one
+         */
+        isDefault: Bool) {
         self.mode = mode
         self.isDefault = isDefault
     }
@@ -9116,7 +10175,9 @@ public struct RoomSubscription {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(requiredState: [RequiredState]?, timelineLimit: UInt32?) {
+    public init(
+        requiredState: [RequiredState]?, 
+        timelineLimit: UInt32?) {
         self.requiredState = requiredState
         self.timelineLimit = timelineLimit
     }
@@ -9172,7 +10233,9 @@ public struct RoomTimelineListenerResult {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(items: [TimelineItem], itemsStream: TaskHandle) {
+    public init(
+        items: [TimelineItem], 
+        itemsStream: TaskHandle) {
         self.items = items
         self.itemsStream = itemsStream
     }
@@ -9211,7 +10274,9 @@ public struct SearchUsersResults {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(results: [UserProfile], limited: Bool) {
+    public init(
+        results: [UserProfile], 
+        limited: Bool) {
         self.results = results
         self.limited = limited
     }
@@ -9262,17 +10327,72 @@ public func FfiConverterTypeSearchUsersResults_lower(_ value: SearchUsersResults
 
 
 public struct Session {
+    /**
+     * The access token used for this session.
+     */
     public var accessToken: String
+    /**
+     * The token used for [refreshing the access token], if any.
+     *
+     * [refreshing the access token]: https://spec.matrix.org/v1.3/client-server-api/#refreshing-access-tokens
+     */
     public var refreshToken: String?
+    /**
+     * The user the access token was issued for.
+     */
     public var userId: String
+    /**
+     * The ID of the client device.
+     */
     public var deviceId: String
+    /**
+     * The URL for the homeserver used for this session.
+     */
     public var homeserverUrl: String
+    /**
+     * Additional data for this session if OpenID Connect was used for
+     * authentication.
+     */
     public var oidcData: String?
+    /**
+     * The URL for the sliding sync proxy used for this session.
+     */
     public var slidingSyncProxy: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(accessToken: String, refreshToken: String?, userId: String, deviceId: String, homeserverUrl: String, oidcData: String?, slidingSyncProxy: String?) {
+    public init(
+        /**
+         * The access token used for this session.
+         */
+        accessToken: String, 
+        /**
+         * The token used for [refreshing the access token], if any.
+         *
+         * [refreshing the access token]: https://spec.matrix.org/v1.3/client-server-api/#refreshing-access-tokens
+         */
+        refreshToken: String?, 
+        /**
+         * The user the access token was issued for.
+         */
+        userId: String, 
+        /**
+         * The ID of the client device.
+         */
+        deviceId: String, 
+        /**
+         * The URL for the homeserver used for this session.
+         */
+        homeserverUrl: String, 
+        /**
+         * Additional data for this session if OpenID Connect was used for
+         * authentication.
+         */
+        oidcData: String?, 
+        /**
+         * The URL for the sliding sync proxy used for this session.
+         */
+        slidingSyncProxy: String?) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.userId = userId
@@ -9363,7 +10483,9 @@ public struct SetData {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(index: UInt32, item: TimelineItem) {
+    public init(
+        index: UInt32, 
+        item: TimelineItem) {
         self.index = index
         self.item = item
     }
@@ -9402,7 +10524,9 @@ public struct TextMessageContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, formatted: FormattedBody?) {
+    public init(
+        body: String, 
+        formatted: FormattedBody?) {
         self.body = body
         self.formatted = formatted
     }
@@ -9460,7 +10584,11 @@ public struct ThumbnailInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(height: UInt64?, width: UInt64?, mimetype: String?, size: UInt64?) {
+    public init(
+        height: UInt64?, 
+        width: UInt64?, 
+        mimetype: String?, 
+        size: UInt64?) {
         self.height = height
         self.width = width
         self.mimetype = mimetype
@@ -9526,12 +10654,23 @@ public func FfiConverterTypeThumbnailInfo_lower(_ value: ThumbnailInfo) -> RustB
 
 public struct TracingConfiguration {
     public var filter: String
+    /**
+     * Controls whether to print to stdout or, equivalent, the system logs on
+     * Android.
+     */
     public var writeToStdoutOrSystem: Bool
     public var writeToFiles: TracingFileConfiguration?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(filter: String, writeToStdoutOrSystem: Bool, writeToFiles: TracingFileConfiguration?) {
+    public init(
+        filter: String, 
+        /**
+         * Controls whether to print to stdout or, equivalent, the system logs on
+         * Android.
+         */
+        writeToStdoutOrSystem: Bool, 
+        writeToFiles: TracingFileConfiguration?) {
         self.filter = filter
         self.writeToStdoutOrSystem = writeToStdoutOrSystem
         self.writeToFiles = writeToFiles
@@ -9594,7 +10733,9 @@ public struct TracingFileConfiguration {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(path: String, filePrefix: String) {
+    public init(
+        path: String, 
+        filePrefix: String) {
         self.path = path
         self.filePrefix = filePrefix
     }
@@ -9650,7 +10791,9 @@ public struct TransmissionProgress {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(current: UInt64, total: UInt64) {
+    public init(
+        current: UInt64, 
+        total: UInt64) {
         self.current = current
         self.total = total
     }
@@ -9706,7 +10849,9 @@ public struct UnstableAudioDetailsContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(duration: TimeInterval, waveform: [UInt16]) {
+    public init(
+        duration: TimeInterval, 
+        waveform: [UInt16]) {
         self.duration = duration
         self.waveform = waveform
     }
@@ -9802,7 +10947,10 @@ public struct UserProfile {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(userId: String, displayName: String?, avatarUrl: String?) {
+    public init(
+        userId: String, 
+        displayName: String?, 
+        avatarUrl: String?) {
         self.userId = userId
         self.displayName = displayName
         self.avatarUrl = avatarUrl
@@ -9871,7 +11019,15 @@ public struct VideoInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(duration: TimeInterval?, height: UInt64?, width: UInt64?, mimetype: String?, size: UInt64?, thumbnailInfo: ThumbnailInfo?, thumbnailSource: MediaSource?, blurhash: String?) {
+    public init(
+        duration: TimeInterval?, 
+        height: UInt64?, 
+        width: UInt64?, 
+        mimetype: String?, 
+        size: UInt64?, 
+        thumbnailInfo: ThumbnailInfo?, 
+        thumbnailSource: MediaSource?, 
+        blurhash: String?) {
         self.duration = duration
         self.height = height
         self.width = width
@@ -9929,7 +11085,10 @@ public struct VideoMessageContent {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(body: String, source: MediaSource, info: VideoInfo?) {
+    public init(
+        body: String, 
+        source: MediaSource, 
+        info: VideoInfo?) {
         self.body = body
         self.source = source
         self.info = info
@@ -9965,23 +11124,170 @@ public func FfiConverterTypeVideoMessageContent_lower(_ value: VideoMessageConte
 }
 
 
+/**
+ * Properties to create a new virtual Element Call widget.
+ */
 public struct VirtualElementCallWidgetOptions {
+    /**
+     * The url to the app.
+     *
+     * E.g. <https://call.element.io>, <https://call.element.dev>
+     */
     public var elementCallUrl: String
+    /**
+     * The widget id.
+     */
     public var widgetId: String
+    /**
+     * The url that is used as the target for the PostMessages sent
+     * by the widget (to the client).
+     *
+     * For a web app client this is the client url. In case of using other
+     * platforms the client most likely is setup up to listen to
+     * postmessages in the same webview the widget is hosted. In this case
+     * the `parent_url` is set to the url of the webview with the widget. Be
+     * aware that this means that the widget will receive its own postmessage
+     * messages. The `matrix-widget-api` (js) ignores those so this works but
+     * it might break custom implementations.
+     *
+     * Defaults to `element_call_url` for the non-iframe (dedicated webview)
+     * usecase.
+     */
     public var parentUrl: String?
+    /**
+     * Whether the branding header of Element call should be hidden.
+     *
+     * Default: `true`
+     */
     public var hideHeader: Bool?
+    /**
+     * If set, the lobby will be skipped and the widget will join the
+     * call on the `io.element.join` action.
+     *
+     * Default: `false`
+     */
     public var preload: Bool?
+    /**
+     * The font scale which will be used inside element call.
+     *
+     * Default: `1`
+     */
     public var fontScale: Double?
+    /**
+     * Whether element call should prompt the user to open in the browser or
+     * the app.
+     *
+     * Default: `false`
+     */
     public var appPrompt: Bool?
+    /**
+     * Don't show the lobby and join the call immediately.
+     *
+     * Default: `false`
+     */
     public var skipLobby: Bool?
+    /**
+     * Make it not possible to get to the calls list in the webview.
+     *
+     * Default: `true`
+     */
     public var confineToRoom: Bool?
+    /**
+     * The font to use, to adapt to the system font.
+     */
     public var font: String?
+    /**
+     * Can be used to pass a PostHog id to element call.
+     */
     public var analyticsId: String?
+    /**
+     * The encryption system to use.
+     *
+     * Use `EncryptionSystem::Unencrypted` to disable encryption.
+     */
     public var encryption: EncryptionSystem
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(elementCallUrl: String, widgetId: String, parentUrl: String?, hideHeader: Bool?, preload: Bool?, fontScale: Double?, appPrompt: Bool?, skipLobby: Bool?, confineToRoom: Bool?, font: String?, analyticsId: String?, encryption: EncryptionSystem) {
+    public init(
+        /**
+         * The url to the app.
+         *
+         * E.g. <https://call.element.io>, <https://call.element.dev>
+         */
+        elementCallUrl: String, 
+        /**
+         * The widget id.
+         */
+        widgetId: String, 
+        /**
+         * The url that is used as the target for the PostMessages sent
+         * by the widget (to the client).
+         *
+         * For a web app client this is the client url. In case of using other
+         * platforms the client most likely is setup up to listen to
+         * postmessages in the same webview the widget is hosted. In this case
+         * the `parent_url` is set to the url of the webview with the widget. Be
+         * aware that this means that the widget will receive its own postmessage
+         * messages. The `matrix-widget-api` (js) ignores those so this works but
+         * it might break custom implementations.
+         *
+         * Defaults to `element_call_url` for the non-iframe (dedicated webview)
+         * usecase.
+         */
+        parentUrl: String?, 
+        /**
+         * Whether the branding header of Element call should be hidden.
+         *
+         * Default: `true`
+         */
+        hideHeader: Bool?, 
+        /**
+         * If set, the lobby will be skipped and the widget will join the
+         * call on the `io.element.join` action.
+         *
+         * Default: `false`
+         */
+        preload: Bool?, 
+        /**
+         * The font scale which will be used inside element call.
+         *
+         * Default: `1`
+         */
+        fontScale: Double?, 
+        /**
+         * Whether element call should prompt the user to open in the browser or
+         * the app.
+         *
+         * Default: `false`
+         */
+        appPrompt: Bool?, 
+        /**
+         * Don't show the lobby and join the call immediately.
+         *
+         * Default: `false`
+         */
+        skipLobby: Bool?, 
+        /**
+         * Make it not possible to get to the calls list in the webview.
+         *
+         * Default: `true`
+         */
+        confineToRoom: Bool?, 
+        /**
+         * The font to use, to adapt to the system font.
+         */
+        font: String?, 
+        /**
+         * Can be used to pass a PostHog id to element call.
+         */
+        analyticsId: String?, 
+        /**
+         * The encryption system to use.
+         *
+         * Use `EncryptionSystem::Unencrypted` to disable encryption.
+         */
+        encryption: EncryptionSystem) {
         self.elementCallUrl = elementCallUrl
         self.widgetId = widgetId
         self.parentUrl = parentUrl
@@ -10101,14 +11407,46 @@ public func FfiConverterTypeVirtualElementCallWidgetOptions_lower(_ value: Virtu
 }
 
 
+/**
+ * Capabilities that a widget can request from a client.
+ */
 public struct WidgetCapabilities {
+    /**
+     * Types of the messages that a widget wants to be able to fetch.
+     */
     public var read: [WidgetEventFilter]
+    /**
+     * Types of the messages that a widget wants to be able to send.
+     */
     public var send: [WidgetEventFilter]
+    /**
+     * If this capability is requested by the widget, it can not operate
+     * separately from the matrix client.
+     *
+     * This means clients should not offer to open the widget in a separate
+     * browser/tab/webview that is not connected to the postmessage widget-api.
+     */
     public var requiresClient: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(read: [WidgetEventFilter], send: [WidgetEventFilter], requiresClient: Bool) {
+    public init(
+        /**
+         * Types of the messages that a widget wants to be able to fetch.
+         */
+        read: [WidgetEventFilter], 
+        /**
+         * Types of the messages that a widget wants to be able to send.
+         */
+        send: [WidgetEventFilter], 
+        /**
+         * If this capability is requested by the widget, it can not operate
+         * separately from the matrix client.
+         *
+         * This means clients should not offer to open the widget in a separate
+         * browser/tab/webview that is not connected to the postmessage widget-api.
+         */
+        requiresClient: Bool) {
         self.read = read
         self.send = send
         self.requiresClient = requiresClient
@@ -10171,7 +11509,9 @@ public struct WidgetDriverAndHandle {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(driver: WidgetDriver, handle: WidgetDriverHandle) {
+    public init(
+        driver: WidgetDriver, 
+        handle: WidgetDriverHandle) {
         self.driver = driver
         self.handle = handle
     }
@@ -10204,14 +11544,58 @@ public func FfiConverterTypeWidgetDriverAndHandle_lower(_ value: WidgetDriverAnd
 }
 
 
+/**
+ * Information about a widget.
+ */
 public struct WidgetSettings {
+    /**
+     * Widget's unique identifier.
+     */
     public var widgetId: String
+    /**
+     * Whether or not the widget should be initialized on load message
+     * (`ContentLoad` message), or upon creation/attaching of the widget to
+     * the SDK's state machine that drives the API.
+     */
     public var initAfterContentLoad: Bool
+    /**
+     * This contains the url from the widget state event.
+     * In this url placeholders can be used to pass information from the client
+     * to the widget. Possible values are: `$widgetId`, `$parentUrl`,
+     * `$userId`, `$lang`, `$fontScale`, `$analyticsID`.
+     *
+     * # Examples
+     *
+     * e.g `http://widget.domain?username=$userId`
+     * will become: `http://widget.domain?username=@user_matrix_id:server.domain`.
+     */
     public var rawUrl: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(widgetId: String, initAfterContentLoad: Bool, rawUrl: String) {
+    public init(
+        /**
+         * Widget's unique identifier.
+         */
+        widgetId: String, 
+        /**
+         * Whether or not the widget should be initialized on load message
+         * (`ContentLoad` message), or upon creation/attaching of the widget to
+         * the SDK's state machine that drives the API.
+         */
+        initAfterContentLoad: Bool, 
+        /**
+         * This contains the url from the widget state event.
+         * In this url placeholders can be used to pass information from the client
+         * to the widget. Possible values are: `$widgetId`, `$parentUrl`,
+         * `$userId`, `$lang`, `$fontScale`, `$analyticsID`.
+         *
+         * # Examples
+         *
+         * e.g `http://widget.domain?username=$userId`
+         * will become: `http://widget.domain?username=@user_matrix_id:server.domain`.
+         */
+        rawUrl: String) {
         self.widgetId = widgetId
         self.initAfterContentLoad = initAfterContentLoad
         self.rawUrl = rawUrl
@@ -10273,8 +11657,12 @@ public enum AccountManagementAction {
     
     case profile
     case sessionsList
-    case sessionView(deviceId: String)
-    case sessionEnd(deviceId: String)
+    case sessionView(
+        deviceId: String
+    )
+    case sessionEnd(
+        deviceId: String
+    )
 }
 
 public struct FfiConverterTypeAccountManagementAction: FfiConverterRustBuffer {
@@ -10391,44 +11779,33 @@ extension AssetType: Equatable, Hashable {}
 
 
 
+
 public enum AuthenticationError {
 
     
     
-    // Simple error enums only carry a message
     case ClientMissing(message: String)
     
-    // Simple error enums only carry a message
     case InvalidServerName(message: String)
     
-    // Simple error enums only carry a message
     case SlidingSyncNotAvailable(message: String)
     
-    // Simple error enums only carry a message
     case SessionMissing(message: String)
     
-    // Simple error enums only carry a message
     case InvalidBasePath(message: String)
     
-    // Simple error enums only carry a message
     case OidcNotSupported(message: String)
     
-    // Simple error enums only carry a message
     case OidcMetadataMissing(message: String)
     
-    // Simple error enums only carry a message
     case OidcMetadataInvalid(message: String)
     
-    // Simple error enums only carry a message
     case OidcCallbackUrlInvalid(message: String)
     
-    // Simple error enums only carry a message
     case OidcCancelled(message: String)
     
-    // Simple error enums only carry a message
     case OidcError(message: String)
     
-    // Simple error enums only carry a message
     case Generic(message: String)
     
 
@@ -10544,65 +11921,6 @@ extension AuthenticationError: Error { }
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-public enum BackPaginationStatus {
-    
-    case idle
-    case paginating
-    case timelineStartReached
-}
-
-public struct FfiConverterTypeBackPaginationStatus: FfiConverterRustBuffer {
-    typealias SwiftType = BackPaginationStatus
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BackPaginationStatus {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .idle
-        
-        case 2: return .paginating
-        
-        case 3: return .timelineStartReached
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: BackPaginationStatus, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .idle:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .paginating:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .timelineStartReached:
-            writeInt(&buf, Int32(3))
-        
-        }
-    }
-}
-
-
-public func FfiConverterTypeBackPaginationStatus_lift(_ buf: RustBuffer) throws -> BackPaginationStatus {
-    return try FfiConverterTypeBackPaginationStatus.lift(buf)
-}
-
-public func FfiConverterTypeBackPaginationStatus_lower(_ value: BackPaginationStatus) -> RustBuffer {
-    return FfiConverterTypeBackPaginationStatus.lower(value)
-}
-
-
-extension BackPaginationStatus: Equatable, Hashable {}
-
-
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum BackupState {
     
     case unknown
@@ -10693,7 +12011,10 @@ extension BackupState: Equatable, Hashable {}
 public enum BackupUploadState {
     
     case waiting
-    case uploading(backedUpCount: UInt32, totalCount: UInt32)
+    case uploading(
+        backedUpCount: UInt32, 
+        totalCount: UInt32
+    )
     case error
     case done
 }
@@ -10759,11 +12080,14 @@ extension BackupUploadState: Equatable, Hashable {}
 
 
 
+
 public enum ClientError {
 
     
     
-    case Generic(msg: String)
+    case Generic(
+        msg: String
+    )
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeClientError.lift(error)
@@ -10816,9 +12140,14 @@ public enum EnableRecoveryProgress {
     case starting
     case creatingBackup
     case creatingRecoveryKey
-    case backingUp(backedUpCount: UInt32, totalCount: UInt32)
+    case backingUp(
+        backedUpCount: UInt32, 
+        totalCount: UInt32
+    )
     case roomKeyUploadError
-    case done(recoveryKey: String)
+    case done(
+        recoveryKey: String
+    )
 }
 
 public struct FfiConverterTypeEnableRecoveryProgress: FfiConverterRustBuffer {
@@ -10901,8 +12230,18 @@ extension EnableRecoveryProgress: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum EncryptedMessage {
     
-    case olmV1Curve25519AesSha2(senderKey: String)
-    case megolmV1AesSha2(sessionId: String)
+    case olmV1Curve25519AesSha2(
+        /**
+         * The Curve25519 key of the sender.
+         */
+        senderKey: String
+    )
+    case megolmV1AesSha2(
+        /**
+         * The ID of the session used to encrypt the message.
+         */
+        sessionId: String
+    )
     case unknown
 }
 
@@ -10964,11 +12303,32 @@ extension EncryptedMessage: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Defines if a call is encrypted and which encryption system should be used.
+ *
+ * This controls the url parameters: `perParticipantE2EE`, `password`.
+ */
 public enum EncryptionSystem {
     
+    /**
+     * Equivalent to the element call url parameter: `enableE2EE=false`
+     */
     case unencrypted
+    /**
+     * Equivalent to the element call url parameter:
+     * `perParticipantE2EE=true`
+     */
     case perParticipantKeys
-    case sharedSecret(secret: String)
+    /**
+     * Equivalent to the element call url parameter:
+     * `password={secret}`
+     */
+    case sharedSecret(
+        /**
+         * The secret/password which is used in the url.
+         */
+        secret: String
+    )
 }
 
 public struct FfiConverterTypeEncryptionSystem: FfiConverterRustBuffer {
@@ -11026,71 +12386,33 @@ extension EncryptionSystem: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-public enum EventItemOrigin {
-    
-    case local
-    case sync
-    case pagination
-}
-
-public struct FfiConverterTypeEventItemOrigin: FfiConverterRustBuffer {
-    typealias SwiftType = EventItemOrigin
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EventItemOrigin {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .local
-        
-        case 2: return .sync
-        
-        case 3: return .pagination
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: EventItemOrigin, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .local:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .sync:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .pagination:
-            writeInt(&buf, Int32(3))
-        
-        }
-    }
-}
-
-
-public func FfiConverterTypeEventItemOrigin_lift(_ buf: RustBuffer) throws -> EventItemOrigin {
-    return try FfiConverterTypeEventItemOrigin.lift(buf)
-}
-
-public func FfiConverterTypeEventItemOrigin_lower(_ value: EventItemOrigin) -> RustBuffer {
-    return FfiConverterTypeEventItemOrigin.lower(value)
-}
-
-
-extension EventItemOrigin: Equatable, Hashable {}
-
-
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * This type represents the “send state” of a local event timeline item.
+ */
 public enum EventSendState {
     
+    /**
+     * The local event has not been sent yet.
+     */
     case notSentYet
-    case sendingFailed(error: String)
+    /**
+     * The local event has been sent to the server, but unsuccessfully: The
+     * sending has failed.
+     */
+    case sendingFailed(
+        error: String
+    )
+    /**
+     * Sending has been cancelled because an earlier event in the
+     * message-sending queue failed.
+     */
     case cancelled
-    case sent(eventId: String)
+    /**
+     * The local event has been sent successfully to the server.
+     */
+    case sent(
+        eventId: String
+    )
 }
 
 public struct FfiConverterTypeEventSendState: FfiConverterRustBuffer {
@@ -11228,14 +12550,13 @@ extension LogLevel: Equatable, Hashable {}
 
 
 
+
 public enum MediaInfoError {
 
     
     
-    // Simple error enums only carry a message
     case MissingField(message: String)
     
-    // Simple error enums only carry a message
     case InvalidField(message: String)
     
 
@@ -11509,10 +12830,25 @@ extension MembershipChange: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum MembershipState {
     
+    /**
+     * The user is banned.
+     */
     case ban
+    /**
+     * The user has been invited.
+     */
     case invite
+    /**
+     * The user has joined.
+     */
     case join
+    /**
+     * The user has requested to join.
+     */
     case knock
+    /**
+     * The user has left.
+     */
     case leave
 }
 
@@ -11583,7 +12919,9 @@ extension MembershipState: Equatable, Hashable {}
 public enum MessageFormat {
     
     case html
-    case unknown(format: String)
+    case unknown(
+        format: String
+    )
 }
 
 public struct FfiConverterTypeMessageFormat: FfiConverterRustBuffer {
@@ -11648,10 +12986,17 @@ public enum MessageLikeEventContent {
     case keyVerificationKey
     case keyVerificationMac
     case keyVerificationDone
-    case poll(question: String)
-    case reactionContent(relatedEventId: String)
+    case poll(
+        question: String
+    )
+    case reactionContent(
+        relatedEventId: String
+    )
     case roomEncrypted
-    case roomMessage(messageType: MessageType, inReplyToEventId: String?)
+    case roomMessage(
+        messageType: MessageType, 
+        inReplyToEventId: String?
+    )
     case roomRedaction
     case sticker
 }
@@ -11953,15 +13298,34 @@ extension MessageLikeEventType: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum MessageType {
     
-    case emote(content: EmoteMessageContent)
-    case image(content: ImageMessageContent)
-    case audio(content: AudioMessageContent)
-    case video(content: VideoMessageContent)
-    case file(content: FileMessageContent)
-    case notice(content: NoticeMessageContent)
-    case text(content: TextMessageContent)
-    case location(content: LocationContent)
-    case other(msgtype: String, body: String)
+    case emote(
+        content: EmoteMessageContent
+    )
+    case image(
+        content: ImageMessageContent
+    )
+    case audio(
+        content: AudioMessageContent
+    )
+    case video(
+        content: VideoMessageContent
+    )
+    case file(
+        content: FileMessageContent
+    )
+    case notice(
+        content: NoticeMessageContent
+    )
+    case text(
+        content: TextMessageContent
+    )
+    case location(
+        content: LocationContent
+    )
+    case other(
+        msgtype: String, 
+        body: String
+    )
 }
 
 public struct FfiConverterTypeMessageType: FfiConverterRustBuffer {
@@ -12081,8 +13445,12 @@ public func FfiConverterTypeMessageType_lower(_ value: MessageType) -> RustBuffe
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum NotificationEvent {
     
-    case timeline(event: TimelineEvent)
-    case invite(sender: String)
+    case timeline(
+        event: TimelineEvent
+    )
+    case invite(
+        sender: String
+    )
 }
 
 public struct FfiConverterTypeNotificationEvent: FfiConverterRustBuffer {
@@ -12138,7 +13506,9 @@ public func FfiConverterTypeNotificationEvent_lower(_ value: NotificationEvent) 
 public enum NotificationProcessSetup {
     
     case multipleProcesses
-    case singleProcess(syncService: SyncService)
+    case singleProcess(
+        syncService: SyncService
+    )
 }
 
 public struct FfiConverterTypeNotificationProcessSetup: FfiConverterRustBuffer {
@@ -12186,17 +13556,47 @@ public func FfiConverterTypeNotificationProcessSetup_lower(_ value: Notification
 
 
 
+
 public enum NotificationSettingsError {
 
     
     
-    case Generic(msg: String)
-    case InvalidParameter(msg: String)
-    case InvalidRoomId(roomId: String)
-    case RuleNotFound(ruleId: String)
+    case Generic(
+        msg: String
+    )
+    /**
+     * Invalid parameter.
+     */
+    case InvalidParameter(
+        msg: String
+    )
+    /**
+     * Invalid room id.
+     */
+    case InvalidRoomId(
+        roomId: String
+    )
+    /**
+     * Rule not found
+     */
+    case RuleNotFound(
+        ruleId: String
+    )
+    /**
+     * Unable to add push rule.
+     */
     case UnableToAddPushRule
+    /**
+     * Unable to remove push rule.
+     */
     case UnableToRemovePushRule
+    /**
+     * Unable to save the push rules
+     */
     case UnableToSavePushRules
+    /**
+     * Unable to update push rule.
+     */
     case UnableToUpdatePushRule
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
@@ -12295,23 +13695,33 @@ public enum OtherState {
     case policyRuleServer
     case policyRuleUser
     case roomAliases
-    case roomAvatar(url: String?)
+    case roomAvatar(
+        url: String?
+    )
     case roomCanonicalAlias
     case roomCreate
     case roomEncryption
     case roomGuestAccess
     case roomHistoryVisibility
     case roomJoinRules
-    case roomName(name: String?)
+    case roomName(
+        name: String?
+    )
     case roomPinnedEvents
     case roomPowerLevels
     case roomServerAcl
-    case roomThirdPartyInvite(displayName: String?)
+    case roomThirdPartyInvite(
+        displayName: String?
+    )
     case roomTombstone
-    case roomTopic(topic: String?)
+    case roomTopic(
+        topic: String?
+    )
     case spaceChild
     case spaceParent
-    case custom(eventType: String)
+    case custom(
+        eventType: String
+    )
 }
 
 public struct FfiConverterTypeOtherState: FfiConverterRustBuffer {
@@ -12491,8 +13901,15 @@ extension OtherState: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum PaginationOptions {
     
-    case simpleRequest(eventLimit: UInt16, waitForToken: Bool)
-    case untilNumItems(eventLimit: UInt16, items: UInt16, waitForToken: Bool)
+    case simpleRequest(
+        eventLimit: UInt16, 
+        waitForToken: Bool
+    )
+    case untilNumItems(
+        eventLimit: UInt16, 
+        items: UInt16, 
+        waitForToken: Bool
+    )
 }
 
 public struct FfiConverterTypePaginationOptions: FfiConverterRustBuffer {
@@ -12551,41 +13968,31 @@ extension PaginationOptions: Equatable, Hashable {}
 
 
 
+
 public enum ParseError {
 
     
     
-    // Simple error enums only carry a message
     case EmptyHost(message: String)
     
-    // Simple error enums only carry a message
     case IdnaError(message: String)
     
-    // Simple error enums only carry a message
     case InvalidPort(message: String)
     
-    // Simple error enums only carry a message
     case InvalidIpv4Address(message: String)
     
-    // Simple error enums only carry a message
     case InvalidIpv6Address(message: String)
     
-    // Simple error enums only carry a message
     case InvalidDomainCharacter(message: String)
     
-    // Simple error enums only carry a message
     case RelativeUrlWithoutBase(message: String)
     
-    // Simple error enums only carry a message
     case RelativeUrlWithCannotBeABaseBase(message: String)
     
-    // Simple error enums only carry a message
     case SetHostOnCannotBeABaseUrl(message: String)
     
-    // Simple error enums only carry a message
     case Overflow(message: String)
     
-    // Simple error enums only carry a message
     case Other(message: String)
     
 
@@ -12751,8 +14158,14 @@ public enum ProfileDetails {
     
     case unavailable
     case pending
-    case ready(displayName: String?, displayNameAmbiguous: Bool, avatarUrl: String?)
-    case error(message: String)
+    case ready(
+        displayName: String?, 
+        displayNameAmbiguous: Bool, 
+        avatarUrl: String?
+    )
+    case error(
+        message: String
+    )
 }
 
 public struct FfiConverterTypeProfileDetails: FfiConverterRustBuffer {
@@ -12870,7 +14283,9 @@ extension PushFormat: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum PusherKind {
     
-    case http(data: HttpPusherData)
+    case http(
+        data: HttpPusherData
+    )
     case email
 }
 
@@ -12923,6 +14338,9 @@ extension PusherKind: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * A [`TimelineItem`](super::TimelineItem) that doesn't correspond to an event.
+ */
 public enum ReceiptType {
     
     case read
@@ -12980,13 +14398,28 @@ extension ReceiptType: Equatable, Hashable {}
 
 
 
+
 public enum RecoveryError {
 
     
     
+    /**
+     * A backup already exists on the homeserver, the recovery subsystem does
+     * not allow backups to be overwritten, disable recovery first.
+     */
     case BackupExistsOnServer
-    case Client(source: ClientError)
-    case SecretStorage(errorMessage: String)
+    /**
+     * A typical SDK error.
+     */
+    case Client(
+        source: ClientError
+    )
+    /**
+     * Error in the secret storage subsystem.
+     */
+    case SecretStorage(
+        errorMessage: String
+    )
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeRecoveryError.lift(error)
@@ -13117,8 +14550,14 @@ public enum RepliedToEventDetails {
     
     case unavailable
     case pending
-    case ready(content: TimelineItemContent, sender: String, senderProfile: ProfileDetails)
-    case error(message: String)
+    case ready(
+        content: TimelineItemContent, 
+        sender: String, 
+        senderProfile: ProfileDetails
+    )
+    case error(
+        message: String
+    )
 }
 
 public struct FfiConverterTypeRepliedToEventDetails: FfiConverterRustBuffer {
@@ -13185,26 +14624,21 @@ public func FfiConverterTypeRepliedToEventDetails_lower(_ value: RepliedToEventD
 
 
 
+
 public enum RoomError {
 
     
     
-    // Simple error enums only carry a message
     case InvalidAttachmentData(message: String)
     
-    // Simple error enums only carry a message
     case InvalidAttachmentMimeType(message: String)
     
-    // Simple error enums only carry a message
     case InvalidMediaInfo(message: String)
     
-    // Simple error enums only carry a message
     case TimelineUnavailable(message: String)
     
-    // Simple error enums only carry a message
     case InvalidThumbnailData(message: String)
     
-    // Simple error enums only carry a message
     case FailedSendingAttachment(message: String)
     
 
@@ -13289,8 +14723,12 @@ public enum RoomListEntriesDynamicFilterKind {
     case all
     case allNonLeft
     case none
-    case normalizedMatchRoomName(pattern: String)
-    case fuzzyMatchRoomName(pattern: String)
+    case normalizedMatchRoomName(
+        pattern: String
+    )
+    case fuzzyMatchRoomName(
+        pattern: String
+    )
 }
 
 public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRustBuffer {
@@ -13365,17 +14803,35 @@ extension RoomListEntriesDynamicFilterKind: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum RoomListEntriesUpdate {
     
-    case append(values: [RoomListEntry])
+    case append(
+        values: [RoomListEntry]
+    )
     case clear
-    case pushFront(value: RoomListEntry)
-    case pushBack(value: RoomListEntry)
+    case pushFront(
+        value: RoomListEntry
+    )
+    case pushBack(
+        value: RoomListEntry
+    )
     case popFront
     case popBack
-    case insert(index: UInt32, value: RoomListEntry)
-    case set(index: UInt32, value: RoomListEntry)
-    case remove(index: UInt32)
-    case truncate(length: UInt32)
-    case reset(values: [RoomListEntry])
+    case insert(
+        index: UInt32, 
+        value: RoomListEntry
+    )
+    case set(
+        index: UInt32, 
+        value: RoomListEntry
+    )
+    case remove(
+        index: UInt32
+    )
+    case truncate(
+        length: UInt32
+    )
+    case reset(
+        values: [RoomListEntry]
+    )
 }
 
 public struct FfiConverterTypeRoomListEntriesUpdate: FfiConverterRustBuffer {
@@ -13509,8 +14965,12 @@ extension RoomListEntriesUpdate: Equatable, Hashable {}
 public enum RoomListEntry {
     
     case empty
-    case invalidated(roomId: String)
-    case filled(roomId: String)
+    case invalidated(
+        roomId: String
+    )
+    case filled(
+        roomId: String
+    )
 }
 
 public struct FfiConverterTypeRoomListEntry: FfiConverterRustBuffer {
@@ -13569,15 +15029,24 @@ extension RoomListEntry: Equatable, Hashable {}
 
 
 
+
 public enum RoomListError {
 
     
     
-    case SlidingSync(error: String)
-    case UnknownList(listName: String)
+    case SlidingSync(
+        error: String
+    )
+    case UnknownList(
+        listName: String
+    )
     case InputCannotBeApplied
-    case RoomNotFound(roomName: String)
-    case InvalidRoomId(error: String)
+    case RoomNotFound(
+        roomName: String
+    )
+    case InvalidRoomId(
+        error: String
+    )
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeRoomListError.lift(error)
@@ -13656,7 +15125,9 @@ extension RoomListError: Error { }
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum RoomListInput {
     
-    case viewport(ranges: [RoomListRange])
+    case viewport(
+        ranges: [RoomListRange]
+    )
 }
 
 public struct FfiConverterTypeRoomListInput: FfiConverterRustBuffer {
@@ -13705,7 +15176,9 @@ extension RoomListInput: Equatable, Hashable {}
 public enum RoomListLoadingState {
     
     case notLoaded
-    case loaded(maximumNumberOfRooms: UInt32?)
+    case loaded(
+        maximumNumberOfRooms: UInt32?
+    )
 }
 
 public struct FfiConverterTypeRoomListLoadingState: FfiConverterRustBuffer {
@@ -13889,10 +15362,22 @@ extension RoomListServiceSyncIndicator: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Enum representing the push notification modes for a room.
+ */
 public enum RoomNotificationMode {
     
+    /**
+     * Receive notifications for all messages.
+     */
     case allMessages
+    /**
+     * Receive notifications for mentions and keywords only.
+     */
     case mentionsAndKeywordsOnly
+    /**
+     * Do not receive any notifications.
+     */
     case mute
 }
 
@@ -13950,8 +15435,20 @@ extension RoomNotificationMode: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum RoomPreset {
     
+    /**
+     * `join_rules` is set to `invite` and `history_visibility` is set to
+     * `shared`.
+     */
     case privateChat
+    /**
+     * `join_rules` is set to `public` and `history_visibility` is set to
+     * `shared`.
+     */
     case publicChat
+    /**
+     * Same as `PrivateChat`, but all initial invitees get the same power level
+     * as the creator.
+     */
     case trustedPrivateChat
 }
 
@@ -14009,7 +15506,13 @@ extension RoomPreset: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum RoomVisibility {
     
+    /**
+     * Indicates that the room will be shown in the published room list.
+     */
     case `public`
+    /**
+     * Indicates that the room will not be shown in the published room list.
+     */
     case `private`
 }
 
@@ -14061,8 +15564,13 @@ extension RoomVisibility: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum SessionVerificationData {
     
-    case emojis(emojis: [SessionVerificationEmoji], indices: Data)
-    case decimals(values: [UInt16])
+    case emojis(
+        emojis: [SessionVerificationEmoji], 
+        indices: Data
+    )
+    case decimals(
+        values: [UInt16]
+    )
 }
 
 public struct FfiConverterTypeSessionVerificationData: FfiConverterRustBuffer {
@@ -14130,7 +15638,10 @@ public enum StateEventContent {
     case roomGuestAccess
     case roomHistoryVisibility
     case roomJoinRules
-    case roomMemberContent(userId: String, membershipState: MembershipState)
+    case roomMemberContent(
+        userId: String, 
+        membershipState: MembershipState
+    )
     case roomName
     case roomPinnedEvents
     case roomPowerLevels
@@ -14497,17 +16008,15 @@ extension StateEventType: Equatable, Hashable {}
 
 
 
+
 public enum SteadyStateError {
 
     
     
-    // Simple error enums only carry a message
     case BackupDisabled(message: String)
     
-    // Simple error enums only carry a message
     case Connection(message: String)
     
-    // Simple error enums only carry a message
     case Lagged(message: String)
     
 
@@ -14752,8 +16261,12 @@ extension TimelineChange: Equatable, Hashable {}
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum TimelineEventType {
     
-    case messageLike(content: MessageLikeEventContent)
-    case state(content: StateEventContent)
+    case messageLike(
+        content: MessageLikeEventContent
+    )
+    case state(
+        content: StateEventContent
+    )
 }
 
 public struct FfiConverterTypeTimelineEventType: FfiConverterRustBuffer {
@@ -14810,14 +16323,46 @@ public enum TimelineItemContentKind {
     
     case message
     case redactedMessage
-    case sticker(body: String, info: ImageInfo, url: String)
-    case poll(question: String, kind: PollKind, maxSelections: UInt64, answers: [PollAnswer], votes: [String: [String]], endTime: UInt64?, hasBeenEdited: Bool)
-    case unableToDecrypt(msg: EncryptedMessage)
-    case roomMembership(userId: String, change: MembershipChange?)
-    case profileChange(displayName: String?, prevDisplayName: String?, avatarUrl: String?, prevAvatarUrl: String?)
-    case state(stateKey: String, content: OtherState)
-    case failedToParseMessageLike(eventType: String, error: String)
-    case failedToParseState(eventType: String, stateKey: String, error: String)
+    case sticker(
+        body: String, 
+        info: ImageInfo, 
+        url: String
+    )
+    case poll(
+        question: String, 
+        kind: PollKind, 
+        maxSelections: UInt64, 
+        answers: [PollAnswer], 
+        votes: [String: [String]], 
+        endTime: UInt64?, 
+        hasBeenEdited: Bool
+    )
+    case unableToDecrypt(
+        msg: EncryptedMessage
+    )
+    case roomMembership(
+        userId: String, 
+        change: MembershipChange?
+    )
+    case profileChange(
+        displayName: String?, 
+        prevDisplayName: String?, 
+        avatarUrl: String?, 
+        prevAvatarUrl: String?
+    )
+    case state(
+        stateKey: String, 
+        content: OtherState
+    )
+    case failedToParseMessageLike(
+        eventType: String, 
+        error: String
+    )
+    case failedToParseState(
+        eventType: String, 
+        stateKey: String, 
+        error: String
+    )
 }
 
 public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
@@ -14968,9 +16513,24 @@ public func FfiConverterTypeTimelineItemContentKind_lower(_ value: TimelineItemC
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * A [`TimelineItem`](super::TimelineItem) that doesn't correspond to an event.
+ */
 public enum VirtualTimelineItem {
     
-    case dayDivider(ts: UInt64)
+    /**
+     * A divider between messages of two days.
+     */
+    case dayDivider(
+        /**
+         * A timestamp in milliseconds since Unix Epoch on that day in local
+         * time.
+         */
+        ts: UInt64
+    )
+    /**
+     * The user's own read marker.
+     */
     case readMarker
 }
 
@@ -15023,12 +16583,36 @@ extension VirtualTimelineItem: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Different kinds of filters that could be applied to the timeline events.
+ */
 public enum WidgetEventFilter {
     
-    case messageLikeWithType(eventType: String)
-    case roomMessageWithMsgtype(msgtype: String)
-    case stateWithType(eventType: String)
-    case stateWithTypeAndStateKey(eventType: String, stateKey: String)
+    /**
+     * Matches message-like events with the given `type`.
+     */
+    case messageLikeWithType(
+        eventType: String
+    )
+    /**
+     * Matches `m.room.message` events with the given `msgtype`.
+     */
+    case roomMessageWithMsgtype(
+        msgtype: String
+    )
+    /**
+     * Matches state events with the given `type`, regardless of `state_key`.
+     */
+    case stateWithType(
+        eventType: String
+    )
+    /**
+     * Matches state events with the given `type` and `state_key`.
+     */
+    case stateWithTypeAndStateKey(
+        eventType: String, 
+        stateKey: String
+    )
 }
 
 public struct FfiConverterTypeWidgetEventFilter: FfiConverterRustBuffer {
@@ -15103,7 +16687,9 @@ extension WidgetEventFilter: Equatable, Hashable {}
 
 
 
+
 public protocol BackPaginationStatusListener : AnyObject {
+    
     func onUpdate(status: BackPaginationStatus) 
     
 }
@@ -15193,7 +16779,7 @@ fileprivate let uniffiCallbackHandlerBackPaginationStatusListener : ForeignCallb
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceBackPaginationStatusListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15255,7 +16841,9 @@ extension FfiConverterCallbackInterfaceBackPaginationStatusListener : FfiConvert
 
 
 
+
 public protocol BackupStateListener : AnyObject {
+    
     func onUpdate(status: BackupState) 
     
 }
@@ -15282,7 +16870,7 @@ fileprivate let uniffiCallbackHandlerBackupStateListener : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceBackupStateListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15344,7 +16932,9 @@ extension FfiConverterCallbackInterfaceBackupStateListener : FfiConverter {
 
 
 
+
 public protocol BackupSteadyStateListener : AnyObject {
+    
     func onUpdate(status: BackupUploadState) 
     
 }
@@ -15371,7 +16961,7 @@ fileprivate let uniffiCallbackHandlerBackupSteadyStateListener : ForeignCallback
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceBackupSteadyStateListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15433,8 +17023,11 @@ extension FfiConverterCallbackInterfaceBackupSteadyStateListener : FfiConverter 
 
 
 
+
 public protocol ClientDelegate : AnyObject {
+    
     func didReceiveAuthError(isSoftLogout: Bool) 
+    
     func didRefreshTokens() 
     
 }
@@ -15470,7 +17063,7 @@ fileprivate let uniffiCallbackHandlerClientDelegate : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceClientDelegate.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15543,8 +17136,11 @@ extension FfiConverterCallbackInterfaceClientDelegate : FfiConverter {
 
 
 
+
 public protocol ClientSessionDelegate : AnyObject {
+    
     func retrieveSessionFromKeychain(userId: String) throws  -> Session
+    
     func saveSessionInKeychain(session: Session) 
     
 }
@@ -15590,7 +17186,7 @@ fileprivate let uniffiCallbackHandlerClientSessionDelegate : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceClientSessionDelegate.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15663,7 +17259,9 @@ extension FfiConverterCallbackInterfaceClientSessionDelegate : FfiConverter {
 
 
 
+
 public protocol EnableRecoveryProgressListener : AnyObject {
+    
     func onUpdate(status: EnableRecoveryProgress) 
     
 }
@@ -15690,7 +17288,7 @@ fileprivate let uniffiCallbackHandlerEnableRecoveryProgressListener : ForeignCal
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceEnableRecoveryProgressListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15752,7 +17350,12 @@ extension FfiConverterCallbackInterfaceEnableRecoveryProgressListener : FfiConve
 
 
 
+
+/**
+ * Delegate to notify of changes in push rules
+ */
 public protocol NotificationSettingsDelegate : AnyObject {
+    
     func settingsDidChange() 
     
 }
@@ -15777,7 +17380,7 @@ fileprivate let uniffiCallbackHandlerNotificationSettingsDelegate : ForeignCallb
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceNotificationSettingsDelegate.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15839,7 +17442,9 @@ extension FfiConverterCallbackInterfaceNotificationSettingsDelegate : FfiConvert
 
 
 
+
 public protocol ProgressWatcher : AnyObject {
+    
     func transmissionProgress(progress: TransmissionProgress) 
     
 }
@@ -15866,7 +17471,7 @@ fileprivate let uniffiCallbackHandlerProgressWatcher : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceProgressWatcher.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -15928,7 +17533,9 @@ extension FfiConverterCallbackInterfaceProgressWatcher : FfiConverter {
 
 
 
+
 public protocol RecoveryStateListener : AnyObject {
+    
     func onUpdate(status: RecoveryState) 
     
 }
@@ -15955,7 +17562,7 @@ fileprivate let uniffiCallbackHandlerRecoveryStateListener : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceRecoveryStateListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16017,7 +17624,9 @@ extension FfiConverterCallbackInterfaceRecoveryStateListener : FfiConverter {
 
 
 
+
 public protocol RoomInfoListener : AnyObject {
+    
     func call(roomInfo: RoomInfo) 
     
 }
@@ -16044,7 +17653,7 @@ fileprivate let uniffiCallbackHandlerRoomInfoListener : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceRoomInfoListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16106,7 +17715,9 @@ extension FfiConverterCallbackInterfaceRoomInfoListener : FfiConverter {
 
 
 
+
 public protocol RoomListEntriesListener : AnyObject {
+    
     func onUpdate(roomEntriesUpdate: [RoomListEntriesUpdate]) 
     
 }
@@ -16133,7 +17744,7 @@ fileprivate let uniffiCallbackHandlerRoomListEntriesListener : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceRoomListEntriesListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16195,7 +17806,9 @@ extension FfiConverterCallbackInterfaceRoomListEntriesListener : FfiConverter {
 
 
 
+
 public protocol RoomListLoadingStateListener : AnyObject {
+    
     func onUpdate(state: RoomListLoadingState) 
     
 }
@@ -16222,7 +17835,7 @@ fileprivate let uniffiCallbackHandlerRoomListLoadingStateListener : ForeignCallb
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceRoomListLoadingStateListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16284,7 +17897,9 @@ extension FfiConverterCallbackInterfaceRoomListLoadingStateListener : FfiConvert
 
 
 
+
 public protocol RoomListServiceStateListener : AnyObject {
+    
     func onUpdate(state: RoomListServiceState) 
     
 }
@@ -16311,7 +17926,7 @@ fileprivate let uniffiCallbackHandlerRoomListServiceStateListener : ForeignCallb
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceRoomListServiceStateListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16373,7 +17988,9 @@ extension FfiConverterCallbackInterfaceRoomListServiceStateListener : FfiConvert
 
 
 
+
 public protocol RoomListServiceSyncIndicatorListener : AnyObject {
+    
     func onUpdate(syncIndicator: RoomListServiceSyncIndicator) 
     
 }
@@ -16400,7 +18017,7 @@ fileprivate let uniffiCallbackHandlerRoomListServiceSyncIndicatorListener : Fore
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16462,12 +18079,19 @@ extension FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener : Ff
 
 
 
+
 public protocol SessionVerificationControllerDelegate : AnyObject {
+    
     func didAcceptVerificationRequest() 
+    
     func didStartSasVerification() 
+    
     func didReceiveVerificationData(data: SessionVerificationData) 
+    
     func didFail() 
+    
     func didCancel() 
+    
     func didFinish() 
     
 }
@@ -16539,7 +18163,7 @@ fileprivate let uniffiCallbackHandlerSessionVerificationControllerDelegate : For
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16656,7 +18280,9 @@ extension FfiConverterCallbackInterfaceSessionVerificationControllerDelegate : F
 
 
 
+
 public protocol SyncServiceStateObserver : AnyObject {
+    
     func onUpdate(state: SyncServiceState) 
     
 }
@@ -16683,7 +18309,7 @@ fileprivate let uniffiCallbackHandlerSyncServiceStateObserver : ForeignCallback 
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceSyncServiceStateObserver.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16745,7 +18371,9 @@ extension FfiConverterCallbackInterfaceSyncServiceStateObserver : FfiConverter {
 
 
 
+
 public protocol TimelineListener : AnyObject {
+    
     func onUpdate(diff: [TimelineDiff]) 
     
 }
@@ -16772,7 +18400,7 @@ fileprivate let uniffiCallbackHandlerTimelineListener : ForeignCallback =
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceTimelineListener.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -16834,7 +18462,9 @@ extension FfiConverterCallbackInterfaceTimelineListener : FfiConverter {
 
 
 
+
 public protocol WidgetCapabilitiesProvider : AnyObject {
+    
     func acquireCapabilities(capabilities: WidgetCapabilities)  -> WidgetCapabilities
     
 }
@@ -16864,7 +18494,7 @@ fileprivate let uniffiCallbackHandlerWidgetCapabilitiesProvider : ForeignCallbac
     switch method {
         case IDX_CALLBACK_FREE:
             FfiConverterCallbackInterfaceWidgetCapabilitiesProvider.handleMap.remove(handle: handle)
-            // Sucessful return
+            // Successful return
             // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
             return UNIFFI_CALLBACK_SUCCESS
         case 1:
@@ -17659,27 +19289,6 @@ fileprivate struct FfiConverterOptionTypeAssetType: FfiConverterRustBuffer {
     }
 }
 
-fileprivate struct FfiConverterOptionTypeEventItemOrigin: FfiConverterRustBuffer {
-    typealias SwiftType = EventItemOrigin?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeEventItemOrigin.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeEventItemOrigin.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 fileprivate struct FfiConverterOptionTypeEventSendState: FfiConverterRustBuffer {
     typealias SwiftType = EventSendState?
 
@@ -17990,6 +19599,27 @@ fileprivate struct FfiConverterOptionSequenceTypeRequiredState: FfiConverterRust
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceTypeRequiredState.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypeEventItemOrigin: FfiConverterRustBuffer {
+    typealias SwiftType = EventItemOrigin?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEventItemOrigin.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEventItemOrigin.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -18438,6 +20068,10 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
         return dict
     }
 }
+
+
+
+
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
@@ -18496,7 +20130,6 @@ fileprivate class ContinuationHolder {
         return Unmanaged<ContinuationHolder>.fromOpaque(ptr).takeRetainedValue()
     }
 }
-
 public func genTransactionId()  -> String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
@@ -18504,7 +20137,16 @@ public func genTransactionId()  -> String {
 }
     )
 }
-
+/**
+ * Create the actual url that can be used to setup the WebView or IFrame
+ * that contains the widget.
+ *
+ * # Arguments
+ * * `widget_settings` - The widget settings to generate the url for.
+ * * `room` - A matrix room which is used to query the logged in username
+ * * `props` - Properties from the client that can be used by a widget to adapt
+ * to the client. e.g. language, font-scale...
+ */
 public func generateWebviewUrl(widgetSettings: WidgetSettings, room: Room, props: ClientProperties) async throws  -> String {
     return try  await uniffiRustCallAsync(
         rustFutureFunc: {
@@ -18523,7 +20165,20 @@ public func generateWebviewUrl(widgetSettings: WidgetSettings, room: Room, props
 }
 
 
-
+/**
+ * The Capabilities required to run a element call widget.
+ *
+ * This is intended to be used in combination with: `acquire_capabilities` of
+ * the `CapabilitiesProvider`.
+ *
+ * `acquire_capabilities` can simply return the `WidgetCapabilities` from this
+ * function. Even if there are non intersecting permissions to what the widget
+ * requested.
+ *
+ * Editing and extending the capabilities from this function is also possible,
+ * but should only be done as temporal workarounds until this function is
+ * adjusted
+ */
 public func getElementCallRequiredPermissions()  -> WidgetCapabilities {
     return try!  FfiConverterTypeWidgetCapabilities.lift(
         try! rustCall() {
@@ -18531,7 +20186,20 @@ public func getElementCallRequiredPermissions()  -> WidgetCapabilities {
 }
     )
 }
-
+/**
+ * Log an event.
+ *
+ * The target should be something like a module path, and can be referenced in
+ * the filter string given to `setup_tracing`. `level` and `target` for a
+ * callsite are fixed at the first `log_event` call for that callsite and can
+ * not be changed afterwards, i.e. the level and target passed for second and
+ * following `log_event`s with the same callsite will be ignored.
+ *
+ * This function leaks a little bit of memory for each unique (file + line +
+ * level + target) it is called with. Please make sure that the number of
+ * different combinations of those parameters this can be called with is
+ * constant in the final executable.
+ */
 public func logEvent(file: String, line: UInt32?, level: LogLevel, target: String, message: String)  {
     try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_log_event(
@@ -18544,7 +20212,6 @@ public func logEvent(file: String, line: UInt32?, level: LogLevel, target: Strin
 }
 
 
-
 public func makeWidgetDriver(settings: WidgetSettings) throws  -> WidgetDriverAndHandle {
     return try  FfiConverterTypeWidgetDriverAndHandle.lift(
         try rustCallWithError(FfiConverterTypeParseError.lift) {
@@ -18553,7 +20220,6 @@ public func makeWidgetDriver(settings: WidgetSettings) throws  -> WidgetDriverAn
 }
     )
 }
-
 public func mediaSourceFromUrl(url: String)  -> MediaSource {
     return try!  FfiConverterTypeMediaSource.lift(
         try! rustCall() {
@@ -18562,7 +20228,6 @@ public func mediaSourceFromUrl(url: String)  -> MediaSource {
 }
     )
 }
-
 public func messageEventContentFromHtml(body: String, htmlBody: String)  -> RoomMessageEventContentWithoutRelation {
     return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
@@ -18572,7 +20237,6 @@ public func messageEventContentFromHtml(body: String, htmlBody: String)  -> Room
 }
     )
 }
-
 public func messageEventContentFromHtmlAsEmote(body: String, htmlBody: String)  -> RoomMessageEventContentWithoutRelation {
     return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
@@ -18582,7 +20246,6 @@ public func messageEventContentFromHtmlAsEmote(body: String, htmlBody: String)  
 }
     )
 }
-
 public func messageEventContentFromMarkdown(md: String)  -> RoomMessageEventContentWithoutRelation {
     return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
@@ -18591,7 +20254,6 @@ public func messageEventContentFromMarkdown(md: String)  -> RoomMessageEventCont
 }
     )
 }
-
 public func messageEventContentFromMarkdownAsEmote(md: String)  -> RoomMessageEventContentWithoutRelation {
     return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try! rustCall() {
@@ -18600,7 +20262,6 @@ public func messageEventContentFromMarkdownAsEmote(md: String)  -> RoomMessageEv
 }
     )
 }
-
 public func messageEventContentNew(msgtype: MessageType) throws  -> RoomMessageEventContentWithoutRelation {
     return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
         try rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -18609,7 +20270,19 @@ public func messageEventContentNew(msgtype: MessageType) throws  -> RoomMessageE
 }
     )
 }
-
+/**
+ * `WidgetSettings` are usually created from a state event.
+ * (currently unimplemented)
+ *
+ * In some cases the client wants to create custom `WidgetSettings`
+ * for specific rooms based on other conditions.
+ * This function returns a `WidgetSettings` object which can be used
+ * to setup a widget using `run_client_widget_api`
+ * and to generate the correct url for the widget.
+ * # Arguments
+ * * - `props` A struct containing the configuration parameters for a element
+ * call widget.
+ */
 public func newVirtualElementCallWidget(props: VirtualElementCallWidgetOptions) throws  -> WidgetSettings {
     return try  FfiConverterTypeWidgetSettings.lift(
         try rustCallWithError(FfiConverterTypeParseError.lift) {
@@ -18618,7 +20291,6 @@ public func newVirtualElementCallWidget(props: VirtualElementCallWidgetOptions) 
 }
     )
 }
-
 public func sdkGitSha()  -> String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
@@ -18626,14 +20298,12 @@ public func sdkGitSha()  -> String {
 }
     )
 }
-
 public func setupOtlpTracing(config: OtlpTracingConfiguration)  {
     try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_func_setup_otlp_tracing(
         FfiConverterTypeOtlpTracingConfiguration.lower(config),$0)
 }
 }
-
 
 
 public func setupTracing(config: TracingConfiguration)  {
@@ -18660,49 +20330,49 @@ private var initializationResult: InitializationResult {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 65533) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 15808) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_generate_webview_url() != 16581) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_generate_webview_url() != 61769) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_get_element_call_required_permissions() != 51289) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_get_element_call_required_permissions() != 30886) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 58164) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 12418) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 16217) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 11382) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 28929) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 34181) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html() != 48173) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html() != 20326) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html_as_emote() != 30627) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html_as_emote() != 6795) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 5412) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 1331) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown_as_emote() != 16575) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown_as_emote() != 34066) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 60536) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 9639) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_new_virtual_element_call_widget() != 13275) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_new_virtual_element_call_widget() != 39901) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 11183) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 4038) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 57774) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_setup_otlp_tracing() != 4491) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 48899) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 35378) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_to_json() != 2998) {
@@ -18711,940 +20381,943 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_url() != 34026) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommessageeventcontentwithoutrelation_with_mentions() != 48900) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommessageeventcontentwithoutrelation_with_mentions() != 8867) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 20936) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 39888) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_homeserver_details() != 30828) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_homeserver_details() != 2340) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 4340) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 35422) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login_with_oidc_callback() != 25443) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login_with_oidc_callback() != 47183) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_url_for_oidc_login() != 6390) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_url_for_oidc_login() != 26250) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 37263) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 42952) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 57664) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 54235) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 13474) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 18456) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_cached_avatar_url() != 47976) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_cached_avatar_url() != 36332) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_create_room() != 9095) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_create_room() != 25555) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_device_id() != 30759) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_device_id() != 44340) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_display_name() != 57766) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_display_name() != 31680) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_encryption() != 55944) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_encryption() != 41271) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 2581) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 39967) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 28329) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 40308) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 22652) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 46474) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 8016) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 12239) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_settings() != 43752) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_settings() != 8178) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 11465) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 54768) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 25701) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 12447) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver() != 509) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver() != 26427) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 53606) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 14308) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 62785) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 55564) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 16841) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 7127) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 16860) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 15396) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_remove_avatar() != 41701) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_remove_avatar() != 60365) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 19558) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 19641) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_rooms() != 61954) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_rooms() != 1535) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_search_users() != 1362) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_search_users() != 30416) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_session() != 56470) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_session() != 8085) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_account_data() != 32949) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_account_data() != 52207) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_delegate() != 29180) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_delegate() != 32764) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_display_name() != 45786) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_display_name() != 27968) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 9540) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 36816) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_sync_service() != 55738) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_sync_service() != 42759) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 6043) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 11337) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 65133) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 10403) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 29165) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 24862) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 55803) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 40531) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 13781) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 62481) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 56797) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 60680) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_automatic_token_refresh() != 50220) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_automatic_token_refresh() != 23631) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_ssl_verification() != 1510) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_ssl_verification() != 40001) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_enable_cross_process_refresh_lock() != 39606) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_enable_cross_process_refresh_lock() != 35130) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 43790) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 25144) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_passphrase() != 25291) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_passphrase() != 45705) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_proxy() != 61852) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_proxy() != 6361) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 46252) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 57874) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_versions() != 64538) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_versions() != 48803) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_set_session_delegate() != 7269) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_set_session_delegate() != 56110) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sliding_sync_proxy() != 37450) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sliding_sync_proxy() != 28433) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 42913) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 49672) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 64379) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 4442) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_exists_on_server() != 17130) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_exists_on_server() != 45490) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state() != 13611) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state() != 51049) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state_listener() != 29) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state_listener() != 28653) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 38729) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 18699) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 30690) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 55446) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 60849) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 27719) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 34446) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 27955) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover() != 34668) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover() != 31143) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 52410) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 13857) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state() != 7187) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state() != 54051) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state_listener() != 11439) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state_listener() != 226) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 40510) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 20380) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 37083) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 16813) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_can_be_replied_to() != 42286) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_can_be_replied_to() != 42922) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_content() != 1802) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_content() != 33114) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_debug_info() != 45087) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_debug_info() != 31359) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_event_id() != 57306) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_event_id() != 8156) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_editable() != 593) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_editable() != 4716) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_local() != 47845) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_local() != 12539) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_own() != 18359) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_own() != 50903) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_remote() != 17688) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_is_remote() != 5953) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_local_send_state() != 22720) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_local_send_state() != 53866) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_origin() != 28263) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_origin() != 19585) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_reactions() != 64143) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_reactions() != 42968) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_read_receipts() != 40784) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_read_receipts() != 22462) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender() != 46892) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender() != 58860) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender_profile() != 42856) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_sender_profile() != 3911) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_timestamp() != 481) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_timestamp() != 44397) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_transaction_id() != 36352) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_transaction_id() != 40338) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_oidc_login() != 51854) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_oidc_login() != 46090) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 6028) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 33501) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 40398) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 61326) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 2500) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 16357) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_persist() != 4346) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_persist() != 25010) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_body() != 2560) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_body() != 21198) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_in_reply_to() != 1793) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_in_reply_to() != 16154) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_is_edited() != 3402) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_is_edited() != 60975) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_is_threaded() != 29945) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_is_threaded() != 9404) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 35166) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_message_msgtype() != 14062) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification() != 9907) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification() != 22643) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_filter_by_push_rules() != 10529) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_filter_by_push_rules() != 19285) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_finish() != 12382) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_finish() != 39352) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_homeserver_push_encrypted_event_to_device() != 22382) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_push_encrypted_event_to_device() != 21251) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 42972) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 60025) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode() != 7288) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode() != 38317) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings() != 654) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings() != 2344) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_rooms_with_user_defined_rules() != 687) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_rooms_with_user_defined_rules() != 31877) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_user_defined_room_notification_mode() != 40224) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_user_defined_room_notification_mode() != 65418) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled() != 38110) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled() != 12210) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_invite_for_me_enabled() != 50408) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_invite_for_me_enabled() != 533) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_room_mention_enabled() != 36336) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_room_mention_enabled() != 13304) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_user_mention_enabled() != 9844) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_user_mention_enabled() != 49857) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_restore_default_room_notification_mode() != 43578) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_restore_default_room_notification_mode() != 36036) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_call_enabled() != 61774) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_call_enabled() != 2652) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_default_room_notification_mode() != 64886) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_default_room_notification_mode() != 58336) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_delegate() != 22622) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_delegate() != 47719) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_invite_for_me_enabled() != 7240) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_invite_for_me_enabled() != 35019) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_mention_enabled() != 50730) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_mention_enabled() != 51244) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_notification_mode() != 21294) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_notification_mode() != 43729) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_user_mention_enabled() != 63345) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_user_mention_enabled() != 21551) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 33146) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 7480) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_oidcauthenticationdata_login_url() != 2455) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_oidcauthenticationdata_login_url() != 43638) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 62367) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 61905) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_room_call_participants() != 5256) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_room_call_participants() != 60098) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 25219) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 28555) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 38267) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 34637) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_ban_user() != 15134) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ban_user() != 25865) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_ban() != 47371) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_ban() != 22009) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_invite() != 62419) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_invite() != 2594) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_kick() != 47687) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_kick() != 46822) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_redact() != 54334) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_redact() != 26314) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_message() != 28210) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_message() != 7909) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_state() != 54763) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_state() != 9892) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_trigger_room_notification() != 8288) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_trigger_room_notification() != 32409) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 15084) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 19786) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 38216) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 39695) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_has_active_room_call() != 59850) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_has_active_room_call() != 33588) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 27132) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 61990) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 9941) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 3287) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_invite_user_by_id() != 12569) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_invite_user_by_id() != 483) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_invited_members_count() != 31452) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_invited_members_count() != 1023) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 8327) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 21861) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 46881) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 16947) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_encrypted() != 29418) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_encrypted() != 55158) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_public() != 22937) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_public() != 7336) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_space() != 8495) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_space() != 16919) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_tombstoned() != 55887) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_tombstoned() != 49186) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_join() != 4883) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_join() != 34994) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_joined_members_count() != 44345) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_joined_members_count() != 55835) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_kick_user() != 50409) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_kick_user() != 52409) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 11928) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 6569) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 4975) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 23757) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 5937) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 42670) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 4559) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 25496) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 6390) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 2783) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 17678) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members_no_sync() != 693) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_name() != 58791) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 26065) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_own_user_id() != 26241) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_name() != 49131) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_poll_history() != 58381) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_own_user_id() != 39510) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 12809) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_poll_history() != 12017) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 24698) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 55672) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 58629) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 32659) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 45186) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 39574) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 56429) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 41146) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 55348) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 60145) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 43609) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 29413) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 49618) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 64783) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 23413) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 57790) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_typing_notice() != 46496) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 59745) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_unban_user() != 46653) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_typing_notice() != 10027) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 46437) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_unban_user() != 51089) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries() != 27911) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 34800) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_adapters() != 30316) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries() != 24971) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_loading_state() != 54823) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_adapters() != 3188) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 60000) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_loading_state() != 53222) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_add_one_page() != 1980) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 13228) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_reset_to_one_page() != 48285) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_add_one_page() != 47748) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_set_filter() != 20071) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_reset_to_one_page() != 61352) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_avatar_url() != 23609) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_set_filter() != 51384) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_canonical_alias() != 56187) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_avatar_url() != 39097) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 12614) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_canonical_alias() != 63300) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room_blocking() != 53631) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 45898) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_has_unread_notifications() != 64858) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room_blocking() != 58663) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_id() != 35737) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_has_unread_notifications() != 49961) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_is_direct() != 24829) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_id() != 41176) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_latest_event() != 44019) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_is_direct() != 46873) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_name() != 5949) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_latest_event() != 35232) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_room_info() != 17731) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_name() != 6516) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_subscribe() != 16638) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_room_info() != 32985) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_unread_notifications() != 36955) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_subscribe() != 19882) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_unsubscribe() != 14844) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_unread_notifications() != 57102) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_all_rooms() != 37160) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_unsubscribe() != 45026) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_apply_input() != 46775) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_all_rooms() != 39366) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_invites() != 56087) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_apply_input() != 63125) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_room() != 48446) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_invites() != 4719) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_state() != 7038) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_room() != 61319) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 5536) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_state() != 20741) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 9148) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 41816) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_ban() != 19267) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 1477) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_invite() != 36172) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_ban() != 50640) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_kick() != 31109) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_invite() != 40387) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact() != 49727) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_kick() != 30187) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_message() != 14989) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact() != 17073) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_state() != 43889) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_message() != 43693) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_trigger_room_notification() != 62393) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_state() != 29675) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_display_name() != 28367) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_trigger_room_notification() != 52227) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_ignore() != 32455) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_display_name() != 15676) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_account_user() != 37767) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_ignore() != 22989) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_ignored() != 46154) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_account_user() != 63497) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_name_ambiguous() != 65246) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_ignored() != 11040) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_membership() != 34335) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_name_ambiguous() != 53436) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_normalized_power_level() != 49076) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_membership() != 65393) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_power_level() != 17042) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_normalized_power_level() != 1601) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_unignore() != 56817) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_power_level() != 18720) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_user_id() != 19498) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_unignore() != 18171) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_len() != 32977) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_user_id() != 4931) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_next_chunk() != 35645) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_len() != 39835) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 58929) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_next_chunk() != 40345) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 25237) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 19759) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 468) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 49985) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 63679) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 12154) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 50627) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 42503) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 3866) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 51976) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 51679) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_is_verified() != 60081) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 24735) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_verification() != 22948) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 3726) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 18081) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_description() != 55458) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 17409) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_symbol() != 1848) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_description() != 21346) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 56663) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_symbol() != 46075) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 6123) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 8900) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 23839) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 47924) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_room_list_service() != 18295) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 33327) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start() != 4435) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_room_list_service() != 23375) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_state() != 15048) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start() != 16010) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_stop() != 39770) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_state() != 19149) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish() != 61604) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_stop() != 23138) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 29139) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish() != 5363) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 59047) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 51317) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 3905) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 9124) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_add_listener() != 48101) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 29008) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_cancel_send() != 51132) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_add_listener() != 36410) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_create_poll() != 38825) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_cancel_send() != 48666) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit() != 58303) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_create_poll() != 19084) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit_poll() != 54368) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit() != 9203) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_end_poll() != 53347) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit_poll() != 63431) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_details_for_event() != 20642) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_end_poll() != 27185) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_members() != 11365) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_details_for_event() != 20865) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_event_timeline_item_by_event_id() != 62347) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_members() != 37994) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_timeline_event_content_by_event_id() != 56265) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_event_timeline_item_by_event_id() != 7562) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 50423) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_timeline_event_content_by_event_id() != 30164) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_decryption() != 26528) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 40762) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_send() != 51479) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_decryption() != 57065) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send() != 36960) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_send() != 31214) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_audio() != 25012) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send() != 27762) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_file() != 34478) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_audio() != 1059) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_image() != 21504) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_file() != 40329) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_location() != 61646) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_image() != 48807) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_poll_response() != 51038) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_location() != 2150) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_read_receipt() != 47087) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_poll_response() != 32951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_reply() != 11052) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_read_receipt() != 30808) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_video() != 37642) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_reply() != 52530) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 7512) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_video() != 10645) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 38905) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 21069) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction() != 32033) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 62236) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_append() != 24298) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction() != 42402) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_change() != 50296) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_append() != 5672) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_insert() != 10002) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_change() != 4562) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_back() != 35483) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_insert() != 26630) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_front() != 40108) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_back() != 22999) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_remove() != 13408) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_push_front() != 30427) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_reset() != 34789) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_remove() != 74) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_set() != 45340) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_reset() != 55990) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_id() != 20444) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinediff_set() != 13334) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_type() != 52643) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_id() != 11088) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_sender_id() != 9141) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_type() != 12922) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 30335) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_sender_id() != 18142) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_event() != 755) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 58123) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_virtual() != 10265) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_event() != 14732) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_fmt_debug() != 25731) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_virtual() != 50960) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_unique_id() != 27999) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_fmt_debug() != 38094) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_as_message() != 58545) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_unique_id() != 8639) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_kind() != 60128) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_as_message() != 2693) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 38874) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_kind() != 44789) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 30763) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 33024) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 10233) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 35997) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriver_run() != 39250) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 35655) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_recv() != 25974) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriver_run() != 9390) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_send() != 32739) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_recv() != 2662) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 31512) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_send() != 34976) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 41347) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 62542) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 53567) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 25316) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 47163) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 55408) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 47854) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 7835) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_backpaginationstatuslistener_on_update() != 2582) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 44123) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_backupstatelistener_on_update() != 32936) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_backpaginationstatuslistener_on_update() != 5891) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_backupsteadystatelistener_on_update() != 21611) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_backupstatelistener_on_update() != 24369) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_receive_auth_error() != 54393) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_backupsteadystatelistener_on_update() != 40381) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_refresh_tokens() != 32841) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_receive_auth_error() != 26414) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_retrieve_session_from_keychain() != 8049) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_refresh_tokens() != 16325) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_save_session_in_keychain() != 30188) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_retrieve_session_from_keychain() != 48691) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_enablerecoveryprogresslistener_on_update() != 5434) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_save_session_in_keychain() != 34411) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 4921) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_enablerecoveryprogresslistener_on_update() != 30049) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 12165) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 51708) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_recoverystatelistener_on_update() != 3601) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 20412) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roominfolistener_call() != 567) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_recoverystatelistener_on_update() != 3747) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieslistener_on_update() != 36351) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roominfolistener_call() != 29620) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistloadingstatelistener_on_update() != 53567) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieslistener_on_update() != 4030) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicestatelistener_on_update() != 27905) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistloadingstatelistener_on_update() != 19361) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicesyncindicatorlistener_on_update() != 63691) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicestatelistener_on_update() != 29313) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_accept_verification_request() != 59777) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicesyncindicatorlistener_on_update() != 42394) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_start_sas_verification() != 15715) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_accept_verification_request() != 22759) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_data() != 37461) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_start_sas_verification() != 54982) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_fail() != 52235) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_data() != 63916) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_cancel() != 52154) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_fail() != 56823) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_finish() != 45558) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_cancel() != 29888) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicestateobserver_on_update() != 52830) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_finish() != 54532) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 974) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicestateobserver_on_update() != 11758) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 47314) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 30147) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 43759) {
         return InitializationResult.apiChecksumMismatch
     }
 
