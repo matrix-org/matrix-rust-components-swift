@@ -8929,14 +8929,17 @@ public func FfiConverterTypeNotificationRoomInfo_lower(_ value: NotificationRoom
 public struct NotificationSenderInfo {
     public var displayName: String?
     public var avatarUrl: String?
+    public var isNameAmbiguous: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(
         displayName: String?, 
-        avatarUrl: String?) {
+        avatarUrl: String?, 
+        isNameAmbiguous: Bool) {
         self.displayName = displayName
         self.avatarUrl = avatarUrl
+        self.isNameAmbiguous = isNameAmbiguous
     }
 }
 
@@ -8949,12 +8952,16 @@ extension NotificationSenderInfo: Equatable, Hashable {
         if lhs.avatarUrl != rhs.avatarUrl {
             return false
         }
+        if lhs.isNameAmbiguous != rhs.isNameAmbiguous {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(displayName)
         hasher.combine(avatarUrl)
+        hasher.combine(isNameAmbiguous)
     }
 }
 
@@ -8964,13 +8971,15 @@ public struct FfiConverterTypeNotificationSenderInfo: FfiConverterRustBuffer {
         return
             try NotificationSenderInfo(
                 displayName: FfiConverterOptionString.read(from: &buf), 
-                avatarUrl: FfiConverterOptionString.read(from: &buf)
+                avatarUrl: FfiConverterOptionString.read(from: &buf), 
+                isNameAmbiguous: FfiConverterBool.read(from: &buf)
         )
     }
 
     public static func write(_ value: NotificationSenderInfo, into buf: inout [UInt8]) {
         FfiConverterOptionString.write(value.displayName, into: &buf)
         FfiConverterOptionString.write(value.avatarUrl, into: &buf)
+        FfiConverterBool.write(value.isNameAmbiguous, into: &buf)
     }
 }
 
