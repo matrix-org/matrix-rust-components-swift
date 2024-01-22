@@ -3451,7 +3451,9 @@ public protocol RoomProtocol : AnyObject {
     
     func canUserKick(userId: String) async throws  -> Bool
     
-    func canUserRedact(userId: String) async throws  -> Bool
+    func canUserRedactOther(userId: String) async throws  -> Bool
+    
+    func canUserRedactOwn(userId: String) async throws  -> Bool
     
     func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws  -> Bool
     
@@ -3745,10 +3747,27 @@ public class Room:
     }
 
     
-    public func canUserRedact(userId: String) async throws  -> Bool {
+    public func canUserRedactOther(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact(
+                uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact_other(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+    public func canUserRedactOwn(userId: String) async throws  -> Bool {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact_own(
                     self.uniffiClonePointer(),
                     FfiConverterString.lower(userId)
                 )
@@ -4593,8 +4612,6 @@ public protocol RoomListItemProtocol : AnyObject {
      */
     func fullRoom() async  -> Room
     
-    func fullRoomBlocking()  -> Room
-    
     func hasUnreadNotifications()  -> Bool
     
     func id()  -> String
@@ -4680,16 +4697,6 @@ public class RoomListItem:
     }
 
     
-    public func fullRoomBlocking()  -> Room {
-        return try!  FfiConverterTypeRoom.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room_blocking(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
     public func hasUnreadNotifications()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
@@ -5013,7 +5020,9 @@ public protocol RoomMemberProtocol : AnyObject {
     
     func canKick()  -> Bool
     
-    func canRedact()  -> Bool
+    func canRedactOther()  -> Bool
+    
+    func canRedactOwn()  -> Bool
     
     func canSendMessage(event: MessageLikeEventType)  -> Bool
     
@@ -5113,12 +5122,22 @@ public class RoomMember:
 }
         )
     }
-    public func canRedact()  -> Bool {
+    public func canRedactOther()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact(self.uniffiClonePointer(), $0
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact_other(self.uniffiClonePointer(), $0
+    )
+}
+        )
+    }
+    public func canRedactOwn()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact_own(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -20762,7 +20781,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_kick() != 46822) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_redact() != 26314) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_redact_other() != 18770) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_redact_own() != 47784) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_send_message() != 7909) {
@@ -20918,9 +20940,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 45898) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room_blocking() != 58663) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_has_unread_notifications() != 49961) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -20978,7 +20997,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_kick() != 30187) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact() != 17073) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact_other() != 20089) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact_own() != 37633) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_message() != 43693) {
