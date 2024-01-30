@@ -4605,18 +4605,29 @@ public protocol RoomListItemProtocol : AnyObject {
     func canonicalAlias()  -> String?
     
     /**
-     * Building a `Room`.
-     *
-     * Be careful that building a `Room` builds its entire `Timeline` at the
-     * same time.
+     * Building a `Room`. If its internal timeline hasn't been initialized
+     * it'll fail.
      */
-    func fullRoom() async  -> Room
+    func fullRoom() async throws  -> Room
     
     func hasUnreadNotifications()  -> Bool
     
     func id()  -> String
     
+    /**
+     * Initializes the timeline for this room using the provided parameters.
+     * * `event_type_filter` - An optional [`TimelineEventTypeFilter`] to be
+     * used to filter timeline events besides the default timeline filter. If
+     * `None` is passed, only the default timeline filter will be used.
+     */
+    func initTimeline(eventTypeFilter: TimelineEventTypeFilter?) async throws 
+    
     func isDirect()  -> Bool
+    
+    /**
+     * Checks whether the Room's timeline has been initialized before.
+     */
+    func isTimelineInitialized()  -> Bool
     
     func latestEvent() async  -> EventTimelineItem?
     
@@ -4675,13 +4686,11 @@ public class RoomListItem:
         )
     }
     /**
-     * Building a `Room`.
-     *
-     * Be careful that building a `Room` builds its entire `Timeline` at the
-     * same time.
+     * Building a `Room`. If its internal timeline hasn't been initialized
+     * it'll fail.
      */
-    public func fullRoom() async  -> Room {
-        return try!  await uniffiRustCallAsync(
+    public func fullRoom() async throws  -> Room {
+        return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room(
                     self.uniffiClonePointer()
@@ -4691,8 +4700,7 @@ public class RoomListItem:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
             liftFunc: FfiConverterTypeRoom.lift,
-            errorHandler: nil
-            
+            errorHandler: FfiConverterTypeRoomListError.lift
         )
     }
 
@@ -4717,12 +4725,48 @@ public class RoomListItem:
 }
         )
     }
+    /**
+     * Initializes the timeline for this room using the provided parameters.
+     * * `event_type_filter` - An optional [`TimelineEventTypeFilter`] to be
+     * used to filter timeline events besides the default timeline filter. If
+     * `None` is passed, only the default timeline filter will be used.
+     */
+    public func initTimeline(eventTypeFilter: TimelineEventTypeFilter?) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_roomlistitem_init_timeline(
+                    self.uniffiClonePointer(),
+                    FfiConverterOptionTypeTimelineEventTypeFilter.lower(eventTypeFilter)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeRoomListError.lift
+        )
+    }
+
+    
     public func isDirect()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_roomlistitem_is_direct(self.uniffiClonePointer(), $0
+    )
+}
+        )
+    }
+    /**
+     * Checks whether the Room's timeline has been initialized before.
+     */
+    public func isTimelineInitialized()  -> Bool {
+        return try!  FfiConverterBool.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_is_timeline_initialized(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -7097,6 +7141,94 @@ public func FfiConverterTypeTimelineEvent_lift(_ pointer: UnsafeMutableRawPointe
 
 public func FfiConverterTypeTimelineEvent_lower(_ value: TimelineEvent) -> UnsafeMutableRawPointer {
     return FfiConverterTypeTimelineEvent.lower(value)
+}
+
+
+
+
+public protocol TimelineEventTypeFilterProtocol : AnyObject {
+    
+}
+public class TimelineEventTypeFilter:
+    TimelineEventTypeFilterProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_timelineeventtypefilter(self.pointer, $0) }
+    }
+
+    deinit {
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineeventtypefilter(pointer, $0) }
+    }
+
+    
+    public static func exclude(eventTypes: [FilterTimelineEventType])  -> TimelineEventTypeFilter {
+        return TimelineEventTypeFilter(unsafeFromRawPointer: try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_constructor_timelineeventtypefilter_exclude(
+        FfiConverterSequenceTypeFilterTimelineEventType.lower(eventTypes),$0)
+})
+    }
+
+    
+    public static func include(eventTypes: [FilterTimelineEventType])  -> TimelineEventTypeFilter {
+        return TimelineEventTypeFilter(unsafeFromRawPointer: try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_constructor_timelineeventtypefilter_include(
+        FfiConverterSequenceTypeFilterTimelineEventType.lower(eventTypes),$0)
+})
+    }
+
+    
+
+    
+    
+
+}
+
+public struct FfiConverterTypeTimelineEventTypeFilter: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = TimelineEventTypeFilter
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> TimelineEventTypeFilter {
+        return TimelineEventTypeFilter(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: TimelineEventTypeFilter) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineEventTypeFilter {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: TimelineEventTypeFilter, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+public func FfiConverterTypeTimelineEventTypeFilter_lift(_ pointer: UnsafeMutableRawPointer) throws -> TimelineEventTypeFilter {
+    return try FfiConverterTypeTimelineEventTypeFilter.lift(pointer)
+}
+
+public func FfiConverterTypeTimelineEventTypeFilter_lower(_ value: TimelineEventTypeFilter) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeTimelineEventTypeFilter.lower(value)
 }
 
 
@@ -12519,6 +12651,410 @@ extension EventSendState: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum FilterMessageLikeEventType {
+    
+    case callAnswer
+    case callInvite
+    case callHangup
+    case callCandidates
+    case keyVerificationReady
+    case keyVerificationStart
+    case keyVerificationCancel
+    case keyVerificationAccept
+    case keyVerificationKey
+    case keyVerificationMac
+    case keyVerificationDone
+    case poll
+    case reaction
+    case roomEncrypted
+    case roomMessage
+    case roomRedaction
+    case sticker
+}
+
+public struct FfiConverterTypeFilterMessageLikeEventType: FfiConverterRustBuffer {
+    typealias SwiftType = FilterMessageLikeEventType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FilterMessageLikeEventType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .callAnswer
+        
+        case 2: return .callInvite
+        
+        case 3: return .callHangup
+        
+        case 4: return .callCandidates
+        
+        case 5: return .keyVerificationReady
+        
+        case 6: return .keyVerificationStart
+        
+        case 7: return .keyVerificationCancel
+        
+        case 8: return .keyVerificationAccept
+        
+        case 9: return .keyVerificationKey
+        
+        case 10: return .keyVerificationMac
+        
+        case 11: return .keyVerificationDone
+        
+        case 12: return .poll
+        
+        case 13: return .reaction
+        
+        case 14: return .roomEncrypted
+        
+        case 15: return .roomMessage
+        
+        case 16: return .roomRedaction
+        
+        case 17: return .sticker
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FilterMessageLikeEventType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .callAnswer:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .callInvite:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .callHangup:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .callCandidates:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .keyVerificationReady:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .keyVerificationStart:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .keyVerificationCancel:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .keyVerificationAccept:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .keyVerificationKey:
+            writeInt(&buf, Int32(9))
+        
+        
+        case .keyVerificationMac:
+            writeInt(&buf, Int32(10))
+        
+        
+        case .keyVerificationDone:
+            writeInt(&buf, Int32(11))
+        
+        
+        case .poll:
+            writeInt(&buf, Int32(12))
+        
+        
+        case .reaction:
+            writeInt(&buf, Int32(13))
+        
+        
+        case .roomEncrypted:
+            writeInt(&buf, Int32(14))
+        
+        
+        case .roomMessage:
+            writeInt(&buf, Int32(15))
+        
+        
+        case .roomRedaction:
+            writeInt(&buf, Int32(16))
+        
+        
+        case .sticker:
+            writeInt(&buf, Int32(17))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeFilterMessageLikeEventType_lift(_ buf: RustBuffer) throws -> FilterMessageLikeEventType {
+    return try FfiConverterTypeFilterMessageLikeEventType.lift(buf)
+}
+
+public func FfiConverterTypeFilterMessageLikeEventType_lower(_ value: FilterMessageLikeEventType) -> RustBuffer {
+    return FfiConverterTypeFilterMessageLikeEventType.lower(value)
+}
+
+
+extension FilterMessageLikeEventType: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum FilterStateEventType {
+    
+    case policyRuleRoom
+    case policyRuleServer
+    case policyRuleUser
+    case roomAliases
+    case roomAvatar
+    case roomCanonicalAlias
+    case roomCreate
+    case roomEncryption
+    case roomGuestAccess
+    case roomHistoryVisibility
+    case roomJoinRules
+    case roomMember
+    case roomName
+    case roomPinnedEvents
+    case roomPowerLevels
+    case roomServerAcl
+    case roomThirdPartyInvite
+    case roomTombstone
+    case roomTopic
+    case spaceChild
+    case spaceParent
+}
+
+public struct FfiConverterTypeFilterStateEventType: FfiConverterRustBuffer {
+    typealias SwiftType = FilterStateEventType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FilterStateEventType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .policyRuleRoom
+        
+        case 2: return .policyRuleServer
+        
+        case 3: return .policyRuleUser
+        
+        case 4: return .roomAliases
+        
+        case 5: return .roomAvatar
+        
+        case 6: return .roomCanonicalAlias
+        
+        case 7: return .roomCreate
+        
+        case 8: return .roomEncryption
+        
+        case 9: return .roomGuestAccess
+        
+        case 10: return .roomHistoryVisibility
+        
+        case 11: return .roomJoinRules
+        
+        case 12: return .roomMember
+        
+        case 13: return .roomName
+        
+        case 14: return .roomPinnedEvents
+        
+        case 15: return .roomPowerLevels
+        
+        case 16: return .roomServerAcl
+        
+        case 17: return .roomThirdPartyInvite
+        
+        case 18: return .roomTombstone
+        
+        case 19: return .roomTopic
+        
+        case 20: return .spaceChild
+        
+        case 21: return .spaceParent
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FilterStateEventType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .policyRuleRoom:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .policyRuleServer:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .policyRuleUser:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .roomAliases:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .roomAvatar:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .roomCanonicalAlias:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .roomCreate:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .roomEncryption:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .roomGuestAccess:
+            writeInt(&buf, Int32(9))
+        
+        
+        case .roomHistoryVisibility:
+            writeInt(&buf, Int32(10))
+        
+        
+        case .roomJoinRules:
+            writeInt(&buf, Int32(11))
+        
+        
+        case .roomMember:
+            writeInt(&buf, Int32(12))
+        
+        
+        case .roomName:
+            writeInt(&buf, Int32(13))
+        
+        
+        case .roomPinnedEvents:
+            writeInt(&buf, Int32(14))
+        
+        
+        case .roomPowerLevels:
+            writeInt(&buf, Int32(15))
+        
+        
+        case .roomServerAcl:
+            writeInt(&buf, Int32(16))
+        
+        
+        case .roomThirdPartyInvite:
+            writeInt(&buf, Int32(17))
+        
+        
+        case .roomTombstone:
+            writeInt(&buf, Int32(18))
+        
+        
+        case .roomTopic:
+            writeInt(&buf, Int32(19))
+        
+        
+        case .spaceChild:
+            writeInt(&buf, Int32(20))
+        
+        
+        case .spaceParent:
+            writeInt(&buf, Int32(21))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeFilterStateEventType_lift(_ buf: RustBuffer) throws -> FilterStateEventType {
+    return try FfiConverterTypeFilterStateEventType.lift(buf)
+}
+
+public func FfiConverterTypeFilterStateEventType_lower(_ value: FilterStateEventType) -> RustBuffer {
+    return FfiConverterTypeFilterStateEventType.lower(value)
+}
+
+
+extension FilterStateEventType: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum FilterTimelineEventType {
+    
+    case messageLike(
+        eventType: FilterMessageLikeEventType
+    )
+    case state(
+        eventType: FilterStateEventType
+    )
+}
+
+public struct FfiConverterTypeFilterTimelineEventType: FfiConverterRustBuffer {
+    typealias SwiftType = FilterTimelineEventType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FilterTimelineEventType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .messageLike(
+            eventType: try FfiConverterTypeFilterMessageLikeEventType.read(from: &buf)
+        )
+        
+        case 2: return .state(
+            eventType: try FfiConverterTypeFilterStateEventType.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FilterTimelineEventType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .messageLike(eventType):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeFilterMessageLikeEventType.write(eventType, into: &buf)
+            
+        
+        case let .state(eventType):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeFilterStateEventType.write(eventType, into: &buf)
+            
+        }
+    }
+}
+
+
+public func FfiConverterTypeFilterTimelineEventType_lift(_ buf: RustBuffer) throws -> FilterTimelineEventType {
+    return try FfiConverterTypeFilterTimelineEventType.lift(buf)
+}
+
+public func FfiConverterTypeFilterTimelineEventType_lower(_ value: FilterTimelineEventType) -> RustBuffer {
+    return FfiConverterTypeFilterTimelineEventType.lower(value)
+}
+
+
+extension FilterTimelineEventType: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum LogLevel {
     
     case error
@@ -15079,6 +15615,12 @@ public enum RoomListError {
     case InvalidRoomId(
         error: String
     )
+    case TimelineAlreadyExists(
+        roomName: String
+    )
+    case TimelineNotInitialized(
+        roomName: String
+    )
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeRoomListError.lift(error)
@@ -15108,6 +15650,12 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
             )
         case 5: return .InvalidRoomId(
             error: try FfiConverterString.read(from: &buf)
+            )
+        case 6: return .TimelineAlreadyExists(
+            roomName: try FfiConverterString.read(from: &buf)
+            )
+        case 7: return .TimelineNotInitialized(
+            roomName: try FfiConverterString.read(from: &buf)
             )
 
          default: throw UniffiInternalError.unexpectedEnumCase
@@ -15143,6 +15691,16 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
         case let .InvalidRoomId(error):
             writeInt(&buf, Int32(5))
             FfiConverterString.write(error, into: &buf)
+            
+        
+        case let .TimelineAlreadyExists(roomName):
+            writeInt(&buf, Int32(6))
+            FfiConverterString.write(roomName, into: &buf)
+            
+        
+        case let .TimelineNotInitialized(roomName):
+            writeInt(&buf, Int32(7))
+            FfiConverterString.write(roomName, into: &buf)
             
         }
     }
@@ -18901,6 +19459,27 @@ fileprivate struct FfiConverterOptionTypeTaskHandle: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeTimelineEventTypeFilter: FfiConverterRustBuffer {
+    typealias SwiftType = TimelineEventTypeFilter?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeTimelineEventTypeFilter.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeTimelineEventTypeFilter.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeTimelineItem: FfiConverterRustBuffer {
     typealias SwiftType = TimelineItem?
 
@@ -19943,6 +20522,28 @@ fileprivate struct FfiConverterSequenceTypeUserProfile: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterSequenceTypeFilterTimelineEventType: FfiConverterRustBuffer {
+    typealias SwiftType = [FilterTimelineEventType]
+
+    public static func write(_ value: [FilterTimelineEventType], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeFilterTimelineEventType.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [FilterTimelineEventType] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [FilterTimelineEventType]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeFilterTimelineEventType.read(from: &buf))
+        }
+        return seq
+    }
+}
+
 fileprivate struct FfiConverterSequenceTypeRoomListEntriesUpdate: FfiConverterRustBuffer {
     typealias SwiftType = [RoomListEntriesUpdate]
 
@@ -20943,7 +21544,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_canonical_alias() != 63300) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 12378) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 35618) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_has_unread_notifications() != 49961) {
@@ -20952,7 +21553,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_id() != 41176) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_init_timeline() != 57837) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_is_direct() != 46873) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_is_timeline_initialized() != 46855) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_latest_event() != 41471) {
@@ -21283,6 +21890,12 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 62579) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_timelineeventtypefilter_exclude() != 48570) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_timelineeventtypefilter_include() != 21388) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_backpaginationstatuslistener_on_update() != 5891) {
