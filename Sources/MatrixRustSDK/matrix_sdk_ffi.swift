@@ -5050,6 +5050,8 @@ public protocol RoomMemberProtocol : AnyObject {
     
     func powerLevel()  -> Int64
     
+    func suggestedRoleForPowerLevel()  -> RoomMemberRole
+    
     /**
      * Removes the room member from the current account data's ignore list
      * which will unignore the user across all rooms.
@@ -5251,6 +5253,16 @@ public class RoomMember:
     rustCall() {
     
     uniffi_matrix_sdk_ffi_fn_method_roommember_power_level(self.uniffiClonePointer(), $0
+    )
+}
+        )
+    }
+    public func suggestedRoleForPowerLevel()  -> RoomMemberRole {
+        return try!  FfiConverterTypeRoomMemberRole_lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_roommember_suggested_role_for_power_level(self.uniffiClonePointer(), $0
     )
 }
         )
@@ -20092,6 +20104,8 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
 
 
 
+
+
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
@@ -21026,6 +21040,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_power_level() != 18720) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_suggested_role_for_power_level() != 13704) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommember_unignore() != 18171) {
