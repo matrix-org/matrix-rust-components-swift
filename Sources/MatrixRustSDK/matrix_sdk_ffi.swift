@@ -3516,6 +3516,26 @@ public protocol RoomProtocol : AnyObject {
      */
     func leave() throws 
     
+    /**
+     * Reverts a previously set unread flag.
+     */
+    func markAsRead() async throws 
+    
+    /**
+     * Reverts a previously set unread flag and sends a read receipt to the
+     * latest event in the room. Sending read receipts is useful when
+     * executing this from the room list but shouldn't be use when entering
+     * the room, the timeline should be left to its own devices in that
+     * case.
+     */
+    func markAsReadAndSendReadReceipt(receiptType: ReceiptType) async throws 
+    
+    /**
+     * Sets a flag on the room to indicate that the user has explicitly marked
+     * it as unread
+     */
+    func markAsUnread() async throws 
+    
     func member(userId: String) async throws  -> RoomMember
     
     func memberAvatarUrl(userId: String) throws  -> String?
@@ -3531,8 +3551,6 @@ public protocol RoomProtocol : AnyObject {
     func name()  -> String?
     
     func ownUserId()  -> String
-    
-    func pollHistory() async  -> Timeline
     
     /**
      * Redacts an event from the room.
@@ -3577,9 +3595,11 @@ public protocol RoomProtocol : AnyObject {
      */
     func setTopic(topic: String) throws 
     
+    func subscribeToNotableTags(listener: RoomNotableTagsListener)  -> TaskHandle
+    
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle
     
-    func timeline() async  -> Timeline
+    func timeline() async throws  -> Timeline
     
     func topic()  -> String?
     
@@ -4021,6 +4041,69 @@ public class Room:
     )
 }
     }
+    /**
+     * Reverts a previously set unread flag.
+     */
+    public func markAsRead() async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_mark_as_read(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+    /**
+     * Reverts a previously set unread flag and sends a read receipt to the
+     * latest event in the room. Sending read receipts is useful when
+     * executing this from the room list but shouldn't be use when entering
+     * the room, the timeline should be left to its own devices in that
+     * case.
+     */
+    public func markAsReadAndSendReadReceipt(receiptType: ReceiptType) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_mark_as_read_and_send_read_receipt(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeReceiptType.lower(receiptType)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+    /**
+     * Sets a flag on the room to indicate that the user has explicitly marked
+     * it as unread
+     */
+    public func markAsUnread() async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_mark_as_unread(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     public func member(userId: String) async throws  -> RoomMember {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -4120,23 +4203,6 @@ public class Room:
 }
         )
     }
-    public func pollHistory() async  -> Timeline {
-        return try!  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_poll_history(
-                    self.uniffiClonePointer()
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
-            liftFunc: FfiConverterTypeTimeline.lift,
-            errorHandler: nil
-            
-        )
-    }
-
-    
     /**
      * Redacts an event from the room.
      *
@@ -4226,6 +4292,17 @@ public class Room:
     )
 }
     }
+    public func subscribeToNotableTags(listener: RoomNotableTagsListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_notable_tags(self.uniffiClonePointer(), 
+        FfiConverterCallbackInterfaceRoomNotableTagsListener.lower(listener),$0
+    )
+}
+        )
+    }
     public func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
@@ -4237,8 +4314,8 @@ public class Room:
 }
         )
     }
-    public func timeline() async  -> Timeline {
-        return try!  await uniffiRustCallAsync(
+    public func timeline() async throws  -> Timeline {
+        return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_timeline(
                     self.uniffiClonePointer()
@@ -4248,8 +4325,7 @@ public class Room:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
             liftFunc: FfiConverterTypeTimeline.lift,
-            errorHandler: nil
-            
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
 
@@ -4610,12 +4686,11 @@ public protocol RoomListItemProtocol : AnyObject {
      */
     func fullRoom() async throws  -> Room
     
-    func hasUnreadNotifications()  -> Bool
-    
     func id()  -> String
     
     /**
      * Initializes the timeline for this room using the provided parameters.
+     *
      * * `event_type_filter` - An optional [`TimelineEventTypeFilter`] to be
      * used to filter timeline events besides the default timeline filter. If
      * `None` is passed, only the default timeline filter will be used.
@@ -4636,8 +4711,6 @@ public protocol RoomListItemProtocol : AnyObject {
     func roomInfo() async throws  -> RoomInfo
     
     func subscribe(settings: RoomSubscription?) 
-    
-    func unreadNotifications()  -> UnreadNotificationsCount
     
     func unsubscribe() 
     
@@ -4705,16 +4778,6 @@ public class RoomListItem:
     }
 
     
-    public func hasUnreadNotifications()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_has_unread_notifications(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
     public func id()  -> String {
         return try!  FfiConverterString.lift(
             try! 
@@ -4727,6 +4790,7 @@ public class RoomListItem:
     }
     /**
      * Initializes the timeline for this room using the provided parameters.
+     *
      * * `event_type_filter` - An optional [`TimelineEventTypeFilter`] to be
      * used to filter timeline events besides the default timeline filter. If
      * `None` is passed, only the default timeline filter will be used.
@@ -4822,16 +4886,6 @@ public class RoomListItem:
         FfiConverterOptionTypeRoomSubscription.lower(settings),$0
     )
 }
-    }
-    public func unreadNotifications()  -> UnreadNotificationsCount {
-        return try!  FfiConverterTypeUnreadNotificationsCount.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roomlistitem_unread_notifications(self.uniffiClonePointer(), $0
-    )
-}
-        )
     }
     public func unsubscribe()  {
         try! 
@@ -6465,6 +6519,8 @@ public protocol TimelineProtocol : AnyObject {
     
     func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation
     
+    func latestEvent() async  -> EventTimelineItem?
+    
     /**
      * Loads older messages into the timeline.
      *
@@ -6646,6 +6702,23 @@ public class Timeline:
 }
         )
     }
+    public func latestEvent() async  -> EventTimelineItem? {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_latest_event(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeEventTimelineItem.lift,
+            errorHandler: nil
+            
+        )
+    }
+
+    
     /**
      * Loads older messages into the timeline.
      *
@@ -9935,6 +10008,10 @@ public struct RoomInfo {
     public var hasRoomCall: Bool
     public var activeRoomCallParticipants: [String]
     /**
+     * Whether this room has been explicitly marked as unread
+     */
+    public var isMarkedUnread: Bool
+    /**
      * "Interesting" messages received in that room, independently of the
      * notification settings.
      */
@@ -9975,6 +10052,10 @@ public struct RoomInfo {
         hasRoomCall: Bool, 
         activeRoomCallParticipants: [String], 
         /**
+         * Whether this room has been explicitly marked as unread
+         */
+        isMarkedUnread: Bool, 
+        /**
          * "Interesting" messages received in that room, independently of the
          * notification settings.
          */
@@ -10010,6 +10091,7 @@ public struct RoomInfo {
         self.userDefinedNotificationMode = userDefinedNotificationMode
         self.hasRoomCall = hasRoomCall
         self.activeRoomCallParticipants = activeRoomCallParticipants
+        self.isMarkedUnread = isMarkedUnread
         self.numUnreadMessages = numUnreadMessages
         self.numUnreadNotifications = numUnreadNotifications
         self.numUnreadMentions = numUnreadMentions
@@ -10043,6 +10125,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
                 userDefinedNotificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf), 
                 hasRoomCall: FfiConverterBool.read(from: &buf), 
                 activeRoomCallParticipants: FfiConverterSequenceString.read(from: &buf), 
+                isMarkedUnread: FfiConverterBool.read(from: &buf), 
                 numUnreadMessages: FfiConverterUInt64.read(from: &buf), 
                 numUnreadNotifications: FfiConverterUInt64.read(from: &buf), 
                 numUnreadMentions: FfiConverterUInt64.read(from: &buf)
@@ -10071,6 +10154,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterOptionTypeRoomNotificationMode.write(value.userDefinedNotificationMode, into: &buf)
         FfiConverterBool.write(value.hasRoomCall, into: &buf)
         FfiConverterSequenceString.write(value.activeRoomCallParticipants, into: &buf)
+        FfiConverterBool.write(value.isMarkedUnread, into: &buf)
         FfiConverterUInt64.write(value.numUnreadMessages, into: &buf)
         FfiConverterUInt64.write(value.numUnreadNotifications, into: &buf)
         FfiConverterUInt64.write(value.numUnreadMentions, into: &buf)
@@ -12651,355 +12735,13 @@ extension EventSendState: Equatable, Hashable {}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-public enum FilterMessageLikeEventType {
-    
-    case callAnswer
-    case callInvite
-    case callHangup
-    case callCandidates
-    case keyVerificationReady
-    case keyVerificationStart
-    case keyVerificationCancel
-    case keyVerificationAccept
-    case keyVerificationKey
-    case keyVerificationMac
-    case keyVerificationDone
-    case poll
-    case reaction
-    case roomEncrypted
-    case roomMessage
-    case roomRedaction
-    case sticker
-}
-
-public struct FfiConverterTypeFilterMessageLikeEventType: FfiConverterRustBuffer {
-    typealias SwiftType = FilterMessageLikeEventType
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FilterMessageLikeEventType {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .callAnswer
-        
-        case 2: return .callInvite
-        
-        case 3: return .callHangup
-        
-        case 4: return .callCandidates
-        
-        case 5: return .keyVerificationReady
-        
-        case 6: return .keyVerificationStart
-        
-        case 7: return .keyVerificationCancel
-        
-        case 8: return .keyVerificationAccept
-        
-        case 9: return .keyVerificationKey
-        
-        case 10: return .keyVerificationMac
-        
-        case 11: return .keyVerificationDone
-        
-        case 12: return .poll
-        
-        case 13: return .reaction
-        
-        case 14: return .roomEncrypted
-        
-        case 15: return .roomMessage
-        
-        case 16: return .roomRedaction
-        
-        case 17: return .sticker
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: FilterMessageLikeEventType, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .callAnswer:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .callInvite:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .callHangup:
-            writeInt(&buf, Int32(3))
-        
-        
-        case .callCandidates:
-            writeInt(&buf, Int32(4))
-        
-        
-        case .keyVerificationReady:
-            writeInt(&buf, Int32(5))
-        
-        
-        case .keyVerificationStart:
-            writeInt(&buf, Int32(6))
-        
-        
-        case .keyVerificationCancel:
-            writeInt(&buf, Int32(7))
-        
-        
-        case .keyVerificationAccept:
-            writeInt(&buf, Int32(8))
-        
-        
-        case .keyVerificationKey:
-            writeInt(&buf, Int32(9))
-        
-        
-        case .keyVerificationMac:
-            writeInt(&buf, Int32(10))
-        
-        
-        case .keyVerificationDone:
-            writeInt(&buf, Int32(11))
-        
-        
-        case .poll:
-            writeInt(&buf, Int32(12))
-        
-        
-        case .reaction:
-            writeInt(&buf, Int32(13))
-        
-        
-        case .roomEncrypted:
-            writeInt(&buf, Int32(14))
-        
-        
-        case .roomMessage:
-            writeInt(&buf, Int32(15))
-        
-        
-        case .roomRedaction:
-            writeInt(&buf, Int32(16))
-        
-        
-        case .sticker:
-            writeInt(&buf, Int32(17))
-        
-        }
-    }
-}
-
-
-public func FfiConverterTypeFilterMessageLikeEventType_lift(_ buf: RustBuffer) throws -> FilterMessageLikeEventType {
-    return try FfiConverterTypeFilterMessageLikeEventType.lift(buf)
-}
-
-public func FfiConverterTypeFilterMessageLikeEventType_lower(_ value: FilterMessageLikeEventType) -> RustBuffer {
-    return FfiConverterTypeFilterMessageLikeEventType.lower(value)
-}
-
-
-extension FilterMessageLikeEventType: Equatable, Hashable {}
-
-
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-public enum FilterStateEventType {
-    
-    case policyRuleRoom
-    case policyRuleServer
-    case policyRuleUser
-    case roomAliases
-    case roomAvatar
-    case roomCanonicalAlias
-    case roomCreate
-    case roomEncryption
-    case roomGuestAccess
-    case roomHistoryVisibility
-    case roomJoinRules
-    case roomMember
-    case roomName
-    case roomPinnedEvents
-    case roomPowerLevels
-    case roomServerAcl
-    case roomThirdPartyInvite
-    case roomTombstone
-    case roomTopic
-    case spaceChild
-    case spaceParent
-}
-
-public struct FfiConverterTypeFilterStateEventType: FfiConverterRustBuffer {
-    typealias SwiftType = FilterStateEventType
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FilterStateEventType {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .policyRuleRoom
-        
-        case 2: return .policyRuleServer
-        
-        case 3: return .policyRuleUser
-        
-        case 4: return .roomAliases
-        
-        case 5: return .roomAvatar
-        
-        case 6: return .roomCanonicalAlias
-        
-        case 7: return .roomCreate
-        
-        case 8: return .roomEncryption
-        
-        case 9: return .roomGuestAccess
-        
-        case 10: return .roomHistoryVisibility
-        
-        case 11: return .roomJoinRules
-        
-        case 12: return .roomMember
-        
-        case 13: return .roomName
-        
-        case 14: return .roomPinnedEvents
-        
-        case 15: return .roomPowerLevels
-        
-        case 16: return .roomServerAcl
-        
-        case 17: return .roomThirdPartyInvite
-        
-        case 18: return .roomTombstone
-        
-        case 19: return .roomTopic
-        
-        case 20: return .spaceChild
-        
-        case 21: return .spaceParent
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: FilterStateEventType, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .policyRuleRoom:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .policyRuleServer:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .policyRuleUser:
-            writeInt(&buf, Int32(3))
-        
-        
-        case .roomAliases:
-            writeInt(&buf, Int32(4))
-        
-        
-        case .roomAvatar:
-            writeInt(&buf, Int32(5))
-        
-        
-        case .roomCanonicalAlias:
-            writeInt(&buf, Int32(6))
-        
-        
-        case .roomCreate:
-            writeInt(&buf, Int32(7))
-        
-        
-        case .roomEncryption:
-            writeInt(&buf, Int32(8))
-        
-        
-        case .roomGuestAccess:
-            writeInt(&buf, Int32(9))
-        
-        
-        case .roomHistoryVisibility:
-            writeInt(&buf, Int32(10))
-        
-        
-        case .roomJoinRules:
-            writeInt(&buf, Int32(11))
-        
-        
-        case .roomMember:
-            writeInt(&buf, Int32(12))
-        
-        
-        case .roomName:
-            writeInt(&buf, Int32(13))
-        
-        
-        case .roomPinnedEvents:
-            writeInt(&buf, Int32(14))
-        
-        
-        case .roomPowerLevels:
-            writeInt(&buf, Int32(15))
-        
-        
-        case .roomServerAcl:
-            writeInt(&buf, Int32(16))
-        
-        
-        case .roomThirdPartyInvite:
-            writeInt(&buf, Int32(17))
-        
-        
-        case .roomTombstone:
-            writeInt(&buf, Int32(18))
-        
-        
-        case .roomTopic:
-            writeInt(&buf, Int32(19))
-        
-        
-        case .spaceChild:
-            writeInt(&buf, Int32(20))
-        
-        
-        case .spaceParent:
-            writeInt(&buf, Int32(21))
-        
-        }
-    }
-}
-
-
-public func FfiConverterTypeFilterStateEventType_lift(_ buf: RustBuffer) throws -> FilterStateEventType {
-    return try FfiConverterTypeFilterStateEventType.lift(buf)
-}
-
-public func FfiConverterTypeFilterStateEventType_lower(_ value: FilterStateEventType) -> RustBuffer {
-    return FfiConverterTypeFilterStateEventType.lower(value)
-}
-
-
-extension FilterStateEventType: Equatable, Hashable {}
-
-
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum FilterTimelineEventType {
     
     case messageLike(
-        eventType: FilterMessageLikeEventType
+        eventType: MessageLikeEventType
     )
     case state(
-        eventType: FilterStateEventType
+        eventType: StateEventType
     )
 }
 
@@ -13011,11 +12753,11 @@ public struct FfiConverterTypeFilterTimelineEventType: FfiConverterRustBuffer {
         switch variant {
         
         case 1: return .messageLike(
-            eventType: try FfiConverterTypeFilterMessageLikeEventType.read(from: &buf)
+            eventType: try FfiConverterTypeMessageLikeEventType.read(from: &buf)
         )
         
         case 2: return .state(
-            eventType: try FfiConverterTypeFilterStateEventType.read(from: &buf)
+            eventType: try FfiConverterTypeStateEventType.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -13028,12 +12770,12 @@ public struct FfiConverterTypeFilterTimelineEventType: FfiConverterRustBuffer {
         
         case let .messageLike(eventType):
             writeInt(&buf, Int32(1))
-            FfiConverterTypeFilterMessageLikeEventType.write(eventType, into: &buf)
+            FfiConverterTypeMessageLikeEventType.write(eventType, into: &buf)
             
         
         case let .state(eventType):
             writeInt(&buf, Int32(2))
-            FfiConverterTypeFilterStateEventType.write(eventType, into: &buf)
+            FfiConverterTypeStateEventType.write(eventType, into: &buf)
             
         }
     }
@@ -13717,21 +13459,27 @@ public func FfiConverterTypeMessageLikeEventContent_lower(_ value: MessageLikeEv
 public enum MessageLikeEventType {
     
     case callAnswer
-    case callInvite
-    case callHangup
     case callCandidates
-    case keyVerificationReady
-    case keyVerificationStart
-    case keyVerificationCancel
+    case callHangup
+    case callInvite
     case keyVerificationAccept
+    case keyVerificationCancel
+    case keyVerificationDone
     case keyVerificationKey
     case keyVerificationMac
-    case keyVerificationDone
-    case reactionSent
+    case keyVerificationReady
+    case keyVerificationStart
+    case pollEnd
+    case pollResponse
+    case pollStart
+    case reaction
     case roomEncrypted
     case roomMessage
     case roomRedaction
     case sticker
+    case unstablePollEnd
+    case unstablePollResponse
+    case unstablePollStart
 }
 
 public struct FfiConverterTypeMessageLikeEventType: FfiConverterRustBuffer {
@@ -13743,35 +13491,47 @@ public struct FfiConverterTypeMessageLikeEventType: FfiConverterRustBuffer {
         
         case 1: return .callAnswer
         
-        case 2: return .callInvite
+        case 2: return .callCandidates
         
         case 3: return .callHangup
         
-        case 4: return .callCandidates
+        case 4: return .callInvite
         
-        case 5: return .keyVerificationReady
+        case 5: return .keyVerificationAccept
         
-        case 6: return .keyVerificationStart
+        case 6: return .keyVerificationCancel
         
-        case 7: return .keyVerificationCancel
+        case 7: return .keyVerificationDone
         
-        case 8: return .keyVerificationAccept
+        case 8: return .keyVerificationKey
         
-        case 9: return .keyVerificationKey
+        case 9: return .keyVerificationMac
         
-        case 10: return .keyVerificationMac
+        case 10: return .keyVerificationReady
         
-        case 11: return .keyVerificationDone
+        case 11: return .keyVerificationStart
         
-        case 12: return .reactionSent
+        case 12: return .pollEnd
         
-        case 13: return .roomEncrypted
+        case 13: return .pollResponse
         
-        case 14: return .roomMessage
+        case 14: return .pollStart
         
-        case 15: return .roomRedaction
+        case 15: return .reaction
         
-        case 16: return .sticker
+        case 16: return .roomEncrypted
+        
+        case 17: return .roomMessage
+        
+        case 18: return .roomRedaction
+        
+        case 19: return .sticker
+        
+        case 20: return .unstablePollEnd
+        
+        case 21: return .unstablePollResponse
+        
+        case 22: return .unstablePollStart
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -13785,7 +13545,7 @@ public struct FfiConverterTypeMessageLikeEventType: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case .callInvite:
+        case .callCandidates:
             writeInt(&buf, Int32(2))
         
         
@@ -13793,56 +13553,80 @@ public struct FfiConverterTypeMessageLikeEventType: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         
         
-        case .callCandidates:
+        case .callInvite:
             writeInt(&buf, Int32(4))
         
         
-        case .keyVerificationReady:
+        case .keyVerificationAccept:
             writeInt(&buf, Int32(5))
         
         
-        case .keyVerificationStart:
+        case .keyVerificationCancel:
             writeInt(&buf, Int32(6))
         
         
-        case .keyVerificationCancel:
+        case .keyVerificationDone:
             writeInt(&buf, Int32(7))
         
         
-        case .keyVerificationAccept:
+        case .keyVerificationKey:
             writeInt(&buf, Int32(8))
         
         
-        case .keyVerificationKey:
+        case .keyVerificationMac:
             writeInt(&buf, Int32(9))
         
         
-        case .keyVerificationMac:
+        case .keyVerificationReady:
             writeInt(&buf, Int32(10))
         
         
-        case .keyVerificationDone:
+        case .keyVerificationStart:
             writeInt(&buf, Int32(11))
         
         
-        case .reactionSent:
+        case .pollEnd:
             writeInt(&buf, Int32(12))
         
         
-        case .roomEncrypted:
+        case .pollResponse:
             writeInt(&buf, Int32(13))
         
         
-        case .roomMessage:
+        case .pollStart:
             writeInt(&buf, Int32(14))
         
         
-        case .roomRedaction:
+        case .reaction:
             writeInt(&buf, Int32(15))
         
         
-        case .sticker:
+        case .roomEncrypted:
             writeInt(&buf, Int32(16))
+        
+        
+        case .roomMessage:
+            writeInt(&buf, Int32(17))
+        
+        
+        case .roomRedaction:
+            writeInt(&buf, Int32(18))
+        
+        
+        case .sticker:
+            writeInt(&buf, Int32(19))
+        
+        
+        case .unstablePollEnd:
+            writeInt(&buf, Int32(20))
+        
+        
+        case .unstablePollResponse:
+            writeInt(&buf, Int32(21))
+        
+        
+        case .unstablePollStart:
+            writeInt(&buf, Int32(22))
         
         }
     }
@@ -15621,6 +15405,9 @@ public enum RoomListError {
     case TimelineNotInitialized(
         roomName: String
     )
+    case InitializingTimeline(
+        error: String
+    )
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeRoomListError.lift(error)
@@ -15656,6 +15443,9 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
             )
         case 7: return .TimelineNotInitialized(
             roomName: try FfiConverterString.read(from: &buf)
+            )
+        case 8: return .InitializingTimeline(
+            error: try FfiConverterString.read(from: &buf)
             )
 
          default: throw UniffiInternalError.unexpectedEnumCase
@@ -15701,6 +15491,11 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
         case let .TimelineNotInitialized(roomName):
             writeInt(&buf, Int32(7))
             FfiConverterString.write(roomName, into: &buf)
+            
+        
+        case let .InitializingTimeline(error):
+            writeInt(&buf, Int32(8))
+            FfiConverterString.write(error, into: &buf)
             
         }
     }
@@ -18670,6 +18465,97 @@ extension FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener : Ff
 
 
 
+public protocol RoomNotableTagsListener : AnyObject {
+    
+    func call(notableTags: RoomNotableTags) 
+    
+}
+
+
+// Declaration and FfiConverters for RoomNotableTagsListener Callback Interface
+
+fileprivate let uniffiCallbackHandlerRoomNotableTagsListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeCall(_ swiftCallbackInterface: RoomNotableTagsListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            swiftCallbackInterface.call(
+                    notableTags:  try FfiConverterTypeRoomNotableTags.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceRoomNotableTagsListener.handleMap.remove(handle: handle)
+            // Successful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            guard let cb = FfiConverterCallbackInterfaceRoomNotableTagsListener.handleMap.get(handle: handle) else {
+                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeCall(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+private func uniffiCallbackInitRoomNotableTagsListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_roomnotabletagslistener(uniffiCallbackHandlerRoomNotableTagsListener)
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceRoomNotableTagsListener {
+    fileprivate static var handleMap = UniFFICallbackHandleMap<RoomNotableTagsListener>()
+}
+
+extension FfiConverterCallbackInterfaceRoomNotableTagsListener : FfiConverter {
+    typealias SwiftType = RoomNotableTagsListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+
 public protocol SessionVerificationControllerDelegate : AnyObject {
     
     func didAcceptVerificationRequest() 
@@ -20707,6 +20593,8 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
 
 
 
+
+
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
@@ -21454,6 +21342,15 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 6569) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read() != 30321) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read_and_send_read_receipt() != 32673) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_unread() != 41204) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 10689) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21478,9 +21375,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_own_user_id() != 39510) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_poll_history() != 1091) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 55672) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21499,10 +21393,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 29413) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_notable_tags() != 3691) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 47774) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 57169) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 701) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 59745) {
@@ -21547,13 +21444,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_full_room() != 35618) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_has_unread_notifications() != 49961) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_id() != 41176) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_init_timeline() != 57837) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_init_timeline() != 15676) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_is_direct() != 46873) {
@@ -21572,9 +21466,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_subscribe() != 19882) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_unread_notifications() != 23977) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_unsubscribe() != 45026) {
@@ -21758,6 +21649,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_timeline_event_content_by_event_id() != 33318) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_latest_event() != 11115) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 40762) {
@@ -21946,6 +21840,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicesyncindicatorlistener_on_update() != 42394) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomnotabletagslistener_call() != 33153) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_accept_verification_request() != 22759) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21988,6 +21885,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitRoomListLoadingStateListener()
     uniffiCallbackInitRoomListServiceStateListener()
     uniffiCallbackInitRoomListServiceSyncIndicatorListener()
+    uniffiCallbackInitRoomNotableTagsListener()
     uniffiCallbackInitSessionVerificationControllerDelegate()
     uniffiCallbackInitSyncServiceStateObserver()
     uniffiCallbackInitTimelineListener()
