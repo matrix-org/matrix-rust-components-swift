@@ -297,6 +297,19 @@ private func uniffiCheckCallStatus(
 // Public interface members begin here.
 
 
+fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
+    typealias FfiType = Int64
+    typealias SwiftType = Int64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Int64, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -333,6 +346,201 @@ fileprivate struct FfiConverterString: FfiConverter {
         writeInt(&buf, len)
         writeBytes(&buf, value.utf8)
     }
+}
+
+
+/**
+ * A set of common power levels required for various operations within a room,
+ * that can be applied as a single operation. When updating these
+ * settings, any levels that are `None` will remain unchanged.
+ */
+public struct RoomPowerLevelChanges {
+    /**
+     * The level required to ban a user.
+     */
+    public var ban: Int64?
+    /**
+     * The level required to invite a user.
+     */
+    public var invite: Int64?
+    /**
+     * The level required to kick a user.
+     */
+    public var kick: Int64?
+    /**
+     * The level required to redact an event.
+     */
+    public var redact: Int64?
+    /**
+     * The default level required to send message events.
+     */
+    public var eventsDefault: Int64?
+    /**
+     * The default level required to send state events.
+     */
+    public var stateDefault: Int64?
+    /**
+     * The default power level for every user in the room.
+     */
+    public var usersDefault: Int64?
+    /**
+     * The level required to change the room's name.
+     */
+    public var roomName: Int64?
+    /**
+     * The level required to change the room's avatar.
+     */
+    public var roomAvatar: Int64?
+    /**
+     * The level required to change the room's topic.
+     */
+    public var roomTopic: Int64?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The level required to ban a user.
+         */
+        ban: Int64? = nil, 
+        /**
+         * The level required to invite a user.
+         */
+        invite: Int64? = nil, 
+        /**
+         * The level required to kick a user.
+         */
+        kick: Int64? = nil, 
+        /**
+         * The level required to redact an event.
+         */
+        redact: Int64? = nil, 
+        /**
+         * The default level required to send message events.
+         */
+        eventsDefault: Int64? = nil, 
+        /**
+         * The default level required to send state events.
+         */
+        stateDefault: Int64? = nil, 
+        /**
+         * The default power level for every user in the room.
+         */
+        usersDefault: Int64? = nil, 
+        /**
+         * The level required to change the room's name.
+         */
+        roomName: Int64? = nil, 
+        /**
+         * The level required to change the room's avatar.
+         */
+        roomAvatar: Int64? = nil, 
+        /**
+         * The level required to change the room's topic.
+         */
+        roomTopic: Int64? = nil) {
+        self.ban = ban
+        self.invite = invite
+        self.kick = kick
+        self.redact = redact
+        self.eventsDefault = eventsDefault
+        self.stateDefault = stateDefault
+        self.usersDefault = usersDefault
+        self.roomName = roomName
+        self.roomAvatar = roomAvatar
+        self.roomTopic = roomTopic
+    }
+}
+
+
+extension RoomPowerLevelChanges: Equatable, Hashable {
+    public static func ==(lhs: RoomPowerLevelChanges, rhs: RoomPowerLevelChanges) -> Bool {
+        if lhs.ban != rhs.ban {
+            return false
+        }
+        if lhs.invite != rhs.invite {
+            return false
+        }
+        if lhs.kick != rhs.kick {
+            return false
+        }
+        if lhs.redact != rhs.redact {
+            return false
+        }
+        if lhs.eventsDefault != rhs.eventsDefault {
+            return false
+        }
+        if lhs.stateDefault != rhs.stateDefault {
+            return false
+        }
+        if lhs.usersDefault != rhs.usersDefault {
+            return false
+        }
+        if lhs.roomName != rhs.roomName {
+            return false
+        }
+        if lhs.roomAvatar != rhs.roomAvatar {
+            return false
+        }
+        if lhs.roomTopic != rhs.roomTopic {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ban)
+        hasher.combine(invite)
+        hasher.combine(kick)
+        hasher.combine(redact)
+        hasher.combine(eventsDefault)
+        hasher.combine(stateDefault)
+        hasher.combine(usersDefault)
+        hasher.combine(roomName)
+        hasher.combine(roomAvatar)
+        hasher.combine(roomTopic)
+    }
+}
+
+
+public struct FfiConverterTypeRoomPowerLevelChanges: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomPowerLevelChanges {
+        return
+            try RoomPowerLevelChanges(
+                ban: FfiConverterOptionInt64.read(from: &buf), 
+                invite: FfiConverterOptionInt64.read(from: &buf), 
+                kick: FfiConverterOptionInt64.read(from: &buf), 
+                redact: FfiConverterOptionInt64.read(from: &buf), 
+                eventsDefault: FfiConverterOptionInt64.read(from: &buf), 
+                stateDefault: FfiConverterOptionInt64.read(from: &buf), 
+                usersDefault: FfiConverterOptionInt64.read(from: &buf), 
+                roomName: FfiConverterOptionInt64.read(from: &buf), 
+                roomAvatar: FfiConverterOptionInt64.read(from: &buf), 
+                roomTopic: FfiConverterOptionInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RoomPowerLevelChanges, into buf: inout [UInt8]) {
+        FfiConverterOptionInt64.write(value.ban, into: &buf)
+        FfiConverterOptionInt64.write(value.invite, into: &buf)
+        FfiConverterOptionInt64.write(value.kick, into: &buf)
+        FfiConverterOptionInt64.write(value.redact, into: &buf)
+        FfiConverterOptionInt64.write(value.eventsDefault, into: &buf)
+        FfiConverterOptionInt64.write(value.stateDefault, into: &buf)
+        FfiConverterOptionInt64.write(value.usersDefault, into: &buf)
+        FfiConverterOptionInt64.write(value.roomName, into: &buf)
+        FfiConverterOptionInt64.write(value.roomAvatar, into: &buf)
+        FfiConverterOptionInt64.write(value.roomTopic, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeRoomPowerLevelChanges_lift(_ buf: RustBuffer) throws -> RoomPowerLevelChanges {
+    return try FfiConverterTypeRoomPowerLevelChanges.lift(buf)
+}
+
+public func FfiConverterTypeRoomPowerLevelChanges_lower(_ value: RoomPowerLevelChanges) -> RustBuffer {
+    return FfiConverterTypeRoomPowerLevelChanges.lower(value)
 }
 
 // Note that we don't yet support `indirect` for enums.
@@ -405,6 +613,27 @@ public func FfiConverterTypeRoomMemberRole_lower(_ value: RoomMemberRole) -> Rus
 extension RoomMemberRole: Equatable, Hashable {}
 
 
+
+fileprivate struct FfiConverterOptionInt64: FfiConverterRustBuffer {
+    typealias SwiftType = Int64?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterInt64.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterInt64.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
 
 private enum InitializationResult {
     case ok

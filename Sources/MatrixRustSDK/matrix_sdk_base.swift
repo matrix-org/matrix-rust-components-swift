@@ -365,6 +365,10 @@ public struct RoomNotableTags {
      * Whether or not the room is marked as favorite.
      */
     public var isFavorite: Bool
+    /**
+     * Whether or not the room is marked as low priority.
+     */
+    public var isLowPriority: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -372,8 +376,13 @@ public struct RoomNotableTags {
         /**
          * Whether or not the room is marked as favorite.
          */
-        isFavorite: Bool) {
+        isFavorite: Bool, 
+        /**
+         * Whether or not the room is marked as low priority.
+         */
+        isLowPriority: Bool) {
         self.isFavorite = isFavorite
+        self.isLowPriority = isLowPriority
     }
 }
 
@@ -383,11 +392,15 @@ extension RoomNotableTags: Equatable, Hashable {
         if lhs.isFavorite != rhs.isFavorite {
             return false
         }
+        if lhs.isLowPriority != rhs.isLowPriority {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(isFavorite)
+        hasher.combine(isLowPriority)
     }
 }
 
@@ -396,12 +409,14 @@ public struct FfiConverterTypeRoomNotableTags: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomNotableTags {
         return
             try RoomNotableTags(
-                isFavorite: FfiConverterBool.read(from: &buf)
+                isFavorite: FfiConverterBool.read(from: &buf), 
+                isLowPriority: FfiConverterBool.read(from: &buf)
         )
     }
 
     public static func write(_ value: RoomNotableTags, into buf: inout [UInt8]) {
         FfiConverterBool.write(value.isFavorite, into: &buf)
+        FfiConverterBool.write(value.isLowPriority, into: &buf)
     }
 }
 

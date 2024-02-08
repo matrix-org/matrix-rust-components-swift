@@ -518,6 +518,7 @@ public protocol AuthenticationServiceProtocol : AnyObject {
     func urlForOidcLogin() throws  -> OidcAuthenticationData
     
 }
+
 public class AuthenticationService:
     AuthenticationServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -767,6 +768,7 @@ public protocol ClientProtocol : AnyObject {
     func userId() throws  -> String
     
 }
+
 public class Client:
     ClientProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -1256,6 +1258,7 @@ public protocol ClientBuilderProtocol : AnyObject {
     func username(username: String)  -> ClientBuilder
     
 }
+
 public class ClientBuilder:
     ClientBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -1521,6 +1524,7 @@ public protocol EncryptionProtocol : AnyObject {
     func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws 
     
 }
+
 public class Encryption:
     EncryptionProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -1827,6 +1831,7 @@ public protocol EventTimelineItemProtocol : AnyObject {
     func transactionId()  -> String?
     
 }
+
 public class EventTimelineItem:
     EventTimelineItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2074,6 +2079,7 @@ public protocol HomeserverLoginDetailsProtocol : AnyObject {
     func url()  -> String
     
 }
+
 public class HomeserverLoginDetails:
     HomeserverLoginDetailsProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2196,6 +2202,7 @@ public protocol MediaFileHandleProtocol : AnyObject {
     func persist(path: String) throws  -> Bool
     
 }
+
 /**
  * A file handle that takes ownership of a media file on disk. When the handle
  * is dropped, the file will be removed from the disk.
@@ -2298,6 +2305,7 @@ public protocol MediaSourceProtocol : AnyObject {
     func url()  -> String
     
 }
+
 public class MediaSource:
     MediaSourceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2408,6 +2416,7 @@ public protocol MessageProtocol : AnyObject {
     func msgtype()  -> MessageType
     
 }
+
 public class Message:
     MessageProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2536,6 +2545,7 @@ public protocol NotificationClientProtocol : AnyObject {
     func getNotification(roomId: String, eventId: String) throws  -> NotificationItem?
     
 }
+
 public class NotificationClient:
     NotificationClientProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2631,6 +2641,7 @@ public protocol NotificationClientBuilderProtocol : AnyObject {
     func finish()  -> NotificationClient
     
 }
+
 public class NotificationClientBuilder:
     NotificationClientBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -2851,6 +2862,7 @@ public protocol NotificationSettingsProtocol : AnyObject {
     func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws 
     
 }
+
 public class NotificationSettings:
     NotificationSettingsProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -3338,6 +3350,7 @@ public protocol OidcAuthenticationDataProtocol : AnyObject {
     func loginUrl()  -> String
     
 }
+
 /**
  * The data required to authenticate against an OIDC server.
  */
@@ -3441,9 +3454,13 @@ public protocol RoomProtocol : AnyObject {
     
     func alternativeAliases()  -> [String]
     
+    func applyPowerLevelChanges(changes: RoomPowerLevelChanges) async throws 
+    
     func avatarUrl()  -> String?
     
     func banUser(userId: String, reason: String?) async throws 
+    
+    func buildPowerLevelChangesFromCurrent() async throws  -> RoomPowerLevelChanges
     
     func canUserBan(userId: String) async throws  -> Bool
     
@@ -3585,6 +3602,10 @@ public protocol RoomProtocol : AnyObject {
     
     func roomInfo() async throws  -> RoomInfo
     
+    func setIsFavorite(isFavorite: Bool, tagOrder: Double?) async throws 
+    
+    func setIsLowPriority(isLowPriority: Bool, tagOrder: Double?) async throws 
+    
     /**
      * Sets a new name to the room.
      */
@@ -3599,6 +3620,8 @@ public protocol RoomProtocol : AnyObject {
     
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle
     
+    func subscribeToTypingNotifications(listener: TypingNotificationsListener) async  -> TaskHandle
+    
     func timeline() async throws  -> Timeline
     
     func topic()  -> String?
@@ -3606,6 +3629,8 @@ public protocol RoomProtocol : AnyObject {
     func typingNotice(isTyping: Bool) async throws 
     
     func unbanUser(userId: String, reason: String?) async throws 
+    
+    func updatePowerLevelForUser(userId: String, powerLevel: Int64) async throws 
     
     /**
      * Upload and set the room's avatar.
@@ -3625,6 +3650,7 @@ public protocol RoomProtocol : AnyObject {
     func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws 
     
 }
+
 public class Room:
     RoomProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -3688,6 +3714,23 @@ public class Room:
 }
         )
     }
+    public func applyPowerLevelChanges(changes: RoomPowerLevelChanges) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_apply_power_level_changes(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeRoomPowerLevelChanges_lower(changes)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     public func avatarUrl()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
@@ -3711,6 +3754,22 @@ public class Room:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+    public func buildPowerLevelChangesFromCurrent() async throws  -> RoomPowerLevelChanges {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_build_power_level_changes_from_current(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomPowerLevelChanges_lift,
             errorHandler: FfiConverterTypeClientError.lift
         )
     }
@@ -4270,6 +4329,42 @@ public class Room:
     }
 
     
+    public func setIsFavorite(isFavorite: Bool, tagOrder: Double?) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_set_is_favorite(
+                    self.uniffiClonePointer(),
+                    FfiConverterBool.lower(isFavorite),
+                    FfiConverterOptionDouble.lower(tagOrder)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+    public func setIsLowPriority(isLowPriority: Bool, tagOrder: Double?) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_set_is_low_priority(
+                    self.uniffiClonePointer(),
+                    FfiConverterBool.lower(isLowPriority),
+                    FfiConverterOptionDouble.lower(tagOrder)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     /**
      * Sets a new name to the room.
      */
@@ -4314,6 +4409,24 @@ public class Room:
 }
         )
     }
+    public func subscribeToTypingNotifications(listener: TypingNotificationsListener) async  -> TaskHandle {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_typing_notifications(
+                    self.uniffiClonePointer(),
+                    FfiConverterCallbackInterfaceTypingNotificationsListener.lower(listener)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeTaskHandle.lift,
+            errorHandler: nil
+            
+        )
+    }
+
+    
     public func timeline() async throws  -> Timeline {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -4364,6 +4477,24 @@ public class Room:
                     self.uniffiClonePointer(),
                     FfiConverterString.lower(userId),
                     FfiConverterOptionString.lower(reason)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+    public func updatePowerLevelForUser(userId: String, powerLevel: Int64) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_update_power_level_for_user(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(userId),
+                    FfiConverterInt64.lower(powerLevel)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -4457,6 +4588,7 @@ public protocol RoomListProtocol : AnyObject {
     func room(roomId: String) throws  -> RoomListItem
     
 }
+
 public class RoomList:
     RoomListProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4578,6 +4710,7 @@ public protocol RoomListDynamicEntriesControllerProtocol : AnyObject {
     func setFilter(kind: RoomListEntriesDynamicFilterKind)  -> Bool
     
 }
+
 public class RoomListDynamicEntriesController:
     RoomListDynamicEntriesControllerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4715,6 +4848,7 @@ public protocol RoomListItemProtocol : AnyObject {
     func unsubscribe() 
     
 }
+
 public class RoomListItem:
     RoomListItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -4956,6 +5090,7 @@ public protocol RoomListServiceProtocol : AnyObject {
     func syncIndicator(delayBeforeShowingInMs: UInt32, delayBeforeHidingInMs: UInt32, listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle
     
 }
+
 public class RoomListService:
     RoomListServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5159,6 +5294,7 @@ public protocol RoomMemberProtocol : AnyObject {
     func userId()  -> String
     
 }
+
 public class RoomMember:
     RoomMemberProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5439,6 +5575,7 @@ public protocol RoomMembersIteratorProtocol : AnyObject {
     func nextChunk(chunkSize: UInt32)  -> [RoomMember]?
     
 }
+
 public class RoomMembersIterator:
     RoomMembersIteratorProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5534,6 +5671,7 @@ public protocol RoomMessageEventContentWithoutRelationProtocol : AnyObject {
     func withMentions(mentions: Mentions)  -> RoomMessageEventContentWithoutRelation
     
 }
+
 public class RoomMessageEventContentWithoutRelation:
     RoomMessageEventContentWithoutRelationProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5621,6 +5759,7 @@ public protocol SendAttachmentJoinHandleProtocol : AnyObject {
     func join() async throws 
     
 }
+
 public class SendAttachmentJoinHandle:
     SendAttachmentJoinHandleProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5731,6 +5870,7 @@ public protocol SessionVerificationControllerProtocol : AnyObject {
     func startSasVerification() async throws 
     
 }
+
 public class SessionVerificationController:
     SessionVerificationControllerProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -5912,6 +6052,7 @@ public protocol SessionVerificationEmojiProtocol : AnyObject {
     func symbol()  -> String
     
 }
+
 public class SessionVerificationEmoji:
     SessionVerificationEmojiProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6010,6 +6151,7 @@ public protocol SpanProtocol : AnyObject {
     func isNone()  -> Bool
     
 }
+
 public class Span:
     SpanProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6159,6 +6301,7 @@ public protocol SyncServiceProtocol : AnyObject {
     func stop() async throws 
     
 }
+
 public class SyncService:
     SyncServiceProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6289,6 +6432,7 @@ public protocol SyncServiceBuilderProtocol : AnyObject {
     func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder
     
 }
+
 public class SyncServiceBuilder:
     SyncServiceBuilderProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6401,6 +6545,7 @@ public protocol TaskHandleProtocol : AnyObject {
     func isFinished()  -> Bool
     
 }
+
 /**
  * A task handle is a way to keep the handle a task running by itself in
  * detached mode.
@@ -6557,6 +6702,7 @@ public protocol TimelineProtocol : AnyObject {
     func toggleReaction(eventId: String, key: String) throws 
     
 }
+
 public class Timeline:
     TimelineProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -6951,6 +7097,7 @@ public protocol TimelineDiffProtocol : AnyObject {
     func set()  -> SetData?
     
 }
+
 public class TimelineDiff:
     TimelineDiffProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -7111,6 +7258,7 @@ public protocol TimelineEventProtocol : AnyObject {
     func timestamp()  -> UInt64
     
 }
+
 public class TimelineEvent:
     TimelineEventProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -7222,6 +7370,7 @@ public func FfiConverterTypeTimelineEvent_lower(_ value: TimelineEvent) -> Unsaf
 public protocol TimelineEventTypeFilterProtocol : AnyObject {
     
 }
+
 public class TimelineEventTypeFilter:
     TimelineEventTypeFilterProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -7318,6 +7467,7 @@ public protocol TimelineItemProtocol : AnyObject {
     func uniqueId()  -> UInt64
     
 }
+
 public class TimelineItem:
     TimelineItemProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -7434,6 +7584,7 @@ public protocol TimelineItemContentProtocol : AnyObject {
     func kind()  -> TimelineItemContentKind
     
 }
+
 public class TimelineItemContent:
     TimelineItemContentProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -7532,6 +7683,7 @@ public protocol UnreadNotificationsCountProtocol : AnyObject {
     func notificationCount()  -> UInt32
     
 }
+
 public class UnreadNotificationsCount:
     UnreadNotificationsCountProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer
@@ -7640,6 +7792,7 @@ public protocol WidgetDriverProtocol : AnyObject {
     func run(room: Room, capabilitiesProvider: WidgetCapabilitiesProvider) async 
     
 }
+
 /**
  * An object that handles all interactions of a widget living inside a webview
  * or IFrame with the Matrix world.
@@ -7754,6 +7907,7 @@ public protocol WidgetDriverHandleProtocol : AnyObject {
     func send(msg: String) async  -> Bool
     
 }
+
 /**
  * A handle that encapsulates the communication between a widget driver and the
  * corresponding widget (inside a webview or IFrame).
@@ -15072,8 +15226,17 @@ extension RoomError: Error { }
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 public enum RoomListEntriesDynamicFilterKind {
     
-    case all
-    case allNonLeft
+    case all(
+        filters: [RoomListEntriesDynamicFilterKind]
+    )
+    case any(
+        filters: [RoomListEntriesDynamicFilterKind]
+    )
+    case nonLeft
+    case unread
+    case category(
+        expect: RoomListFilterCategory
+    )
     case none
     case normalizedMatchRoomName(
         pattern: String
@@ -15090,17 +15253,29 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .all
+        case 1: return .all(
+            filters: try FfiConverterSequenceTypeRoomListEntriesDynamicFilterKind.read(from: &buf)
+        )
         
-        case 2: return .allNonLeft
+        case 2: return .any(
+            filters: try FfiConverterSequenceTypeRoomListEntriesDynamicFilterKind.read(from: &buf)
+        )
         
-        case 3: return .none
+        case 3: return .nonLeft
         
-        case 4: return .normalizedMatchRoomName(
+        case 4: return .unread
+        
+        case 5: return .category(
+            expect: try FfiConverterTypeRoomListFilterCategory.read(from: &buf)
+        )
+        
+        case 6: return .none
+        
+        case 7: return .normalizedMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
-        case 5: return .fuzzyMatchRoomName(
+        case 8: return .fuzzyMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
@@ -15112,25 +15287,40 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
         switch value {
         
         
-        case .all:
+        case let .all(filters):
             writeInt(&buf, Int32(1))
+            FfiConverterSequenceTypeRoomListEntriesDynamicFilterKind.write(filters, into: &buf)
+            
         
-        
-        case .allNonLeft:
+        case let .any(filters):
             writeInt(&buf, Int32(2))
+            FfiConverterSequenceTypeRoomListEntriesDynamicFilterKind.write(filters, into: &buf)
+            
         
-        
-        case .none:
+        case .nonLeft:
             writeInt(&buf, Int32(3))
         
         
-        case let .normalizedMatchRoomName(pattern):
+        case .unread:
             writeInt(&buf, Int32(4))
+        
+        
+        case let .category(expect):
+            writeInt(&buf, Int32(5))
+            FfiConverterTypeRoomListFilterCategory.write(expect, into: &buf)
+            
+        
+        case .none:
+            writeInt(&buf, Int32(6))
+        
+        
+        case let .normalizedMatchRoomName(pattern):
+            writeInt(&buf, Int32(7))
             FfiConverterString.write(pattern, into: &buf)
             
         
         case let .fuzzyMatchRoomName(pattern):
-            writeInt(&buf, Int32(5))
+            writeInt(&buf, Int32(8))
             FfiConverterString.write(pattern, into: &buf)
             
         }
@@ -15505,6 +15695,58 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
 extension RoomListError: Equatable, Hashable {}
 
 extension RoomListError: Error { }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum RoomListFilterCategory {
+    
+    case group
+    case people
+}
+
+public struct FfiConverterTypeRoomListFilterCategory: FfiConverterRustBuffer {
+    typealias SwiftType = RoomListFilterCategory
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomListFilterCategory {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .group
+        
+        case 2: return .people
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RoomListFilterCategory, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .group:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .people:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeRoomListFilterCategory_lift(_ buf: RustBuffer) throws -> RoomListFilterCategory {
+    return try FfiConverterTypeRoomListFilterCategory.lift(buf)
+}
+
+public func FfiConverterTypeRoomListFilterCategory_lower(_ value: RoomListFilterCategory) -> RustBuffer {
+    return FfiConverterTypeRoomListFilterCategory.lower(value)
+}
+
+
+extension RoomListFilterCategory: Equatable, Hashable {}
+
+
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -17078,6 +17320,7 @@ public protocol BackPaginationStatusListener : AnyObject {
     func onUpdate(status: BackPaginationStatus) 
     
 }
+
 fileprivate extension NSLock {
     func withLock<T>(f: () throws -> T) rethrows -> T {
         self.lock()
@@ -17234,6 +17477,7 @@ public protocol BackupStateListener : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for BackupStateListener Callback Interface
 
 fileprivate let uniffiCallbackHandlerBackupStateListener : ForeignCallback =
@@ -17323,6 +17567,7 @@ public protocol BackupSteadyStateListener : AnyObject {
     func onUpdate(status: BackupUploadState) 
     
 }
+
 
 
 // Declaration and FfiConverters for BackupSteadyStateListener Callback Interface
@@ -17416,6 +17661,7 @@ public protocol ClientDelegate : AnyObject {
     func didRefreshTokens() 
     
 }
+
 
 
 // Declaration and FfiConverters for ClientDelegate Callback Interface
@@ -17529,6 +17775,7 @@ public protocol ClientSessionDelegate : AnyObject {
     func saveSessionInKeychain(session: Session) 
     
 }
+
 
 
 // Declaration and FfiConverters for ClientSessionDelegate Callback Interface
@@ -17652,6 +17899,7 @@ public protocol EnableRecoveryProgressListener : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for EnableRecoveryProgressListener Callback Interface
 
 fileprivate let uniffiCallbackHandlerEnableRecoveryProgressListener : ForeignCallback =
@@ -17746,6 +17994,7 @@ public protocol NotificationSettingsDelegate : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for NotificationSettingsDelegate Callback Interface
 
 fileprivate let uniffiCallbackHandlerNotificationSettingsDelegate : ForeignCallback =
@@ -17833,6 +18082,7 @@ public protocol ProgressWatcher : AnyObject {
     func transmissionProgress(progress: TransmissionProgress) 
     
 }
+
 
 
 // Declaration and FfiConverters for ProgressWatcher Callback Interface
@@ -17926,6 +18176,7 @@ public protocol RecoveryStateListener : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for RecoveryStateListener Callback Interface
 
 fileprivate let uniffiCallbackHandlerRecoveryStateListener : ForeignCallback =
@@ -18015,6 +18266,7 @@ public protocol RoomInfoListener : AnyObject {
     func call(roomInfo: RoomInfo) 
     
 }
+
 
 
 // Declaration and FfiConverters for RoomInfoListener Callback Interface
@@ -18108,6 +18360,7 @@ public protocol RoomListEntriesListener : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for RoomListEntriesListener Callback Interface
 
 fileprivate let uniffiCallbackHandlerRoomListEntriesListener : ForeignCallback =
@@ -18197,6 +18450,7 @@ public protocol RoomListLoadingStateListener : AnyObject {
     func onUpdate(state: RoomListLoadingState) 
     
 }
+
 
 
 // Declaration and FfiConverters for RoomListLoadingStateListener Callback Interface
@@ -18290,6 +18544,7 @@ public protocol RoomListServiceStateListener : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for RoomListServiceStateListener Callback Interface
 
 fileprivate let uniffiCallbackHandlerRoomListServiceStateListener : ForeignCallback =
@@ -18381,6 +18636,7 @@ public protocol RoomListServiceSyncIndicatorListener : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for RoomListServiceSyncIndicatorListener Callback Interface
 
 fileprivate let uniffiCallbackHandlerRoomListServiceSyncIndicatorListener : ForeignCallback =
@@ -18470,6 +18726,7 @@ public protocol RoomNotableTagsListener : AnyObject {
     func call(notableTags: RoomNotableTags) 
     
 }
+
 
 
 // Declaration and FfiConverters for RoomNotableTagsListener Callback Interface
@@ -18571,6 +18828,7 @@ public protocol SessionVerificationControllerDelegate : AnyObject {
     func didFinish() 
     
 }
+
 
 
 // Declaration and FfiConverters for SessionVerificationControllerDelegate Callback Interface
@@ -18764,6 +19022,7 @@ public protocol SyncServiceStateObserver : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for SyncServiceStateObserver Callback Interface
 
 fileprivate let uniffiCallbackHandlerSyncServiceStateObserver : ForeignCallback =
@@ -18855,6 +19114,7 @@ public protocol TimelineListener : AnyObject {
 }
 
 
+
 // Declaration and FfiConverters for TimelineListener Callback Interface
 
 fileprivate let uniffiCallbackHandlerTimelineListener : ForeignCallback =
@@ -18939,11 +19199,104 @@ extension FfiConverterCallbackInterfaceTimelineListener : FfiConverter {
 
 
 
+public protocol TypingNotificationsListener : AnyObject {
+    
+    func call(typingUserIds: [String]) 
+    
+}
+
+
+
+// Declaration and FfiConverters for TypingNotificationsListener Callback Interface
+
+fileprivate let uniffiCallbackHandlerTypingNotificationsListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeCall(_ swiftCallbackInterface: TypingNotificationsListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            swiftCallbackInterface.call(
+                    typingUserIds:  try FfiConverterSequenceString.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceTypingNotificationsListener.handleMap.remove(handle: handle)
+            // Successful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            guard let cb = FfiConverterCallbackInterfaceTypingNotificationsListener.handleMap.get(handle: handle) else {
+                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeCall(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+private func uniffiCallbackInitTypingNotificationsListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_typingnotificationslistener(uniffiCallbackHandlerTypingNotificationsListener)
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceTypingNotificationsListener {
+    fileprivate static var handleMap = UniFFICallbackHandleMap<TypingNotificationsListener>()
+}
+
+extension FfiConverterCallbackInterfaceTypingNotificationsListener : FfiConverter {
+    typealias SwiftType = TypingNotificationsListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+
 public protocol WidgetCapabilitiesProvider : AnyObject {
     
     func acquireCapabilities(capabilities: WidgetCapabilities)  -> WidgetCapabilities
     
 }
+
 
 
 // Declaration and FfiConverters for WidgetCapabilitiesProvider Callback Interface
@@ -20430,6 +20783,28 @@ fileprivate struct FfiConverterSequenceTypeFilterTimelineEventType: FfiConverter
     }
 }
 
+fileprivate struct FfiConverterSequenceTypeRoomListEntriesDynamicFilterKind: FfiConverterRustBuffer {
+    typealias SwiftType = [RoomListEntriesDynamicFilterKind]
+
+    public static func write(_ value: [RoomListEntriesDynamicFilterKind], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRoomListEntriesDynamicFilterKind.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RoomListEntriesDynamicFilterKind] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RoomListEntriesDynamicFilterKind]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRoomListEntriesDynamicFilterKind.read(from: &buf))
+        }
+        return seq
+    }
+}
+
 fileprivate struct FfiConverterSequenceTypeRoomListEntriesUpdate: FfiConverterRustBuffer {
     typealias SwiftType = [RoomListEntriesUpdate]
 
@@ -20587,6 +20962,8 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
         return dict
     }
 }
+
+
 
 
 
@@ -21261,10 +21638,16 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 28555) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_apply_power_level_changes() != 41062) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 34637) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_ban_user() != 25865) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_build_power_level_changes_from_current() != 13995) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_ban() != 22009) {
@@ -21387,6 +21770,12 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 41146) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_favorite() != 61829) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_low_priority() != 47223) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 60145) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21399,6 +21788,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 47774) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_typing_notifications() != 10034) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 701) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21409,6 +21801,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_unban_user() != 51089) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_power_level_for_user() != 61757) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 34800) {
@@ -21867,6 +22262,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 9224) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_typingnotificationslistener_call() != 50844) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 43759) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21889,6 +22287,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitSessionVerificationControllerDelegate()
     uniffiCallbackInitSyncServiceStateObserver()
     uniffiCallbackInitTimelineListener()
+    uniffiCallbackInitTypingNotificationsListener()
     uniffiCallbackInitWidgetCapabilitiesProvider()
     return InitializationResult.ok
 }
