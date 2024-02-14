@@ -3534,24 +3534,12 @@ public protocol RoomProtocol : AnyObject {
     func leave() throws 
     
     /**
-     * Reverts a previously set unread flag.
+     * Mark a room as read, by attaching a read receipt on the latest event.
+     *
+     * Note: this does NOT unset the unread flag; it's the caller's
+     * responsibility to do so, if needs be.
      */
-    func markAsRead() async throws 
-    
-    /**
-     * Reverts a previously set unread flag and sends a read receipt to the
-     * latest event in the room. Sending read receipts is useful when
-     * executing this from the room list but shouldn't be use when entering
-     * the room, the timeline should be left to its own devices in that
-     * case.
-     */
-    func markAsReadAndSendReadReceipt(receiptType: ReceiptType) async throws 
-    
-    /**
-     * Sets a flag on the room to indicate that the user has explicitly marked
-     * it as unread
-     */
-    func markAsUnread() async throws 
+    func markAsRead(receiptType: ReceiptType) async throws 
     
     func member(userId: String) async throws  -> RoomMember
     
@@ -3602,7 +3590,7 @@ public protocol RoomProtocol : AnyObject {
     
     func roomInfo() async throws  -> RoomInfo
     
-    func setIsFavorite(isFavorite: Bool, tagOrder: Double?) async throws 
+    func setIsFavourite(isFavourite: Bool, tagOrder: Double?) async throws 
     
     func setIsLowPriority(isLowPriority: Bool, tagOrder: Double?) async throws 
     
@@ -3616,7 +3604,11 @@ public protocol RoomProtocol : AnyObject {
      */
     func setTopic(topic: String) throws 
     
-    func subscribeToNotableTags(listener: RoomNotableTagsListener)  -> TaskHandle
+    /**
+     * Set (or unset) a flag on the room to indicate that the user has
+     * explicitly marked it as unread.
+     */
+    func setUnreadFlag(newValue: Bool) async throws 
     
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle
     
@@ -4101,57 +4093,17 @@ public class Room:
 }
     }
     /**
-     * Reverts a previously set unread flag.
+     * Mark a room as read, by attaching a read receipt on the latest event.
+     *
+     * Note: this does NOT unset the unread flag; it's the caller's
+     * responsibility to do so, if needs be.
      */
-    public func markAsRead() async throws  {
+    public func markAsRead(receiptType: ReceiptType) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_mark_as_read(
-                    self.uniffiClonePointer()
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
-        )
-    }
-
-    
-    /**
-     * Reverts a previously set unread flag and sends a read receipt to the
-     * latest event in the room. Sending read receipts is useful when
-     * executing this from the room list but shouldn't be use when entering
-     * the room, the timeline should be left to its own devices in that
-     * case.
-     */
-    public func markAsReadAndSendReadReceipt(receiptType: ReceiptType) async throws  {
-        return try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_mark_as_read_and_send_read_receipt(
                     self.uniffiClonePointer(),
                     FfiConverterTypeReceiptType.lower(receiptType)
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
-        )
-    }
-
-    
-    /**
-     * Sets a flag on the room to indicate that the user has explicitly marked
-     * it as unread
-     */
-    public func markAsUnread() async throws  {
-        return try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_mark_as_unread(
-                    self.uniffiClonePointer()
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -4329,12 +4281,12 @@ public class Room:
     }
 
     
-    public func setIsFavorite(isFavorite: Bool, tagOrder: Double?) async throws  {
+    public func setIsFavourite(isFavourite: Bool, tagOrder: Double?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_set_is_favorite(
+                uniffi_matrix_sdk_ffi_fn_method_room_set_is_favourite(
                     self.uniffiClonePointer(),
-                    FfiConverterBool.lower(isFavorite),
+                    FfiConverterBool.lower(isFavourite),
                     FfiConverterOptionDouble.lower(tagOrder)
                 )
             },
@@ -4387,17 +4339,27 @@ public class Room:
     )
 }
     }
-    public func subscribeToNotableTags(listener: RoomNotableTagsListener)  -> TaskHandle {
-        return try!  FfiConverterTypeTaskHandle.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_notable_tags(self.uniffiClonePointer(), 
-        FfiConverterCallbackInterfaceRoomNotableTagsListener.lower(listener),$0
-    )
-}
+    /**
+     * Set (or unset) a flag on the room to indicate that the user has
+     * explicitly marked it as unread.
+     */
+    public func setUnreadFlag(newValue: Bool) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_set_unread_flag(
+                    self.uniffiClonePointer(),
+                    FfiConverterBool.lower(newValue)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
+
+    
     public func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
@@ -6667,6 +6629,16 @@ public protocol TimelineProtocol : AnyObject {
     func latestEvent() async  -> EventTimelineItem?
     
     /**
+     * Mark the room as read by trying to attach an *unthreaded* read receipt
+     * to the latest room event.
+     *
+     * This works even if the latest event belongs to a thread, as a threaded
+     * reply also belongs to the unthreaded timeline. No threaded receipt
+     * will be sent here (see also #3123).
+     */
+    func markAsRead(receiptType: ReceiptType) async throws 
+    
+    /**
      * Loads older messages into the timeline.
      *
      * Raises an exception if there are no timeline listeners.
@@ -6861,6 +6833,31 @@ public class Timeline:
             liftFunc: FfiConverterOptionTypeEventTimelineItem.lift,
             errorHandler: nil
             
+        )
+    }
+
+    
+    /**
+     * Mark the room as read by trying to attach an *unthreaded* read receipt
+     * to the latest room event.
+     *
+     * This works even if the latest event belongs to a thread, as a threaded
+     * reply also belongs to the unthreaded timeline. No threaded receipt
+     * will be sent here (see also #3123).
+     */
+    public func markAsRead(receiptType: ReceiptType) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_mark_as_read(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeReceiptType.lower(receiptType)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
 
@@ -10148,6 +10145,7 @@ public struct RoomInfo {
     public var isPublic: Bool
     public var isSpace: Bool
     public var isTombstoned: Bool
+    public var isFavourite: Bool
     public var canonicalAlias: String?
     public var alternativeAliases: [String]
     public var membership: Membership
@@ -10192,6 +10190,7 @@ public struct RoomInfo {
         isPublic: Bool, 
         isSpace: Bool, 
         isTombstoned: Bool, 
+        isFavourite: Bool, 
         canonicalAlias: String?, 
         alternativeAliases: [String], 
         membership: Membership, 
@@ -10232,6 +10231,7 @@ public struct RoomInfo {
         self.isPublic = isPublic
         self.isSpace = isSpace
         self.isTombstoned = isTombstoned
+        self.isFavourite = isFavourite
         self.canonicalAlias = canonicalAlias
         self.alternativeAliases = alternativeAliases
         self.membership = membership
@@ -10266,6 +10266,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
                 isPublic: FfiConverterBool.read(from: &buf), 
                 isSpace: FfiConverterBool.read(from: &buf), 
                 isTombstoned: FfiConverterBool.read(from: &buf), 
+                isFavourite: FfiConverterBool.read(from: &buf), 
                 canonicalAlias: FfiConverterOptionString.read(from: &buf), 
                 alternativeAliases: FfiConverterSequenceString.read(from: &buf), 
                 membership: FfiConverterTypeMembership.read(from: &buf), 
@@ -10295,6 +10296,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterBool.write(value.isPublic, into: &buf)
         FfiConverterBool.write(value.isSpace, into: &buf)
         FfiConverterBool.write(value.isTombstoned, into: &buf)
+        FfiConverterBool.write(value.isFavourite, into: &buf)
         FfiConverterOptionString.write(value.canonicalAlias, into: &buf)
         FfiConverterSequenceString.write(value.alternativeAliases, into: &buf)
         FfiConverterTypeMembership.write(value.membership, into: &buf)
@@ -18721,98 +18723,6 @@ extension FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener : Ff
 
 
 
-public protocol RoomNotableTagsListener : AnyObject {
-    
-    func call(notableTags: RoomNotableTags) 
-    
-}
-
-
-
-// Declaration and FfiConverters for RoomNotableTagsListener Callback Interface
-
-fileprivate let uniffiCallbackHandlerRoomNotableTagsListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeCall(_ swiftCallbackInterface: RoomNotableTagsListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.call(
-                    notableTags:  try FfiConverterTypeRoomNotableTags.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceRoomNotableTagsListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceRoomNotableTagsListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-            do {
-                return try invokeCall(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
-}
-
-private func uniffiCallbackInitRoomNotableTagsListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_roomnotabletagslistener(uniffiCallbackHandlerRoomNotableTagsListener)
-}
-
-// FfiConverter protocol for callback interfaces
-fileprivate struct FfiConverterCallbackInterfaceRoomNotableTagsListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<RoomNotableTagsListener>()
-}
-
-extension FfiConverterCallbackInterfaceRoomNotableTagsListener : FfiConverter {
-    typealias SwiftType = RoomNotableTagsListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
-
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
-        return try lift(handle)
-    }
-
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
-        return handleMap.insert(obj: v)
-    }
-
-    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
-        writeInt(&buf, lower(v))
-    }
-}
-
-
-
-
 public protocol SessionVerificationControllerDelegate : AnyObject {
     
     func didAcceptVerificationRequest() 
@@ -20970,8 +20880,6 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
 
 
 
-
-
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
@@ -21725,13 +21633,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 6569) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read() != 30321) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read_and_send_read_receipt() != 32673) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_unread() != 41204) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read() != 43726) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 10689) {
@@ -21770,7 +21672,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 41146) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_favorite() != 61829) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_favourite() != 41879) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_low_priority() != 47223) {
@@ -21782,7 +21684,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 29413) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_notable_tags() != 3691) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_unread_flag() != 35026) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 47774) {
@@ -22049,6 +21951,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_latest_event() != 11115) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_mark_as_read() != 15734) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 40762) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -22235,9 +22140,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicesyncindicatorlistener_on_update() != 42394) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomnotabletagslistener_call() != 33153) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_accept_verification_request() != 22759) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -22283,7 +22185,6 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitRoomListLoadingStateListener()
     uniffiCallbackInitRoomListServiceStateListener()
     uniffiCallbackInitRoomListServiceSyncIndicatorListener()
-    uniffiCallbackInitRoomNotableTagsListener()
     uniffiCallbackInitSessionVerificationControllerDelegate()
     uniffiCallbackInitSyncServiceStateObserver()
     uniffiCallbackInitTimelineListener()

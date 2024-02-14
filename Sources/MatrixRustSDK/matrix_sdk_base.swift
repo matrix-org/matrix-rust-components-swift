@@ -297,27 +297,6 @@ private func uniffiCheckCallStatus(
 // Public interface members begin here.
 
 
-fileprivate struct FfiConverterBool : FfiConverter {
-    typealias FfiType = Int8
-    typealias SwiftType = Bool
-
-    public static func lift(_ value: Int8) throws -> Bool {
-        return value != 0
-    }
-
-    public static func lower(_ value: Bool) -> Int8 {
-        return value ? 1 : 0
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
-        return try lift(readInt(&buf))
-    }
-
-    public static func write(_ value: Bool, into buf: inout [UInt8]) {
-        writeInt(&buf, lower(value))
-    }
-}
-
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -354,79 +333,6 @@ fileprivate struct FfiConverterString: FfiConverter {
         writeInt(&buf, len)
         writeBytes(&buf, value.utf8)
     }
-}
-
-
-/**
- * Holds information computed from the room account data `m.tag` events.
- */
-public struct RoomNotableTags {
-    /**
-     * Whether or not the room is marked as favorite.
-     */
-    public var isFavorite: Bool
-    /**
-     * Whether or not the room is marked as low priority.
-     */
-    public var isLowPriority: Bool
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(
-        /**
-         * Whether or not the room is marked as favorite.
-         */
-        isFavorite: Bool, 
-        /**
-         * Whether or not the room is marked as low priority.
-         */
-        isLowPriority: Bool) {
-        self.isFavorite = isFavorite
-        self.isLowPriority = isLowPriority
-    }
-}
-
-
-extension RoomNotableTags: Equatable, Hashable {
-    public static func ==(lhs: RoomNotableTags, rhs: RoomNotableTags) -> Bool {
-        if lhs.isFavorite != rhs.isFavorite {
-            return false
-        }
-        if lhs.isLowPriority != rhs.isLowPriority {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(isFavorite)
-        hasher.combine(isLowPriority)
-    }
-}
-
-
-public struct FfiConverterTypeRoomNotableTags: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomNotableTags {
-        return
-            try RoomNotableTags(
-                isFavorite: FfiConverterBool.read(from: &buf), 
-                isLowPriority: FfiConverterBool.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: RoomNotableTags, into buf: inout [UInt8]) {
-        FfiConverterBool.write(value.isFavorite, into: &buf)
-        FfiConverterBool.write(value.isLowPriority, into: &buf)
-    }
-}
-
-
-public func FfiConverterTypeRoomNotableTags_lift(_ buf: RustBuffer) throws -> RoomNotableTags {
-    return try FfiConverterTypeRoomNotableTags.lift(buf)
-}
-
-public func FfiConverterTypeRoomNotableTags_lower(_ value: RoomNotableTags) -> RustBuffer {
-    return FfiConverterTypeRoomNotableTags.lower(value)
 }
 
 private enum InitializationResult {
