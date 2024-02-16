@@ -536,12 +536,13 @@ public class AuthenticationService:
     /**
      * Creates a new service to authenticate a user with.
      */
-    public convenience init(basePath: String, passphrase: String?, userAgent: String?, oidcConfiguration: OidcConfiguration?, customSlidingSyncProxy: String?, sessionDelegate: ClientSessionDelegate?, crossProcessRefreshLockId: String?)  {
+    public convenience init(basePath: String, passphrase: String?, userAgent: String?, additionalRootCertificates: [Data], oidcConfiguration: OidcConfiguration?, customSlidingSyncProxy: String?, sessionDelegate: ClientSessionDelegate?, crossProcessRefreshLockId: String?)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_authenticationservice_new(
         FfiConverterString.lower(basePath),
         FfiConverterOptionString.lower(passphrase),
         FfiConverterOptionString.lower(userAgent),
+        FfiConverterSequenceData.lower(additionalRootCertificates),
         FfiConverterOptionTypeOidcConfiguration.lower(oidcConfiguration),
         FfiConverterOptionString.lower(customSlidingSyncProxy),
         FfiConverterOptionCallbackInterfaceClientSessionDelegate.lower(sessionDelegate),
@@ -1229,6 +1230,8 @@ public func FfiConverterTypeClient_lower(_ value: Client) -> UnsafeMutableRawPoi
 
 public protocol ClientBuilderProtocol : AnyObject {
     
+    func addRootCertificates(certificates: [Data])  -> ClientBuilder
+    
     func basePath(path: String)  -> ClientBuilder
     
     func build() throws  -> Client
@@ -1287,6 +1290,17 @@ public class ClientBuilder:
 
     
     
+    public func addRootCertificates(certificates: [Data])  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_add_root_certificates(self.uniffiClonePointer(), 
+        FfiConverterSequenceData.lower(certificates),$0
+    )
+}
+        )
+    }
     public func basePath(path: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
@@ -14216,7 +14230,9 @@ public enum OtherState {
         name: String?
     )
     case roomPinnedEvents
-    case roomPowerLevels
+    case roomPowerLevels(
+        users: [String: Int64]
+    )
     case roomServerAcl
     case roomThirdPartyInvite(
         displayName: String?
@@ -14269,7 +14285,9 @@ public struct FfiConverterTypeOtherState: FfiConverterRustBuffer {
         
         case 13: return .roomPinnedEvents
         
-        case 14: return .roomPowerLevels
+        case 14: return .roomPowerLevels(
+            users: try FfiConverterDictionaryStringInt64.read(from: &buf)
+        )
         
         case 15: return .roomServerAcl
         
@@ -14353,9 +14371,10 @@ public struct FfiConverterTypeOtherState: FfiConverterRustBuffer {
             writeInt(&buf, Int32(13))
         
         
-        case .roomPowerLevels:
+        case let .roomPowerLevels(users):
             writeInt(&buf, Int32(14))
-        
+            FfiConverterDictionaryStringInt64.write(users, into: &buf)
+            
         
         case .roomServerAcl:
             writeInt(&buf, Int32(15))
@@ -20429,6 +20448,28 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterSequenceData: FfiConverterRustBuffer {
+    typealias SwiftType = [Data]
+
+    public static func write(_ value: [Data], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterData.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Data] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Data]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterData.read(from: &buf))
+        }
+        return seq
+    }
+}
+
 fileprivate struct FfiConverterSequenceTypeRoom: FfiConverterRustBuffer {
     typealias SwiftType = [Room]
 
@@ -20804,6 +20845,29 @@ fileprivate struct FfiConverterDictionaryStringInt32: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterDictionaryStringInt64: FfiConverterRustBuffer {
+    public static func write(_ value: [String: Int64], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterString.write(key, into: &buf)
+            FfiConverterInt64.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: Int64] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [String: Int64]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterString.read(from: &buf)
+            let value = try FfiConverterInt64.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
 fileprivate struct FfiConverterDictionaryStringString: FfiConverterRustBuffer {
     public static func write(_ value: [String: String], into buf: inout [UInt8]) {
         let len = Int32(value.count)
@@ -21122,6 +21186,14 @@ public func setupTracing(config: TracingConfiguration)  {
 }
 
 
+public func suggestedRoleForPowerLevel(powerLevel: Int64)  -> RoomMemberRole {
+    return try!  FfiConverterTypeRoomMemberRole_lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_suggested_role_for_power_level(
+        FfiConverterInt64.lower(powerLevel),$0)
+}
+    )
+}
 
 private enum InitializationResult {
     case ok
@@ -21181,6 +21253,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 35378) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_func_suggested_role_for_power_level() != 21984) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_to_json() != 2998) {
@@ -21307,6 +21382,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 40531) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_add_root_certificates() != 57950) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 40888) {
@@ -22074,7 +22152,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 62542) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 1456) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 61043) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 43131) {
