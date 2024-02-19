@@ -15255,6 +15255,7 @@ public enum RoomListEntriesDynamicFilterKind {
     )
     case nonLeft
     case unread
+    case favourite
     case category(
         expect: RoomListFilterCategory
     )
@@ -15286,17 +15287,19 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
         
         case 4: return .unread
         
-        case 5: return .category(
+        case 5: return .favourite
+        
+        case 6: return .category(
             expect: try FfiConverterTypeRoomListFilterCategory.read(from: &buf)
         )
         
-        case 6: return .none
+        case 7: return .none
         
-        case 7: return .normalizedMatchRoomName(
+        case 8: return .normalizedMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
-        case 8: return .fuzzyMatchRoomName(
+        case 9: return .fuzzyMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
@@ -15326,22 +15329,26 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
             writeInt(&buf, Int32(4))
         
         
-        case let .category(expect):
+        case .favourite:
             writeInt(&buf, Int32(5))
+        
+        
+        case let .category(expect):
+            writeInt(&buf, Int32(6))
             FfiConverterTypeRoomListFilterCategory.write(expect, into: &buf)
             
         
         case .none:
-            writeInt(&buf, Int32(6))
+            writeInt(&buf, Int32(7))
         
         
         case let .normalizedMatchRoomName(pattern):
-            writeInt(&buf, Int32(7))
+            writeInt(&buf, Int32(8))
             FfiConverterString.write(pattern, into: &buf)
             
         
         case let .fuzzyMatchRoomName(pattern):
-            writeInt(&buf, Int32(8))
+            writeInt(&buf, Int32(9))
             FfiConverterString.write(pattern, into: &buf)
             
         }
