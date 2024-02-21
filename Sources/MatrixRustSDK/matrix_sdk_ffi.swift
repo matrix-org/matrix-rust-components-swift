@@ -536,13 +536,14 @@ public class AuthenticationService:
     /**
      * Creates a new service to authenticate a user with.
      */
-    public convenience init(basePath: String, passphrase: String?, userAgent: String?, additionalRootCertificates: [Data], oidcConfiguration: OidcConfiguration?, customSlidingSyncProxy: String?, sessionDelegate: ClientSessionDelegate?, crossProcessRefreshLockId: String?)  {
+    public convenience init(basePath: String, passphrase: String?, userAgent: String?, additionalRootCertificates: [Data], proxy: String?, oidcConfiguration: OidcConfiguration?, customSlidingSyncProxy: String?, sessionDelegate: ClientSessionDelegate?, crossProcessRefreshLockId: String?)  {
         self.init(unsafeFromRawPointer: try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_authenticationservice_new(
         FfiConverterString.lower(basePath),
         FfiConverterOptionString.lower(passphrase),
         FfiConverterOptionString.lower(userAgent),
         FfiConverterSequenceData.lower(additionalRootCertificates),
+        FfiConverterOptionString.lower(proxy),
         FfiConverterOptionTypeOidcConfiguration.lower(oidcConfiguration),
         FfiConverterOptionString.lower(customSlidingSyncProxy),
         FfiConverterOptionCallbackInterfaceClientSessionDelegate.lower(sessionDelegate),
@@ -713,7 +714,9 @@ public protocol ClientProtocol : AnyObject {
      */
     func homeserver()  -> String
     
-    func ignoreUser(userId: String) throws 
+    func ignoreUser(userId: String) async throws 
+    
+    func ignoredUsers() async throws  -> [String]
     
     /**
      * Login using a username and password.
@@ -758,9 +761,11 @@ public protocol ClientProtocol : AnyObject {
      */
     func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) throws 
     
+    func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle
+    
     func syncService()  -> SyncServiceBuilder
     
-    func unignoreUser(userId: String) throws 
+    func unignoreUser(userId: String) async throws 
     
     func uploadAvatar(mimeType: String, data: Data) throws 
     
@@ -984,14 +989,39 @@ public class Client:
 }
         )
     }
-    public func ignoreUser(userId: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_ignore_user(self.uniffiClonePointer(), 
-        FfiConverterString.lower(userId),$0
-    )
-}
+    public func ignoreUser(userId: String) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_ignore_user(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
+
+    
+    public func ignoredUsers() async throws  -> [String] {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_ignored_users(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     /**
      * Login using a username and password.
      */
@@ -1127,6 +1157,17 @@ public class Client:
     )
 }
     }
+    public func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_client_subscribe_to_ignored_users(self.uniffiClonePointer(), 
+        FfiConverterCallbackInterfaceIgnoredUsersListener.lower(listener),$0
+    )
+}
+        )
+    }
     public func syncService()  -> SyncServiceBuilder {
         return try!  FfiConverterTypeSyncServiceBuilder.lift(
             try! 
@@ -1137,14 +1178,23 @@ public class Client:
 }
         )
     }
-    public func unignoreUser(userId: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_unignore_user(self.uniffiClonePointer(), 
-        FfiConverterString.lower(userId),$0
-    )
-}
+    public func unignoreUser(userId: String) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_unignore_user(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
+
+    
     public func uploadAvatar(mimeType: String, data: Data) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -1250,6 +1300,8 @@ public protocol ClientBuilderProtocol : AnyObject {
     
     func serverName(serverName: String)  -> ClientBuilder
     
+    func serverNameOrHomeserverUrl(serverNameOrUrl: String)  -> ClientBuilder
+    
     func serverVersions(versions: [String])  -> ClientBuilder
     
     func setSessionDelegate(sessionDelegate: ClientSessionDelegate)  -> ClientBuilder
@@ -1315,7 +1367,7 @@ public class ClientBuilder:
     public func build() throws  -> Client {
         return try  FfiConverterTypeClient.lift(
             try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
+    rustCallWithError(FfiConverterTypeClientBuildError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_clientbuilder_build(self.uniffiClonePointer(), $0
     )
 }
@@ -1393,6 +1445,17 @@ public class ClientBuilder:
     
     uniffi_matrix_sdk_ffi_fn_method_clientbuilder_server_name(self.uniffiClonePointer(), 
         FfiConverterString.lower(serverName),$0
+    )
+}
+        )
+    }
+    public func serverNameOrHomeserverUrl(serverNameOrUrl: String)  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_server_name_or_homeserver_url(self.uniffiClonePointer(), 
+        FfiConverterString.lower(serverNameOrUrl),$0
     )
 }
         )
@@ -3494,6 +3557,17 @@ public protocol RoomProtocol : AnyObject {
     
     func canonicalAlias()  -> String?
     
+    /**
+     * Forces the currently active room key, which is used to encrypt messages,
+     * to be rotated.
+     *
+     * A new room key will be crated and shared with all the room members the
+     * next time a message will be sent. You don't have to call this method,
+     * room keys will be rotated automatically when necessary. This method is
+     * still useful for debugging purposes.
+     */
+    func discardRoomKey() async throws 
+    
     func displayName() throws  -> String
     
     /**
@@ -3509,9 +3583,9 @@ public protocol RoomProtocol : AnyObject {
      *
      * # Arguments
      *
-     * * `event_id` - The ID of the user to ignore.
+     * * `user_id` - The ID of the user to ignore.
      */
-    func ignoreUser(userId: String) throws 
+    func ignoreUser(userId: String) async throws 
     
     func inviteUserById(userId: String) throws 
     
@@ -3626,7 +3700,7 @@ public protocol RoomProtocol : AnyObject {
     
     func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle
     
-    func subscribeToTypingNotifications(listener: TypingNotificationsListener) async  -> TaskHandle
+    func subscribeToTypingNotifications(listener: TypingNotificationsListener)  -> TaskHandle
     
     func timeline() async throws  -> Timeline
     
@@ -3929,6 +4003,31 @@ public class Room:
 }
         )
     }
+    /**
+     * Forces the currently active room key, which is used to encrypt messages,
+     * to be rotated.
+     *
+     * A new room key will be crated and shared with all the room members the
+     * next time a message will be sent. You don't have to call this method,
+     * room keys will be rotated automatically when necessary. This method is
+     * still useful for debugging purposes.
+     */
+    public func discardRoomKey() async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_discard_room_key(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     public func displayName() throws  -> String {
         return try  FfiConverterString.lift(
             try 
@@ -3967,16 +4066,25 @@ public class Room:
      *
      * # Arguments
      *
-     * * `event_id` - The ID of the user to ignore.
+     * * `user_id` - The ID of the user to ignore.
      */
-    public func ignoreUser(userId: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_room_ignore_user(self.uniffiClonePointer(), 
-        FfiConverterString.lower(userId),$0
-    )
-}
+    public func ignoreUser(userId: String) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_ignore_user(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
+
+    
     public func inviteUserById(userId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -4385,24 +4493,17 @@ public class Room:
 }
         )
     }
-    public func subscribeToTypingNotifications(listener: TypingNotificationsListener) async  -> TaskHandle {
-        return try!  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_typing_notifications(
-                    self.uniffiClonePointer(),
-                    FfiConverterCallbackInterfaceTypingNotificationsListener.lower(listener)
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
-            liftFunc: FfiConverterTypeTaskHandle.lift,
-            errorHandler: nil
-            
+    public func subscribeToTypingNotifications(listener: TypingNotificationsListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_room_subscribe_to_typing_notifications(self.uniffiClonePointer(), 
+        FfiConverterCallbackInterfaceTypingNotificationsListener.lower(listener),$0
+    )
+}
         )
     }
-
-    
     public func timeline() async throws  -> Timeline {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -12214,6 +12315,12 @@ public enum AuthenticationError {
     
     case InvalidServerName(message: String)
     
+    case ServerUnreachable(message: String)
+    
+    case WellKnownLookupFailed(message: String)
+    
+    case WellKnownDeserializationError(message: String)
+    
     case SlidingSyncNotAvailable(message: String)
     
     case SessionMissing(message: String)
@@ -12259,43 +12366,55 @@ public struct FfiConverterTypeAuthenticationError: FfiConverterRustBuffer {
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 3: return .SlidingSyncNotAvailable(
+        case 3: return .ServerUnreachable(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 4: return .SessionMissing(
+        case 4: return .WellKnownLookupFailed(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 5: return .InvalidBasePath(
+        case 5: return .WellKnownDeserializationError(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 6: return .OidcNotSupported(
+        case 6: return .SlidingSyncNotAvailable(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 7: return .OidcMetadataMissing(
+        case 7: return .SessionMissing(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 8: return .OidcMetadataInvalid(
+        case 8: return .InvalidBasePath(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 9: return .OidcCallbackUrlInvalid(
+        case 9: return .OidcNotSupported(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 10: return .OidcCancelled(
+        case 10: return .OidcMetadataMissing(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 11: return .OidcError(
+        case 11: return .OidcMetadataInvalid(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 12: return .Generic(
+        case 12: return .OidcCallbackUrlInvalid(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 13: return .OidcCancelled(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 14: return .OidcError(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 15: return .Generic(
             message: try FfiConverterString.read(from: &buf)
         )
         
@@ -12314,26 +12433,32 @@ public struct FfiConverterTypeAuthenticationError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         case .InvalidServerName(_ /* message is ignored*/):
             writeInt(&buf, Int32(2))
-        case .SlidingSyncNotAvailable(_ /* message is ignored*/):
+        case .ServerUnreachable(_ /* message is ignored*/):
             writeInt(&buf, Int32(3))
-        case .SessionMissing(_ /* message is ignored*/):
+        case .WellKnownLookupFailed(_ /* message is ignored*/):
             writeInt(&buf, Int32(4))
-        case .InvalidBasePath(_ /* message is ignored*/):
+        case .WellKnownDeserializationError(_ /* message is ignored*/):
             writeInt(&buf, Int32(5))
-        case .OidcNotSupported(_ /* message is ignored*/):
+        case .SlidingSyncNotAvailable(_ /* message is ignored*/):
             writeInt(&buf, Int32(6))
-        case .OidcMetadataMissing(_ /* message is ignored*/):
+        case .SessionMissing(_ /* message is ignored*/):
             writeInt(&buf, Int32(7))
-        case .OidcMetadataInvalid(_ /* message is ignored*/):
+        case .InvalidBasePath(_ /* message is ignored*/):
             writeInt(&buf, Int32(8))
-        case .OidcCallbackUrlInvalid(_ /* message is ignored*/):
+        case .OidcNotSupported(_ /* message is ignored*/):
             writeInt(&buf, Int32(9))
-        case .OidcCancelled(_ /* message is ignored*/):
+        case .OidcMetadataMissing(_ /* message is ignored*/):
             writeInt(&buf, Int32(10))
-        case .OidcError(_ /* message is ignored*/):
+        case .OidcMetadataInvalid(_ /* message is ignored*/):
             writeInt(&buf, Int32(11))
-        case .Generic(_ /* message is ignored*/):
+        case .OidcCallbackUrlInvalid(_ /* message is ignored*/):
             writeInt(&buf, Int32(12))
+        case .OidcCancelled(_ /* message is ignored*/):
+            writeInt(&buf, Int32(13))
+        case .OidcError(_ /* message is ignored*/):
+            writeInt(&buf, Int32(14))
+        case .Generic(_ /* message is ignored*/):
+            writeInt(&buf, Int32(15))
 
         
         }
@@ -12505,6 +12630,66 @@ public func FfiConverterTypeBackupUploadState_lower(_ value: BackupUploadState) 
 extension BackupUploadState: Equatable, Hashable {}
 
 
+
+
+public enum ClientBuildError {
+
+    
+    
+    case Sdk(message: String)
+    
+    case Generic(message: String)
+    
+
+    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
+        return try FfiConverterTypeClientBuildError.lift(error)
+    }
+}
+
+
+public struct FfiConverterTypeClientBuildError: FfiConverterRustBuffer {
+    typealias SwiftType = ClientBuildError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ClientBuildError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .Sdk(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .Generic(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ClientBuildError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        case .Sdk(_ /* message is ignored*/):
+            writeInt(&buf, Int32(1))
+        case .Generic(_ /* message is ignored*/):
+            writeInt(&buf, Int32(2))
+
+        
+        }
+    }
+}
+
+
+extension ClientBuildError: Equatable, Hashable {}
+
+extension ClientBuildError: Error { }
 
 
 public enum ClientError {
@@ -18012,6 +18197,98 @@ extension FfiConverterCallbackInterfaceEnableRecoveryProgressListener : FfiConve
 
 
 
+public protocol IgnoredUsersListener : AnyObject {
+    
+    func call(ignoredUserIds: [String]) 
+    
+}
+
+
+
+// Declaration and FfiConverters for IgnoredUsersListener Callback Interface
+
+fileprivate let uniffiCallbackHandlerIgnoredUsersListener : ForeignCallback =
+    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
+    
+
+    func invokeCall(_ swiftCallbackInterface: IgnoredUsersListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
+        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
+        func makeCall() throws -> Int32 {
+            swiftCallbackInterface.call(
+                    ignoredUserIds:  try FfiConverterSequenceString.read(from: &reader)
+                    )
+            return UNIFFI_CALLBACK_SUCCESS
+        }
+        return try makeCall()
+    }
+
+
+    switch method {
+        case IDX_CALLBACK_FREE:
+            FfiConverterCallbackInterfaceIgnoredUsersListener.handleMap.remove(handle: handle)
+            // Successful return
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_SUCCESS
+        case 1:
+            guard let cb = FfiConverterCallbackInterfaceIgnoredUsersListener.handleMap.get(handle: handle) else {
+                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+            do {
+                return try invokeCall(cb, argsData, argsLen, out_buf)
+            } catch let error {
+                out_buf.pointee = FfiConverterString.lower(String(describing: error))
+                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+            }
+        
+        // This should never happen, because an out of bounds method index won't
+        // ever be used. Once we can catch errors, we should return an InternalError.
+        // https://github.com/mozilla/uniffi-rs/issues/351
+        default:
+            // An unexpected error happened.
+            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
+            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+    }
+}
+
+private func uniffiCallbackInitIgnoredUsersListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_ignoreduserslistener(uniffiCallbackHandlerIgnoredUsersListener)
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceIgnoredUsersListener {
+    fileprivate static var handleMap = UniFFICallbackHandleMap<IgnoredUsersListener>()
+}
+
+extension FfiConverterCallbackInterfaceIgnoredUsersListener : FfiConverter {
+    typealias SwiftType = IgnoredUsersListener
+    // We can use Handle as the FfiType because it's a typealias to UInt64
+    typealias FfiType = UniFFICallbackHandle
+
+    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
+        guard let callback = handleMap.get(handle: handle) else {
+            throw UniffiInternalError.unexpectedStaleHandle
+        }
+        return callback
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UniFFICallbackHandle = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+
 /**
  * Delegate to notify of changes in push rules
  */
@@ -21337,7 +21614,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver() != 26427) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 14308) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 55157) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignored_users() != 49620) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 55564) {
@@ -21376,10 +21656,13 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 36816) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_ignored_users() != 46021) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_sync_service() != 52812) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 11337) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 9349) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 10403) {
@@ -21397,7 +21680,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 40888) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 25537) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 22728) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_automatic_token_refresh() != 43839) {
@@ -21419,6 +21702,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 63110) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name_or_homeserver_url() != 22597) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_versions() != 36178) {
@@ -21670,6 +21956,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 19786) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_discard_room_key() != 18081) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 39695) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -21679,7 +21968,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 61990) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 3287) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 50971) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_invite_user_by_id() != 483) {
@@ -21775,7 +22064,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 47774) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_typing_notifications() != 10034) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_typing_notifications() != 24633) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 701) {
@@ -22159,7 +22448,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 62542) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 61043) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_authenticationservice_new() != 249) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 43131) {
@@ -22199,6 +22488,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_enablerecoveryprogresslistener_on_update() != 30049) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_ignoreduserslistener_call() != 22029) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 51708) {
@@ -22262,6 +22554,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitClientDelegate()
     uniffiCallbackInitClientSessionDelegate()
     uniffiCallbackInitEnableRecoveryProgressListener()
+    uniffiCallbackInitIgnoredUsersListener()
     uniffiCallbackInitNotificationSettingsDelegate()
     uniffiCallbackInitProgressWatcher()
     uniffiCallbackInitRecoveryStateListener()
