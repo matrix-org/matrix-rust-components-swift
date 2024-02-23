@@ -11257,14 +11257,20 @@ public func FfiConverterTypeTracingConfiguration_lower(_ value: TracingConfigura
 public struct TracingFileConfiguration {
     public var path: String
     public var filePrefix: String
+    public var fileSuffix: String?
+    public var maxFiles: UInt64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(
         path: String, 
-        filePrefix: String) {
+        filePrefix: String, 
+        fileSuffix: String?, 
+        maxFiles: UInt64?) {
         self.path = path
         self.filePrefix = filePrefix
+        self.fileSuffix = fileSuffix
+        self.maxFiles = maxFiles
     }
 }
 
@@ -11277,12 +11283,20 @@ extension TracingFileConfiguration: Equatable, Hashable {
         if lhs.filePrefix != rhs.filePrefix {
             return false
         }
+        if lhs.fileSuffix != rhs.fileSuffix {
+            return false
+        }
+        if lhs.maxFiles != rhs.maxFiles {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(path)
         hasher.combine(filePrefix)
+        hasher.combine(fileSuffix)
+        hasher.combine(maxFiles)
     }
 }
 
@@ -11292,13 +11306,17 @@ public struct FfiConverterTypeTracingFileConfiguration: FfiConverterRustBuffer {
         return
             try TracingFileConfiguration(
                 path: FfiConverterString.read(from: &buf), 
-                filePrefix: FfiConverterString.read(from: &buf)
+                filePrefix: FfiConverterString.read(from: &buf), 
+                fileSuffix: FfiConverterOptionString.read(from: &buf), 
+                maxFiles: FfiConverterOptionUInt64.read(from: &buf)
         )
     }
 
     public static func write(_ value: TracingFileConfiguration, into buf: inout [UInt8]) {
         FfiConverterString.write(value.path, into: &buf)
         FfiConverterString.write(value.filePrefix, into: &buf)
+        FfiConverterOptionString.write(value.fileSuffix, into: &buf)
+        FfiConverterOptionUInt64.write(value.maxFiles, into: &buf)
     }
 }
 
@@ -15811,6 +15829,9 @@ public enum RoomListError {
     case InitializingTimeline(
         error: String
     )
+    case EventCache(
+        error: String
+    )
 
     fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
         return try FfiConverterTypeRoomListError.lift(error)
@@ -15848,6 +15869,9 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
             roomName: try FfiConverterString.read(from: &buf)
             )
         case 8: return .InitializingTimeline(
+            error: try FfiConverterString.read(from: &buf)
+            )
+        case 9: return .EventCache(
             error: try FfiConverterString.read(from: &buf)
             )
 
@@ -15898,6 +15922,11 @@ public struct FfiConverterTypeRoomListError: FfiConverterRustBuffer {
         
         case let .InitializingTimeline(error):
             writeInt(&buf, Int32(8))
+            FfiConverterString.write(error, into: &buf)
+            
+        
+        case let .EventCache(error):
+            writeInt(&buf, Int32(9))
             FfiConverterString.write(error, into: &buf)
             
         }
