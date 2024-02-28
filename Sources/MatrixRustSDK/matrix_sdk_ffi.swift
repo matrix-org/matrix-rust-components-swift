@@ -3702,6 +3702,8 @@ public protocol RoomProtocol : AnyObject {
     
     func subscribeToTypingNotifications(listener: TypingNotificationsListener)  -> TaskHandle
     
+    func suggestedRoleForUser(userId: String) async throws  -> RoomMemberRole
+    
     func timeline() async throws  -> Timeline
     
     func topic()  -> String?
@@ -4504,6 +4506,23 @@ public class Room:
 }
         )
     }
+    public func suggestedRoleForUser(userId: String) async throws  -> RoomMemberRole {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_suggested_role_for_user(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomMemberRole_lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     public func timeline() async throws  -> Timeline {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -10269,6 +10288,7 @@ public struct RoomInfo {
     public var activeMembersCount: UInt64
     public var invitedMembersCount: UInt64
     public var joinedMembersCount: UInt64
+    public var userPowerLevels: [String: Int64]
     public var highlightCount: UInt64
     public var notificationCount: UInt64
     public var userDefinedNotificationMode: RoomNotificationMode?
@@ -10314,6 +10334,7 @@ public struct RoomInfo {
         activeMembersCount: UInt64, 
         invitedMembersCount: UInt64, 
         joinedMembersCount: UInt64, 
+        userPowerLevels: [String: Int64], 
         highlightCount: UInt64, 
         notificationCount: UInt64, 
         userDefinedNotificationMode: RoomNotificationMode?, 
@@ -10355,6 +10376,7 @@ public struct RoomInfo {
         self.activeMembersCount = activeMembersCount
         self.invitedMembersCount = invitedMembersCount
         self.joinedMembersCount = joinedMembersCount
+        self.userPowerLevels = userPowerLevels
         self.highlightCount = highlightCount
         self.notificationCount = notificationCount
         self.userDefinedNotificationMode = userDefinedNotificationMode
@@ -10390,6 +10412,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
                 activeMembersCount: FfiConverterUInt64.read(from: &buf), 
                 invitedMembersCount: FfiConverterUInt64.read(from: &buf), 
                 joinedMembersCount: FfiConverterUInt64.read(from: &buf), 
+                userPowerLevels: FfiConverterDictionaryStringInt64.read(from: &buf), 
                 highlightCount: FfiConverterUInt64.read(from: &buf), 
                 notificationCount: FfiConverterUInt64.read(from: &buf), 
                 userDefinedNotificationMode: FfiConverterOptionTypeRoomNotificationMode.read(from: &buf), 
@@ -10420,6 +10443,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.activeMembersCount, into: &buf)
         FfiConverterUInt64.write(value.invitedMembersCount, into: &buf)
         FfiConverterUInt64.write(value.joinedMembersCount, into: &buf)
+        FfiConverterDictionaryStringInt64.write(value.userPowerLevels, into: &buf)
         FfiConverterUInt64.write(value.highlightCount, into: &buf)
         FfiConverterUInt64.write(value.notificationCount, into: &buf)
         FfiConverterOptionTypeRoomNotificationMode.write(value.userDefinedNotificationMode, into: &buf)
@@ -21499,6 +21523,14 @@ public func setupTracing(config: TracingConfiguration)  {
 }
 
 
+public func suggestedPowerLevelForRole(role: RoomMemberRole)  -> Int64 {
+    return try!  FfiConverterInt64.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_suggested_power_level_for_role(
+        FfiConverterTypeRoomMemberRole_lower(role),$0)
+}
+    )
+}
 public func suggestedRoleForPowerLevel(powerLevel: Int64)  -> RoomMemberRole {
     return try!  FfiConverterTypeRoomMemberRole_lift(
         try! rustCall() {
@@ -21566,6 +21598,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_setup_tracing() != 35378) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_func_suggested_power_level_for_role() != 15784) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_suggested_role_for_power_level() != 21984) {
@@ -22094,6 +22129,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_typing_notifications() != 24633) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_suggested_role_for_user() != 37402) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 701) {
