@@ -220,9 +220,17 @@ fileprivate enum UniffiInternalError: LocalizedError {
     }
 }
 
+fileprivate extension NSLock {
+    func withLock<T>(f: () throws -> T) rethrows -> T {
+        self.lock()
+        defer { self.unlock() }
+        return try f()
+    }
+}
+
 fileprivate let CALL_SUCCESS: Int8 = 0
 fileprivate let CALL_ERROR: Int8 = 1
-fileprivate let CALL_PANIC: Int8 = 2
+fileprivate let CALL_UNEXPECTED_ERROR: Int8 = 2
 fileprivate let CALL_CANCELLED: Int8 = 3
 
 fileprivate extension RustCallStatus {
@@ -275,7 +283,7 @@ private func uniffiCheckCallStatus(
                 throw UniffiInternalError.unexpectedRustCallError
             }
 
-        case CALL_PANIC:
+        case CALL_UNEXPECTED_ERROR:
             // When the rust code sees a panic, it tries to construct a RustBuffer
             // with the message.  But if that code panics, then it just sends back
             // an empty buffer.
@@ -293,6 +301,70 @@ private func uniffiCheckCallStatus(
             throw UniffiInternalError.unexpectedRustCallStatusCode
     }
 }
+
+private func uniffiTraitInterfaceCall<T>(
+    callStatus: UnsafeMutablePointer<RustCallStatus>,
+    makeCall: () throws -> T,
+    writeReturn: (T) -> ()
+) {
+    do {
+        try writeReturn(makeCall())
+    } catch let error {
+        callStatus.pointee.code = CALL_UNEXPECTED_ERROR
+        callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
+    }
+}
+
+private func uniffiTraitInterfaceCallWithError<T, E>(
+    callStatus: UnsafeMutablePointer<RustCallStatus>,
+    makeCall: () throws -> T,
+    writeReturn: (T) -> (),
+    lowerError: (E) -> RustBuffer
+) {
+    do {
+        try writeReturn(makeCall())
+    } catch let error as E {
+        callStatus.pointee.code = CALL_ERROR
+        callStatus.pointee.errorBuf = lowerError(error)
+    } catch {
+        callStatus.pointee.code = CALL_UNEXPECTED_ERROR
+        callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
+    }
+}
+fileprivate class UniffiHandleMap<T> {
+    private var map: [UInt64: T] = [:]
+    private let lock = NSLock()
+    private var currentHandle: UInt64 = 1
+
+    func insert(obj: T) -> UInt64 {
+        lock.withLock {
+            let handle = currentHandle
+            currentHandle += 1
+            map[handle] = obj
+            return handle
+        }
+    }
+
+     func get(handle: UInt64) throws -> T {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return obj
+        }
+    }
+
+    @discardableResult
+    func remove(handle: UInt64) throws -> T {
+        try lock.withLock {
+            guard let obj = map.removeValue(forKey: handle) else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return obj
+        }
+    }
+}
+
 
 // Public interface members begin here.
 
@@ -344,7 +416,7 @@ private enum InitializationResult {
 // the code inside is only computed once.
 private var initializationResult: InitializationResult {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 25
+    let bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_matrix_sdk_base_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {

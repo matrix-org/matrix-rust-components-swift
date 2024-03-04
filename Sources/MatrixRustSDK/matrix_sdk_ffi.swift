@@ -220,9 +220,17 @@ fileprivate enum UniffiInternalError: LocalizedError {
     }
 }
 
+fileprivate extension NSLock {
+    func withLock<T>(f: () throws -> T) rethrows -> T {
+        self.lock()
+        defer { self.unlock() }
+        return try f()
+    }
+}
+
 fileprivate let CALL_SUCCESS: Int8 = 0
 fileprivate let CALL_ERROR: Int8 = 1
-fileprivate let CALL_PANIC: Int8 = 2
+fileprivate let CALL_UNEXPECTED_ERROR: Int8 = 2
 fileprivate let CALL_CANCELLED: Int8 = 3
 
 fileprivate extension RustCallStatus {
@@ -275,7 +283,7 @@ private func uniffiCheckCallStatus(
                 throw UniffiInternalError.unexpectedRustCallError
             }
 
-        case CALL_PANIC:
+        case CALL_UNEXPECTED_ERROR:
             // When the rust code sees a panic, it tries to construct a RustBuffer
             // with the message.  But if that code panics, then it just sends back
             // an empty buffer.
@@ -293,6 +301,70 @@ private func uniffiCheckCallStatus(
             throw UniffiInternalError.unexpectedRustCallStatusCode
     }
 }
+
+private func uniffiTraitInterfaceCall<T>(
+    callStatus: UnsafeMutablePointer<RustCallStatus>,
+    makeCall: () throws -> T,
+    writeReturn: (T) -> ()
+) {
+    do {
+        try writeReturn(makeCall())
+    } catch let error {
+        callStatus.pointee.code = CALL_UNEXPECTED_ERROR
+        callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
+    }
+}
+
+private func uniffiTraitInterfaceCallWithError<T, E>(
+    callStatus: UnsafeMutablePointer<RustCallStatus>,
+    makeCall: () throws -> T,
+    writeReturn: (T) -> (),
+    lowerError: (E) -> RustBuffer
+) {
+    do {
+        try writeReturn(makeCall())
+    } catch let error as E {
+        callStatus.pointee.code = CALL_ERROR
+        callStatus.pointee.errorBuf = lowerError(error)
+    } catch {
+        callStatus.pointee.code = CALL_UNEXPECTED_ERROR
+        callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
+    }
+}
+fileprivate class UniffiHandleMap<T> {
+    private var map: [UInt64: T] = [:]
+    private let lock = NSLock()
+    private var currentHandle: UInt64 = 1
+
+    func insert(obj: T) -> UInt64 {
+        lock.withLock {
+            let handle = currentHandle
+            currentHandle += 1
+            map[handle] = obj
+            return handle
+        }
+    }
+
+     func get(handle: UInt64) throws -> T {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return obj
+        }
+    }
+
+    @discardableResult
+    func remove(handle: UInt64) throws -> T {
+        try lock.withLock {
+            guard let obj = map.removeValue(forKey: handle) else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return obj
+        }
+    }
+}
+
 
 // Public interface members begin here.
 
@@ -519,15 +591,29 @@ public protocol AuthenticationServiceProtocol : AnyObject {
     
 }
 
-public class AuthenticationService:
+open class AuthenticationService:
     AuthenticationServiceProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -552,6 +638,10 @@ public class AuthenticationService:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_authenticationservice(pointer, $0) }
     }
 
@@ -563,7 +653,7 @@ public class AuthenticationService:
      * Updates the service to authenticate with the homeserver for the
      * specified address.
      */
-    public func configureHomeserver(serverNameOrHomeserverUrl: String) throws  {
+    open func configureHomeserver(serverNameOrHomeserverUrl: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_authenticationservice_configure_homeserver(self.uniffiClonePointer(), 
@@ -571,7 +661,7 @@ public class AuthenticationService:
     )
 }
     }
-    public func homeserverDetails()  -> HomeserverLoginDetails? {
+    open func homeserverDetails()  -> HomeserverLoginDetails? {
         return try!  FfiConverterOptionTypeHomeserverLoginDetails.lift(
             try! 
     rustCall() {
@@ -584,7 +674,7 @@ public class AuthenticationService:
     /**
      * Performs a password login using the current homeserver.
      */
-    public func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  -> Client {
+    open func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  -> Client {
         return try  FfiConverterTypeClient.lift(
             try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
@@ -600,7 +690,7 @@ public class AuthenticationService:
     /**
      * Completes the OIDC login process.
      */
-    public func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) throws  -> Client {
+    open func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) throws  -> Client {
         return try  FfiConverterTypeClient.lift(
             try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
@@ -616,7 +706,7 @@ public class AuthenticationService:
      * view has succeeded, call `login_with_oidc_callback` with the callback it
      * returns.
      */
-    public func urlForOidcLogin() throws  -> OidcAuthenticationData {
+    open func urlForOidcLogin() throws  -> OidcAuthenticationData {
         return try  FfiConverterTypeOidcAuthenticationData.lift(
             try 
     rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
@@ -658,6 +748,8 @@ public struct FfiConverterTypeAuthenticationService: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeAuthenticationService_lift(_ pointer: UnsafeMutableRawPointer) throws -> AuthenticationService {
@@ -775,15 +867,29 @@ public protocol ClientProtocol : AnyObject {
     
 }
 
-public class Client:
+open class Client:
     ClientProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -791,6 +897,10 @@ public class Client:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_client(pointer, $0) }
     }
 
@@ -804,7 +914,7 @@ public class Client:
      *
      * It will be returned as a JSON string.
      */
-    public func accountData(eventType: String) throws  -> String? {
+    open func accountData(eventType: String) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -814,7 +924,7 @@ public class Client:
 }
         )
     }
-    public func accountUrl(action: AccountManagementAction?) throws  -> String? {
+    open func accountUrl(action: AccountManagementAction?) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -824,7 +934,7 @@ public class Client:
 }
         )
     }
-    public func avatarUrl() throws  -> String? {
+    open func avatarUrl() throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -833,7 +943,7 @@ public class Client:
 }
         )
     }
-    public func cachedAvatarUrl() throws  -> String? {
+    open func cachedAvatarUrl() throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -842,7 +952,7 @@ public class Client:
 }
         )
     }
-    public func createRoom(request: CreateRoomParameters) throws  -> String {
+    open func createRoom(request: CreateRoomParameters) throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -852,7 +962,7 @@ public class Client:
 }
         )
     }
-    public func deviceId() throws  -> String {
+    open func deviceId() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -861,7 +971,7 @@ public class Client:
 }
         )
     }
-    public func displayName() throws  -> String {
+    open func displayName() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -870,7 +980,7 @@ public class Client:
 }
         )
     }
-    public func encryption()  -> Encryption {
+    open func encryption()  -> Encryption {
         return try!  FfiConverterTypeEncryption.lift(
             try! 
     rustCall() {
@@ -880,7 +990,7 @@ public class Client:
 }
         )
     }
-    public func getDmRoom(userId: String) throws  -> Room? {
+    open func getDmRoom(userId: String) throws  -> Room? {
         return try  FfiConverterOptionTypeRoom.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -890,7 +1000,7 @@ public class Client:
 }
         )
     }
-    public func getMediaContent(mediaSource: MediaSource) async throws  -> Data {
+    open func getMediaContent(mediaSource: MediaSource) async throws  -> Data {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_get_media_content(
@@ -907,7 +1017,7 @@ public class Client:
     }
 
     
-    public func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) async throws  -> MediaFileHandle {
+    open func getMediaFile(mediaSource: MediaSource, body: String?, mimeType: String, useCache: Bool, tempDir: String?) async throws  -> MediaFileHandle {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_get_media_file(
@@ -928,7 +1038,7 @@ public class Client:
     }
 
     
-    public func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) async throws  -> Data {
+    open func getMediaThumbnail(mediaSource: MediaSource, width: UInt64, height: UInt64) async throws  -> Data {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_get_media_thumbnail(
@@ -947,7 +1057,7 @@ public class Client:
     }
 
     
-    public func getNotificationSettings()  -> NotificationSettings {
+    open func getNotificationSettings()  -> NotificationSettings {
         return try!  FfiConverterTypeNotificationSettings.lift(
             try! 
     rustCall() {
@@ -957,7 +1067,7 @@ public class Client:
 }
         )
     }
-    public func getProfile(userId: String) throws  -> UserProfile {
+    open func getProfile(userId: String) throws  -> UserProfile {
         return try  FfiConverterTypeUserProfile.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -967,7 +1077,7 @@ public class Client:
 }
         )
     }
-    public func getSessionVerificationController() throws  -> SessionVerificationController {
+    open func getSessionVerificationController() throws  -> SessionVerificationController {
         return try  FfiConverterTypeSessionVerificationController.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -979,7 +1089,7 @@ public class Client:
     /**
      * The homeserver this client is configured to use.
      */
-    public func homeserver()  -> String {
+    open func homeserver()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -989,7 +1099,7 @@ public class Client:
 }
         )
     }
-    public func ignoreUser(userId: String) async throws  {
+    open func ignoreUser(userId: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_ignore_user(
@@ -1006,7 +1116,7 @@ public class Client:
     }
 
     
-    public func ignoredUsers() async throws  -> [String] {
+    open func ignoredUsers() async throws  -> [String] {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_ignored_users(
@@ -1025,7 +1135,7 @@ public class Client:
     /**
      * Login using a username and password.
      */
-    public func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  {
+    open func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_login(self.uniffiClonePointer(), 
@@ -1041,7 +1151,7 @@ public class Client:
      * should be presented to the user to complete logout (in the case of
      * Session having been authenticated using OIDC).
      */
-    public func logout() throws  -> String? {
+    open func logout() throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -1050,7 +1160,7 @@ public class Client:
 }
         )
     }
-    public func notificationClient(processSetup: NotificationProcessSetup) throws  -> NotificationClientBuilder {
+    open func notificationClient(processSetup: NotificationProcessSetup) throws  -> NotificationClientBuilder {
         return try  FfiConverterTypeNotificationClientBuilder.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -1060,7 +1170,7 @@ public class Client:
 }
         )
     }
-    public func removeAvatar() throws  {
+    open func removeAvatar() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_remove_avatar(self.uniffiClonePointer(), $0
@@ -1070,7 +1180,7 @@ public class Client:
     /**
      * Restores the client from a `Session`.
      */
-    public func restoreSession(session: Session) throws  {
+    open func restoreSession(session: Session) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_restore_session(self.uniffiClonePointer(), 
@@ -1078,7 +1188,7 @@ public class Client:
     )
 }
     }
-    public func rooms()  -> [Room] {
+    open func rooms()  -> [Room] {
         return try!  FfiConverterSequenceTypeRoom.lift(
             try! 
     rustCall() {
@@ -1088,7 +1198,7 @@ public class Client:
 }
         )
     }
-    public func searchUsers(searchTerm: String, limit: UInt64) throws  -> SearchUsersResults {
+    open func searchUsers(searchTerm: String, limit: UInt64) throws  -> SearchUsersResults {
         return try  FfiConverterTypeSearchUsersResults.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -1099,7 +1209,7 @@ public class Client:
 }
         )
     }
-    public func session() throws  -> Session {
+    open func session() throws  -> Session {
         return try  FfiConverterTypeSession.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -1113,7 +1223,7 @@ public class Client:
      *
      * It should be supplied as a JSON string.
      */
-    public func setAccountData(eventType: String, content: String) throws  {
+    open func setAccountData(eventType: String, content: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_set_account_data(self.uniffiClonePointer(), 
@@ -1122,7 +1232,7 @@ public class Client:
     )
 }
     }
-    public func setDelegate(delegate: ClientDelegate?)  -> TaskHandle? {
+    open func setDelegate(delegate: ClientDelegate?)  -> TaskHandle? {
         return try!  FfiConverterOptionTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -1133,7 +1243,7 @@ public class Client:
 }
         )
     }
-    public func setDisplayName(name: String) throws  {
+    open func setDisplayName(name: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_set_display_name(self.uniffiClonePointer(), 
@@ -1144,7 +1254,7 @@ public class Client:
     /**
      * Registers a pusher with given parameters
      */
-    public func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) throws  {
+    open func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_set_pusher(self.uniffiClonePointer(), 
@@ -1157,7 +1267,7 @@ public class Client:
     )
 }
     }
-    public func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle {
+    open func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -1168,7 +1278,7 @@ public class Client:
 }
         )
     }
-    public func syncService()  -> SyncServiceBuilder {
+    open func syncService()  -> SyncServiceBuilder {
         return try!  FfiConverterTypeSyncServiceBuilder.lift(
             try! 
     rustCall() {
@@ -1178,7 +1288,7 @@ public class Client:
 }
         )
     }
-    public func unignoreUser(userId: String) async throws  {
+    open func unignoreUser(userId: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_unignore_user(
@@ -1195,7 +1305,7 @@ public class Client:
     }
 
     
-    public func uploadAvatar(mimeType: String, data: Data) throws  {
+    open func uploadAvatar(mimeType: String, data: Data) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_client_upload_avatar(self.uniffiClonePointer(), 
@@ -1204,7 +1314,7 @@ public class Client:
     )
 }
     }
-    public func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) async throws  -> String {
+    open func uploadMedia(mimeType: String, data: Data, progressWatcher: ProgressWatcher?) async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_upload_media(
@@ -1223,7 +1333,7 @@ public class Client:
     }
 
     
-    public func userId() throws  -> String {
+    open func userId() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -1265,6 +1375,8 @@ public struct FfiConverterTypeClient: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeClient_lift(_ pointer: UnsafeMutableRawPointer) throws -> Client {
@@ -1314,15 +1426,29 @@ public protocol ClientBuilderProtocol : AnyObject {
     
 }
 
-public class ClientBuilder:
+open class ClientBuilder:
     ClientBuilderProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -1335,6 +1461,10 @@ public class ClientBuilder:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_clientbuilder(pointer, $0) }
     }
 
@@ -1342,7 +1472,7 @@ public class ClientBuilder:
 
     
     
-    public func addRootCertificates(certificates: [Data])  -> ClientBuilder {
+    open func addRootCertificates(certificates: [Data])  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1353,7 +1483,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func basePath(path: String)  -> ClientBuilder {
+    open func basePath(path: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1364,7 +1494,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func build() throws  -> Client {
+    open func build() throws  -> Client {
         return try  FfiConverterTypeClient.lift(
             try 
     rustCallWithError(FfiConverterTypeClientBuildError.lift) {
@@ -1373,7 +1503,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func disableAutomaticTokenRefresh()  -> ClientBuilder {
+    open func disableAutomaticTokenRefresh()  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1383,7 +1513,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func disableSslVerification()  -> ClientBuilder {
+    open func disableSslVerification()  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1393,7 +1523,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func enableCrossProcessRefreshLock(processId: String, sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
+    open func enableCrossProcessRefreshLock(processId: String, sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1405,7 +1535,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func homeserverUrl(url: String)  -> ClientBuilder {
+    open func homeserverUrl(url: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1416,7 +1546,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func passphrase(passphrase: String?)  -> ClientBuilder {
+    open func passphrase(passphrase: String?)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1427,7 +1557,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func proxy(url: String)  -> ClientBuilder {
+    open func proxy(url: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1438,7 +1568,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func serverName(serverName: String)  -> ClientBuilder {
+    open func serverName(serverName: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1449,7 +1579,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func serverNameOrHomeserverUrl(serverNameOrUrl: String)  -> ClientBuilder {
+    open func serverNameOrHomeserverUrl(serverNameOrUrl: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1460,7 +1590,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func serverVersions(versions: [String])  -> ClientBuilder {
+    open func serverVersions(versions: [String])  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1471,7 +1601,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func setSessionDelegate(sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
+    open func setSessionDelegate(sessionDelegate: ClientSessionDelegate)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1482,7 +1612,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func slidingSyncProxy(slidingSyncProxy: String?)  -> ClientBuilder {
+    open func slidingSyncProxy(slidingSyncProxy: String?)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1493,7 +1623,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func userAgent(userAgent: String)  -> ClientBuilder {
+    open func userAgent(userAgent: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1504,7 +1634,7 @@ public class ClientBuilder:
 }
         )
     }
-    public func username(username: String)  -> ClientBuilder {
+    open func username(username: String)  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
     rustCall() {
@@ -1548,6 +1678,8 @@ public struct FfiConverterTypeClientBuilder: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeClientBuilder_lift(_ pointer: UnsafeMutableRawPointer) throws -> ClientBuilder {
@@ -1602,15 +1734,29 @@ public protocol EncryptionProtocol : AnyObject {
     
 }
 
-public class Encryption:
+open class Encryption:
     EncryptionProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -1618,6 +1764,10 @@ public class Encryption:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_encryption(pointer, $0) }
     }
 
@@ -1636,7 +1786,7 @@ public class Encryption:
      * Therefore it is necessary to poll the server for an answer every time
      * you want to differentiate between those two states.
      */
-    public func backupExistsOnServer() async throws  -> Bool {
+    open func backupExistsOnServer() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_backup_exists_on_server(
@@ -1652,7 +1802,7 @@ public class Encryption:
     }
 
     
-    public func backupState()  -> BackupState {
+    open func backupState()  -> BackupState {
         return try!  FfiConverterTypeBackupState.lift(
             try! 
     rustCall() {
@@ -1662,7 +1812,7 @@ public class Encryption:
 }
         )
     }
-    public func backupStateListener(listener: BackupStateListener)  -> TaskHandle {
+    open func backupStateListener(listener: BackupStateListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -1673,7 +1823,7 @@ public class Encryption:
 }
         )
     }
-    public func disableRecovery() async throws  {
+    open func disableRecovery() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_disable_recovery(
@@ -1689,7 +1839,7 @@ public class Encryption:
     }
 
     
-    public func enableBackups() async throws  {
+    open func enableBackups() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_enable_backups(
@@ -1705,7 +1855,7 @@ public class Encryption:
     }
 
     
-    public func enableRecovery(waitForBackupsToUpload: Bool, progressListener: EnableRecoveryProgressListener) async throws  -> String {
+    open func enableRecovery(waitForBackupsToUpload: Bool, progressListener: EnableRecoveryProgressListener) async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_enable_recovery(
@@ -1723,7 +1873,7 @@ public class Encryption:
     }
 
     
-    public func isLastDevice() async throws  -> Bool {
+    open func isLastDevice() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_is_last_device(
@@ -1739,7 +1889,7 @@ public class Encryption:
     }
 
     
-    public func recover(recoveryKey: String) async throws  {
+    open func recover(recoveryKey: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_recover(
@@ -1756,7 +1906,7 @@ public class Encryption:
     }
 
     
-    public func recoverAndReset(oldRecoveryKey: String) async throws  -> String {
+    open func recoverAndReset(oldRecoveryKey: String) async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_recover_and_reset(
@@ -1773,7 +1923,7 @@ public class Encryption:
     }
 
     
-    public func recoveryState()  -> RecoveryState {
+    open func recoveryState()  -> RecoveryState {
         return try!  FfiConverterTypeRecoveryState.lift(
             try! 
     rustCall() {
@@ -1783,7 +1933,7 @@ public class Encryption:
 }
         )
     }
-    public func recoveryStateListener(listener: RecoveryStateListener)  -> TaskHandle {
+    open func recoveryStateListener(listener: RecoveryStateListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -1794,7 +1944,7 @@ public class Encryption:
 }
         )
     }
-    public func resetRecoveryKey() async throws  -> String {
+    open func resetRecoveryKey() async throws  -> String {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_reset_recovery_key(
@@ -1810,7 +1960,7 @@ public class Encryption:
     }
 
     
-    public func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws  {
+    open func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_wait_for_backup_upload_steady_state(
@@ -1862,6 +2012,8 @@ public struct FfiConverterTypeEncryption: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeEncryption_lift(_ pointer: UnsafeMutableRawPointer) throws -> Encryption {
     return try FfiConverterTypeEncryption.lift(pointer)
 }
@@ -1909,15 +2061,29 @@ public protocol EventTimelineItemProtocol : AnyObject {
     
 }
 
-public class EventTimelineItem:
+open class EventTimelineItem:
     EventTimelineItemProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -1925,6 +2091,10 @@ public class EventTimelineItem:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_eventtimelineitem(pointer, $0) }
     }
 
@@ -1932,7 +2102,7 @@ public class EventTimelineItem:
 
     
     
-    public func canBeRepliedTo()  -> Bool {
+    open func canBeRepliedTo()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -1942,7 +2112,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func content()  -> TimelineItemContent {
+    open func content()  -> TimelineItemContent {
         return try!  FfiConverterTypeTimelineItemContent.lift(
             try! 
     rustCall() {
@@ -1952,7 +2122,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func debugInfo()  -> EventTimelineItemDebugInfo {
+    open func debugInfo()  -> EventTimelineItemDebugInfo {
         return try!  FfiConverterTypeEventTimelineItemDebugInfo.lift(
             try! 
     rustCall() {
@@ -1962,7 +2132,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func eventId()  -> String? {
+    open func eventId()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -1972,7 +2142,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func isEditable()  -> Bool {
+    open func isEditable()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -1982,7 +2152,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func isLocal()  -> Bool {
+    open func isLocal()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -1992,7 +2162,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func isOwn()  -> Bool {
+    open func isOwn()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -2002,7 +2172,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func isRemote()  -> Bool {
+    open func isRemote()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -2012,7 +2182,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func localSendState()  -> EventSendState? {
+    open func localSendState()  -> EventSendState? {
         return try!  FfiConverterOptionTypeEventSendState.lift(
             try! 
     rustCall() {
@@ -2022,7 +2192,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func origin()  -> EventItemOrigin? {
+    open func origin()  -> EventItemOrigin? {
         return try!  FfiConverterOptionTypeEventItemOrigin.lift(
             try! 
     rustCall() {
@@ -2032,7 +2202,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func reactions()  -> [Reaction] {
+    open func reactions()  -> [Reaction] {
         return try!  FfiConverterSequenceTypeReaction.lift(
             try! 
     rustCall() {
@@ -2042,7 +2212,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func readReceipts()  -> [String: Receipt] {
+    open func readReceipts()  -> [String: Receipt] {
         return try!  FfiConverterDictionaryStringTypeReceipt.lift(
             try! 
     rustCall() {
@@ -2052,7 +2222,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func sender()  -> String {
+    open func sender()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -2062,7 +2232,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func senderProfile()  -> ProfileDetails {
+    open func senderProfile()  -> ProfileDetails {
         return try!  FfiConverterTypeProfileDetails.lift(
             try! 
     rustCall() {
@@ -2072,7 +2242,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func timestamp()  -> UInt64 {
+    open func timestamp()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
@@ -2082,7 +2252,7 @@ public class EventTimelineItem:
 }
         )
     }
-    public func transactionId()  -> String? {
+    open func transactionId()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -2127,6 +2297,8 @@ public struct FfiConverterTypeEventTimelineItem: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeEventTimelineItem_lift(_ pointer: UnsafeMutableRawPointer) throws -> EventTimelineItem {
     return try FfiConverterTypeEventTimelineItem.lift(pointer)
 }
@@ -2157,15 +2329,29 @@ public protocol HomeserverLoginDetailsProtocol : AnyObject {
     
 }
 
-public class HomeserverLoginDetails:
+open class HomeserverLoginDetails:
     HomeserverLoginDetailsProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -2173,6 +2359,10 @@ public class HomeserverLoginDetails:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_homeserverlogindetails(pointer, $0) }
     }
 
@@ -2183,7 +2373,7 @@ public class HomeserverLoginDetails:
     /**
      * Whether the current homeserver supports login using OIDC.
      */
-    public func supportsOidcLogin()  -> Bool {
+    open func supportsOidcLogin()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -2196,7 +2386,7 @@ public class HomeserverLoginDetails:
     /**
      * Whether the current homeserver supports the password login flow.
      */
-    public func supportsPasswordLogin()  -> Bool {
+    open func supportsPasswordLogin()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -2209,7 +2399,7 @@ public class HomeserverLoginDetails:
     /**
      * The URL of the currently configured homeserver.
      */
-    public func url()  -> String {
+    open func url()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -2254,6 +2444,8 @@ public struct FfiConverterTypeHomeserverLoginDetails: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeHomeserverLoginDetails_lift(_ pointer: UnsafeMutableRawPointer) throws -> HomeserverLoginDetails {
     return try FfiConverterTypeHomeserverLoginDetails.lift(pointer)
 }
@@ -2284,15 +2476,29 @@ public protocol MediaFileHandleProtocol : AnyObject {
  * A file handle that takes ownership of a media file on disk. When the handle
  * is dropped, the file will be removed from the disk.
  */
-public class MediaFileHandle:
+open class MediaFileHandle:
     MediaFileHandleProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -2300,6 +2506,10 @@ public class MediaFileHandle:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_mediafilehandle(pointer, $0) }
     }
 
@@ -2310,7 +2520,7 @@ public class MediaFileHandle:
     /**
      * Get the media file's path.
      */
-    public func path() throws  -> String {
+    open func path() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -2319,7 +2529,7 @@ public class MediaFileHandle:
 }
         )
     }
-    public func persist(path: String) throws  -> Bool {
+    open func persist(path: String) throws  -> Bool {
         return try  FfiConverterBool.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -2364,6 +2574,8 @@ public struct FfiConverterTypeMediaFileHandle: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeMediaFileHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> MediaFileHandle {
     return try FfiConverterTypeMediaFileHandle.lift(pointer)
 }
@@ -2383,15 +2595,29 @@ public protocol MediaSourceProtocol : AnyObject {
     
 }
 
-public class MediaSource:
+open class MediaSource:
     MediaSourceProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -2399,6 +2625,10 @@ public class MediaSource:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_mediasource(pointer, $0) }
     }
 
@@ -2414,7 +2644,7 @@ public class MediaSource:
 
     
     
-    public func toJson()  -> String {
+    open func toJson()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -2424,7 +2654,7 @@ public class MediaSource:
 }
         )
     }
-    public func url()  -> String {
+    open func url()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -2469,6 +2699,8 @@ public struct FfiConverterTypeMediaSource: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeMediaSource_lift(_ pointer: UnsafeMutableRawPointer) throws -> MediaSource {
     return try FfiConverterTypeMediaSource.lift(pointer)
 }
@@ -2494,15 +2726,29 @@ public protocol MessageProtocol : AnyObject {
     
 }
 
-public class Message:
+open class Message:
     MessageProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -2510,6 +2756,10 @@ public class Message:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_message(pointer, $0) }
     }
 
@@ -2517,7 +2767,7 @@ public class Message:
 
     
     
-    public func body()  -> String {
+    open func body()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -2527,7 +2777,7 @@ public class Message:
 }
         )
     }
-    public func inReplyTo()  -> InReplyToDetails? {
+    open func inReplyTo()  -> InReplyToDetails? {
         return try!  FfiConverterOptionTypeInReplyToDetails.lift(
             try! 
     rustCall() {
@@ -2537,7 +2787,7 @@ public class Message:
 }
         )
     }
-    public func isEdited()  -> Bool {
+    open func isEdited()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -2547,7 +2797,7 @@ public class Message:
 }
         )
     }
-    public func isThreaded()  -> Bool {
+    open func isThreaded()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -2557,7 +2807,7 @@ public class Message:
 }
         )
     }
-    public func msgtype()  -> MessageType {
+    open func msgtype()  -> MessageType {
         return try!  FfiConverterTypeMessageType.lift(
             try! 
     rustCall() {
@@ -2602,6 +2852,8 @@ public struct FfiConverterTypeMessage: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeMessage_lift(_ pointer: UnsafeMutableRawPointer) throws -> Message {
     return try FfiConverterTypeMessage.lift(pointer)
 }
@@ -2623,15 +2875,29 @@ public protocol NotificationClientProtocol : AnyObject {
     
 }
 
-public class NotificationClient:
+open class NotificationClient:
     NotificationClientProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -2639,6 +2905,10 @@ public class NotificationClient:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationclient(pointer, $0) }
     }
 
@@ -2650,7 +2920,7 @@ public class NotificationClient:
      * See also documentation of
      * `MatrixNotificationClient::get_notification`.
      */
-    public func getNotification(roomId: String, eventId: String) throws  -> NotificationItem? {
+    open func getNotification(roomId: String, eventId: String) throws  -> NotificationItem? {
         return try  FfiConverterOptionTypeNotificationItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -2696,6 +2966,8 @@ public struct FfiConverterTypeNotificationClient: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeNotificationClient_lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationClient {
     return try FfiConverterTypeNotificationClient.lift(pointer)
 }
@@ -2719,15 +2991,29 @@ public protocol NotificationClientBuilderProtocol : AnyObject {
     
 }
 
-public class NotificationClientBuilder:
+open class NotificationClientBuilder:
     NotificationClientBuilderProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -2735,6 +3021,10 @@ public class NotificationClientBuilder:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationclientbuilder(pointer, $0) }
     }
 
@@ -2746,7 +3036,7 @@ public class NotificationClientBuilder:
      * Filter out the notification event according to the push rules present in
      * the event.
      */
-    public func filterByPushRules()  -> NotificationClientBuilder {
+    open func filterByPushRules()  -> NotificationClientBuilder {
         return try!  FfiConverterTypeNotificationClientBuilder.lift(
             try! 
     rustCall() {
@@ -2756,7 +3046,7 @@ public class NotificationClientBuilder:
 }
         )
     }
-    public func finish()  -> NotificationClient {
+    open func finish()  -> NotificationClient {
         return try!  FfiConverterTypeNotificationClient.lift(
             try! 
     rustCall() {
@@ -2799,6 +3089,8 @@ public struct FfiConverterTypeNotificationClientBuilder: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeNotificationClientBuilder_lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationClientBuilder {
@@ -2940,15 +3232,29 @@ public protocol NotificationSettingsProtocol : AnyObject {
     
 }
 
-public class NotificationSettings:
+open class NotificationSettings:
     NotificationSettingsProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -2956,6 +3262,10 @@ public class NotificationSettings:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationsettings(pointer, $0) }
     }
 
@@ -2968,7 +3278,7 @@ public class NotificationSettings:
      *
      * [rule]: https://github.com/matrix-org/matrix-spec-proposals/blob/giomfo/push_encrypted_events/proposals/4028-push-all-encrypted-events-except-for-muted-rooms.md
      */
-    public func canPushEncryptedEventToDevice() async  -> Bool {
+    open func canPushEncryptedEventToDevice() async  -> Bool {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_can_push_encrypted_event_to_device(
@@ -2988,7 +3298,7 @@ public class NotificationSettings:
     /**
      * Get whether some enabled keyword rules exist.
      */
-    public func containsKeywordsRules() async  -> Bool {
+    open func containsKeywordsRules() async  -> Bool {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_contains_keywords_rules(
@@ -3017,7 +3327,7 @@ public class NotificationSettings:
      * * `is_one_to_one` - whether the room is a direct chats involving two
      * people
      */
-    public func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode {
+    open func getDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool) async  -> RoomNotificationMode {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_default_room_notification_mode(
@@ -3046,7 +3356,7 @@ public class NotificationSettings:
      * * `is_one_to_one` - whether the room is a direct chat involving two
      * people
      */
-    public func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  -> RoomNotificationSettings {
+    open func getRoomNotificationSettings(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  -> RoomNotificationSettings {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_room_notification_settings(
@@ -3068,7 +3378,7 @@ public class NotificationSettings:
     /**
      * Get all room IDs for which a user-defined rule exists.
      */
-    public func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String] {
+    open func getRoomsWithUserDefinedRules(enabled: Bool?) async  -> [String] {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_rooms_with_user_defined_rules(
@@ -3089,7 +3399,7 @@ public class NotificationSettings:
     /**
      * Get the user defined room notification mode
      */
-    public func getUserDefinedRoomNotificationMode(roomId: String) async throws  -> RoomNotificationMode? {
+    open func getUserDefinedRoomNotificationMode(roomId: String) async throws  -> RoomNotificationMode? {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_get_user_defined_room_notification_mode(
@@ -3109,7 +3419,7 @@ public class NotificationSettings:
     /**
      * Get whether the `.m.rule.call` push rule is enabled
      */
-    public func isCallEnabled() async throws  -> Bool {
+    open func isCallEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_call_enabled(
@@ -3128,7 +3438,7 @@ public class NotificationSettings:
     /**
      * Get whether the `.m.rule.invite_for_me` push rule is enabled
      */
-    public func isInviteForMeEnabled() async throws  -> Bool {
+    open func isInviteForMeEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_invite_for_me_enabled(
@@ -3147,7 +3457,7 @@ public class NotificationSettings:
     /**
      * Get whether room mentions are enabled.
      */
-    public func isRoomMentionEnabled() async throws  -> Bool {
+    open func isRoomMentionEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_room_mention_enabled(
@@ -3166,7 +3476,7 @@ public class NotificationSettings:
     /**
      * Get whether user mentions are enabled.
      */
-    public func isUserMentionEnabled() async throws  -> Bool {
+    open func isUserMentionEnabled() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_is_user_mention_enabled(
@@ -3185,7 +3495,7 @@ public class NotificationSettings:
     /**
      * Restore the default notification mode for a room
      */
-    public func restoreDefaultRoomNotificationMode(roomId: String) async throws  {
+    open func restoreDefaultRoomNotificationMode(roomId: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_restore_default_room_notification_mode(
@@ -3205,7 +3515,7 @@ public class NotificationSettings:
     /**
      * Set whether the `.m.rule.call` push rule is enabled
      */
-    public func setCallEnabled(enabled: Bool) async throws  {
+    open func setCallEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_call_enabled(
@@ -3232,7 +3542,7 @@ public class NotificationSettings:
      * people
      * * `mode` - the new default mode
      */
-    public func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws  {
+    open func setDefaultRoomNotificationMode(isEncrypted: Bool, isOneToOne: Bool, mode: RoomNotificationMode) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_default_room_notification_mode(
@@ -3251,7 +3561,7 @@ public class NotificationSettings:
     }
 
     
-    public func setDelegate(delegate: NotificationSettingsDelegate?)  {
+    open func setDelegate(delegate: NotificationSettingsDelegate?)  {
         try! 
     rustCall() {
     
@@ -3263,7 +3573,7 @@ public class NotificationSettings:
     /**
      * Set whether the `.m.rule.invite_for_me` push rule is enabled
      */
-    public func setInviteForMeEnabled(enabled: Bool) async throws  {
+    open func setInviteForMeEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_invite_for_me_enabled(
@@ -3283,7 +3593,7 @@ public class NotificationSettings:
     /**
      * Set whether room mentions are enabled.
      */
-    public func setRoomMentionEnabled(enabled: Bool) async throws  {
+    open func setRoomMentionEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_mention_enabled(
@@ -3303,7 +3613,7 @@ public class NotificationSettings:
     /**
      * Set the notification mode for a room.
      */
-    public func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws  {
+    open func setRoomNotificationMode(roomId: String, mode: RoomNotificationMode) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_room_notification_mode(
@@ -3324,7 +3634,7 @@ public class NotificationSettings:
     /**
      * Set whether user mentions are enabled.
      */
-    public func setUserMentionEnabled(enabled: Bool) async throws  {
+    open func setUserMentionEnabled(enabled: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_set_user_mention_enabled(
@@ -3351,7 +3661,7 @@ public class NotificationSettings:
      * * `is_one_to_one` - whether the room is a direct chat involving two
      * people
      */
-    public func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  {
+    open func unmuteRoom(roomId: String, isEncrypted: Bool, isOneToOne: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_notificationsettings_unmute_room(
@@ -3405,6 +3715,8 @@ public struct FfiConverterTypeNotificationSettings: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeNotificationSettings_lift(_ pointer: UnsafeMutableRawPointer) throws -> NotificationSettings {
     return try FfiConverterTypeNotificationSettings.lift(pointer)
 }
@@ -3431,15 +3743,29 @@ public protocol OidcAuthenticationDataProtocol : AnyObject {
 /**
  * The data required to authenticate against an OIDC server.
  */
-public class OidcAuthenticationData:
+open class OidcAuthenticationData:
     OidcAuthenticationDataProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -3447,6 +3773,10 @@ public class OidcAuthenticationData:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_oidcauthenticationdata(pointer, $0) }
     }
 
@@ -3457,7 +3787,7 @@ public class OidcAuthenticationData:
     /**
      * The login URL to use for authentication.
      */
-    public func loginUrl()  -> String {
+    open func loginUrl()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -3500,6 +3830,8 @@ public struct FfiConverterTypeOidcAuthenticationData: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeOidcAuthenticationData_lift(_ pointer: UnsafeMutableRawPointer) throws -> OidcAuthenticationData {
@@ -3712,7 +4044,7 @@ public protocol RoomProtocol : AnyObject {
     
     func unbanUser(userId: String, reason: String?) async throws 
     
-    func updatePowerLevelForUser(userId: String, powerLevel: Int64) async throws 
+    func updatePowerLevelsForUsers(updates: [UserPowerLevelUpdate]) async throws 
     
     /**
      * Upload and set the room's avatar.
@@ -3733,15 +4065,29 @@ public protocol RoomProtocol : AnyObject {
     
 }
 
-public class Room:
+open class Room:
     RoomProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -3749,6 +4095,10 @@ public class Room:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_room(pointer, $0) }
     }
 
@@ -3756,7 +4106,7 @@ public class Room:
 
     
     
-    public func activeMembersCount()  -> UInt64 {
+    open func activeMembersCount()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
@@ -3776,7 +4126,7 @@ public class Room:
      *
      * The vector is ordered by oldest membership user to newest.
      */
-    public func activeRoomCallParticipants()  -> [String] {
+    open func activeRoomCallParticipants()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
             try! 
     rustCall() {
@@ -3786,7 +4136,7 @@ public class Room:
 }
         )
     }
-    public func alternativeAliases()  -> [String] {
+    open func alternativeAliases()  -> [String] {
         return try!  FfiConverterSequenceString.lift(
             try! 
     rustCall() {
@@ -3796,7 +4146,7 @@ public class Room:
 }
         )
     }
-    public func applyPowerLevelChanges(changes: RoomPowerLevelChanges) async throws  {
+    open func applyPowerLevelChanges(changes: RoomPowerLevelChanges) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_apply_power_level_changes(
@@ -3813,7 +4163,7 @@ public class Room:
     }
 
     
-    public func avatarUrl()  -> String? {
+    open func avatarUrl()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -3823,7 +4173,7 @@ public class Room:
 }
         )
     }
-    public func banUser(userId: String, reason: String?) async throws  {
+    open func banUser(userId: String, reason: String?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_ban_user(
@@ -3841,7 +4191,7 @@ public class Room:
     }
 
     
-    public func buildPowerLevelChangesFromCurrent() async throws  -> RoomPowerLevelChanges {
+    open func buildPowerLevelChangesFromCurrent() async throws  -> RoomPowerLevelChanges {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_build_power_level_changes_from_current(
@@ -3857,7 +4207,7 @@ public class Room:
     }
 
     
-    public func canUserBan(userId: String) async throws  -> Bool {
+    open func canUserBan(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_ban(
@@ -3874,7 +4224,7 @@ public class Room:
     }
 
     
-    public func canUserInvite(userId: String) async throws  -> Bool {
+    open func canUserInvite(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_invite(
@@ -3891,7 +4241,7 @@ public class Room:
     }
 
     
-    public func canUserKick(userId: String) async throws  -> Bool {
+    open func canUserKick(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_kick(
@@ -3908,7 +4258,7 @@ public class Room:
     }
 
     
-    public func canUserRedactOther(userId: String) async throws  -> Bool {
+    open func canUserRedactOther(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact_other(
@@ -3925,7 +4275,7 @@ public class Room:
     }
 
     
-    public func canUserRedactOwn(userId: String) async throws  -> Bool {
+    open func canUserRedactOwn(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_redact_own(
@@ -3942,7 +4292,7 @@ public class Room:
     }
 
     
-    public func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws  -> Bool {
+    open func canUserSendMessage(userId: String, message: MessageLikeEventType) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_message(
@@ -3960,7 +4310,7 @@ public class Room:
     }
 
     
-    public func canUserSendState(userId: String, stateEvent: StateEventType) async throws  -> Bool {
+    open func canUserSendState(userId: String, stateEvent: StateEventType) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_send_state(
@@ -3978,7 +4328,7 @@ public class Room:
     }
 
     
-    public func canUserTriggerRoomNotification(userId: String) async throws  -> Bool {
+    open func canUserTriggerRoomNotification(userId: String) async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_can_user_trigger_room_notification(
@@ -3995,7 +4345,7 @@ public class Room:
     }
 
     
-    public func canonicalAlias()  -> String? {
+    open func canonicalAlias()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -4014,7 +4364,7 @@ public class Room:
      * room keys will be rotated automatically when necessary. This method is
      * still useful for debugging purposes.
      */
-    public func discardRoomKey() async throws  {
+    open func discardRoomKey() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_discard_room_key(
@@ -4030,7 +4380,7 @@ public class Room:
     }
 
     
-    public func displayName() throws  -> String {
+    open func displayName() throws  -> String {
         return try  FfiConverterString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -4043,7 +4393,7 @@ public class Room:
      * Is there a non expired membership with application "m.call" and scope
      * "m.room" in this room.
      */
-    public func hasActiveRoomCall()  -> Bool {
+    open func hasActiveRoomCall()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -4053,7 +4403,7 @@ public class Room:
 }
         )
     }
-    public func id()  -> String {
+    open func id()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -4070,7 +4420,7 @@ public class Room:
      *
      * * `user_id` - The ID of the user to ignore.
      */
-    public func ignoreUser(userId: String) async throws  {
+    open func ignoreUser(userId: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_ignore_user(
@@ -4087,7 +4437,7 @@ public class Room:
     }
 
     
-    public func inviteUserById(userId: String) throws  {
+    open func inviteUserById(userId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_invite_user_by_id(self.uniffiClonePointer(), 
@@ -4095,7 +4445,7 @@ public class Room:
     )
 }
     }
-    public func invitedMembersCount()  -> UInt64 {
+    open func invitedMembersCount()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
@@ -4105,7 +4455,7 @@ public class Room:
 }
         )
     }
-    public func inviter()  -> RoomMember? {
+    open func inviter()  -> RoomMember? {
         return try!  FfiConverterOptionTypeRoomMember.lift(
             try! 
     rustCall() {
@@ -4115,7 +4465,7 @@ public class Room:
 }
         )
     }
-    public func isDirect()  -> Bool {
+    open func isDirect()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -4125,7 +4475,7 @@ public class Room:
 }
         )
     }
-    public func isEncrypted() throws  -> Bool {
+    open func isEncrypted() throws  -> Bool {
         return try  FfiConverterBool.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -4134,7 +4484,7 @@ public class Room:
 }
         )
     }
-    public func isPublic()  -> Bool {
+    open func isPublic()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -4144,7 +4494,7 @@ public class Room:
 }
         )
     }
-    public func isSpace()  -> Bool {
+    open func isSpace()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -4154,7 +4504,7 @@ public class Room:
 }
         )
     }
-    public func isTombstoned()  -> Bool {
+    open func isTombstoned()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -4169,14 +4519,14 @@ public class Room:
      *
      * Only invited and left rooms can be joined via this method.
      */
-    public func join() throws  {
+    open func join() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_join(self.uniffiClonePointer(), $0
     )
 }
     }
-    public func joinedMembersCount()  -> UInt64 {
+    open func joinedMembersCount()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
@@ -4186,7 +4536,7 @@ public class Room:
 }
         )
     }
-    public func kickUser(userId: String, reason: String?) async throws  {
+    open func kickUser(userId: String, reason: String?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_kick_user(
@@ -4209,7 +4559,7 @@ public class Room:
      *
      * Only invited and joined rooms can be left.
      */
-    public func leave() throws  {
+    open func leave() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_leave(self.uniffiClonePointer(), $0
@@ -4222,7 +4572,7 @@ public class Room:
      * Note: this does NOT unset the unread flag; it's the caller's
      * responsibility to do so, if needs be.
      */
-    public func markAsRead(receiptType: ReceiptType) async throws  {
+    open func markAsRead(receiptType: ReceiptType) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_mark_as_read(
@@ -4239,7 +4589,7 @@ public class Room:
     }
 
     
-    public func member(userId: String) async throws  -> RoomMember {
+    open func member(userId: String) async throws  -> RoomMember {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_member(
@@ -4247,16 +4597,16 @@ public class Room:
                     FfiConverterString.lower(userId)
                 )
             },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeRoomMember.lift,
             errorHandler: FfiConverterTypeClientError.lift
         )
     }
 
     
-    public func memberAvatarUrl(userId: String) throws  -> String? {
+    open func memberAvatarUrl(userId: String) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -4266,7 +4616,7 @@ public class Room:
 }
         )
     }
-    public func memberDisplayName(userId: String) throws  -> String? {
+    open func memberDisplayName(userId: String) throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -4276,7 +4626,7 @@ public class Room:
 }
         )
     }
-    public func members() async throws  -> RoomMembersIterator {
+    open func members() async throws  -> RoomMembersIterator {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_members(
@@ -4292,7 +4642,7 @@ public class Room:
     }
 
     
-    public func membersNoSync() async throws  -> RoomMembersIterator {
+    open func membersNoSync() async throws  -> RoomMembersIterator {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_members_no_sync(
@@ -4308,7 +4658,7 @@ public class Room:
     }
 
     
-    public func membership()  -> Membership {
+    open func membership()  -> Membership {
         return try!  FfiConverterTypeMembership.lift(
             try! 
     rustCall() {
@@ -4318,7 +4668,7 @@ public class Room:
 }
         )
     }
-    public func name()  -> String? {
+    open func name()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -4328,7 +4678,7 @@ public class Room:
 }
         )
     }
-    public func ownUserId()  -> String {
+    open func ownUserId()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -4348,7 +4698,7 @@ public class Room:
      * * `reason` - The reason for the event being redacted (optional).
      * its transaction ID (optional). If not given one is created.
      */
-    public func redact(eventId: String, reason: String?) throws  {
+    open func redact(eventId: String, reason: String?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_redact(self.uniffiClonePointer(), 
@@ -4360,7 +4710,7 @@ public class Room:
     /**
      * Removes the current room avatar
      */
-    public func removeAvatar() throws  {
+    open func removeAvatar() throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_remove_avatar(self.uniffiClonePointer(), $0
@@ -4379,7 +4729,7 @@ public class Room:
      * * `score` - The score to rate this content as where -100 is most
      * offensive and 0 is inoffensive (optional).
      */
-    public func reportContent(eventId: String, score: Int32?, reason: String?) throws  {
+    open func reportContent(eventId: String, score: Int32?, reason: String?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_report_content(self.uniffiClonePointer(), 
@@ -4389,7 +4739,7 @@ public class Room:
     )
 }
     }
-    public func roomInfo() async throws  -> RoomInfo {
+    open func roomInfo() async throws  -> RoomInfo {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_room_info(
@@ -4405,7 +4755,7 @@ public class Room:
     }
 
     
-    public func setIsFavourite(isFavourite: Bool, tagOrder: Double?) async throws  {
+    open func setIsFavourite(isFavourite: Bool, tagOrder: Double?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_set_is_favourite(
@@ -4423,7 +4773,7 @@ public class Room:
     }
 
     
-    public func setIsLowPriority(isLowPriority: Bool, tagOrder: Double?) async throws  {
+    open func setIsLowPriority(isLowPriority: Bool, tagOrder: Double?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_set_is_low_priority(
@@ -4444,7 +4794,7 @@ public class Room:
     /**
      * Sets a new name to the room.
      */
-    public func setName(name: String) throws  {
+    open func setName(name: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_set_name(self.uniffiClonePointer(), 
@@ -4455,7 +4805,7 @@ public class Room:
     /**
      * Sets a new topic in the room.
      */
-    public func setTopic(topic: String) throws  {
+    open func setTopic(topic: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_set_topic(self.uniffiClonePointer(), 
@@ -4467,7 +4817,7 @@ public class Room:
      * Set (or unset) a flag on the room to indicate that the user has
      * explicitly marked it as unread.
      */
-    public func setUnreadFlag(newValue: Bool) async throws  {
+    open func setUnreadFlag(newValue: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_set_unread_flag(
@@ -4484,7 +4834,7 @@ public class Room:
     }
 
     
-    public func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle {
+    open func subscribeToRoomInfoUpdates(listener: RoomInfoListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -4495,7 +4845,7 @@ public class Room:
 }
         )
     }
-    public func subscribeToTypingNotifications(listener: TypingNotificationsListener)  -> TaskHandle {
+    open func subscribeToTypingNotifications(listener: TypingNotificationsListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -4506,7 +4856,7 @@ public class Room:
 }
         )
     }
-    public func suggestedRoleForUser(userId: String) async throws  -> RoomMemberRole {
+    open func suggestedRoleForUser(userId: String) async throws  -> RoomMemberRole {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_suggested_role_for_user(
@@ -4523,7 +4873,7 @@ public class Room:
     }
 
     
-    public func timeline() async throws  -> Timeline {
+    open func timeline() async throws  -> Timeline {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_timeline(
@@ -4539,7 +4889,7 @@ public class Room:
     }
 
     
-    public func topic()  -> String? {
+    open func topic()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -4549,7 +4899,7 @@ public class Room:
 }
         )
     }
-    public func typingNotice(isTyping: Bool) async throws  {
+    open func typingNotice(isTyping: Bool) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_typing_notice(
@@ -4566,7 +4916,7 @@ public class Room:
     }
 
     
-    public func unbanUser(userId: String, reason: String?) async throws  {
+    open func unbanUser(userId: String, reason: String?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_room_unban_user(
@@ -4584,13 +4934,12 @@ public class Room:
     }
 
     
-    public func updatePowerLevelForUser(userId: String, powerLevel: Int64) async throws  {
+    open func updatePowerLevelsForUsers(updates: [UserPowerLevelUpdate]) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_update_power_level_for_user(
+                uniffi_matrix_sdk_ffi_fn_method_room_update_power_levels_for_users(
                     self.uniffiClonePointer(),
-                    FfiConverterString.lower(userId),
-                    FfiConverterInt64.lower(powerLevel)
+                    FfiConverterSequenceTypeUserPowerLevelUpdate.lower(updates)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -4617,7 +4966,7 @@ public class Room:
      * content repository
      * * `media_info` - The media info used as avatar image info.
      */
-    public func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws  {
+    open func uploadAvatar(mimeType: String, data: Data, mediaInfo: ImageInfo?) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_room_upload_avatar(self.uniffiClonePointer(), 
@@ -4662,6 +5011,8 @@ public struct FfiConverterTypeRoom: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeRoom_lift(_ pointer: UnsafeMutableRawPointer) throws -> Room {
     return try FfiConverterTypeRoom.lift(pointer)
 }
@@ -4685,15 +5036,29 @@ public protocol RoomListProtocol : AnyObject {
     
 }
 
-public class RoomList:
+open class RoomList:
     RoomListProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -4701,6 +5066,10 @@ public class RoomList:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlist(pointer, $0) }
     }
 
@@ -4708,7 +5077,7 @@ public class RoomList:
 
     
     
-    public func entries(listener: RoomListEntriesListener)  -> RoomListEntriesResult {
+    open func entries(listener: RoomListEntriesListener)  -> RoomListEntriesResult {
         return try!  FfiConverterTypeRoomListEntriesResult.lift(
             try! 
     rustCall() {
@@ -4719,7 +5088,7 @@ public class RoomList:
 }
         )
     }
-    public func entriesWithDynamicAdapters(pageSize: UInt32, listener: RoomListEntriesListener)  -> RoomListEntriesWithDynamicAdaptersResult {
+    open func entriesWithDynamicAdapters(pageSize: UInt32, listener: RoomListEntriesListener)  -> RoomListEntriesWithDynamicAdaptersResult {
         return try!  FfiConverterTypeRoomListEntriesWithDynamicAdaptersResult.lift(
             try! 
     rustCall() {
@@ -4731,7 +5100,7 @@ public class RoomList:
 }
         )
     }
-    public func loadingState(listener: RoomListLoadingStateListener) throws  -> RoomListLoadingStateResult {
+    open func loadingState(listener: RoomListLoadingStateListener) throws  -> RoomListLoadingStateResult {
         return try  FfiConverterTypeRoomListLoadingStateResult.lift(
             try 
     rustCallWithError(FfiConverterTypeRoomListError.lift) {
@@ -4741,7 +5110,7 @@ public class RoomList:
 }
         )
     }
-    public func room(roomId: String) throws  -> RoomListItem {
+    open func room(roomId: String) throws  -> RoomListItem {
         return try  FfiConverterTypeRoomListItem.lift(
             try 
     rustCallWithError(FfiConverterTypeRoomListError.lift) {
@@ -4786,6 +5155,8 @@ public struct FfiConverterTypeRoomList: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeRoomList_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomList {
     return try FfiConverterTypeRoomList.lift(pointer)
 }
@@ -4807,15 +5178,29 @@ public protocol RoomListDynamicEntriesControllerProtocol : AnyObject {
     
 }
 
-public class RoomListDynamicEntriesController:
+open class RoomListDynamicEntriesController:
     RoomListDynamicEntriesControllerProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -4823,6 +5208,10 @@ public class RoomListDynamicEntriesController:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistdynamicentriescontroller(pointer, $0) }
     }
 
@@ -4830,7 +5219,7 @@ public class RoomListDynamicEntriesController:
 
     
     
-    public func addOnePage()  {
+    open func addOnePage()  {
         try! 
     rustCall() {
     
@@ -4838,7 +5227,7 @@ public class RoomListDynamicEntriesController:
     )
 }
     }
-    public func resetToOnePage()  {
+    open func resetToOnePage()  {
         try! 
     rustCall() {
     
@@ -4846,7 +5235,7 @@ public class RoomListDynamicEntriesController:
     )
 }
     }
-    public func setFilter(kind: RoomListEntriesDynamicFilterKind)  -> Bool {
+    open func setFilter(kind: RoomListEntriesDynamicFilterKind)  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -4890,6 +5279,8 @@ public struct FfiConverterTypeRoomListDynamicEntriesController: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeRoomListDynamicEntriesController_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListDynamicEntriesController {
@@ -4945,15 +5336,29 @@ public protocol RoomListItemProtocol : AnyObject {
     
 }
 
-public class RoomListItem:
+open class RoomListItem:
     RoomListItemProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -4961,6 +5366,10 @@ public class RoomListItem:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistitem(pointer, $0) }
     }
 
@@ -4968,7 +5377,7 @@ public class RoomListItem:
 
     
     
-    public func avatarUrl()  -> String? {
+    open func avatarUrl()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -4978,7 +5387,7 @@ public class RoomListItem:
 }
         )
     }
-    public func canonicalAlias()  -> String? {
+    open func canonicalAlias()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -4992,7 +5401,7 @@ public class RoomListItem:
      * Building a `Room`. If its internal timeline hasn't been initialized
      * it'll fail.
      */
-    public func fullRoom() async throws  -> Room {
+    open func fullRoom() async throws  -> Room {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_full_room(
@@ -5008,7 +5417,7 @@ public class RoomListItem:
     }
 
     
-    public func id()  -> String {
+    open func id()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -5025,7 +5434,7 @@ public class RoomListItem:
      * used to filter timeline events besides the default timeline filter. If
      * `None` is passed, only the default timeline filter will be used.
      */
-    public func initTimeline(eventTypeFilter: TimelineEventTypeFilter?) async throws  {
+    open func initTimeline(eventTypeFilter: TimelineEventTypeFilter?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_init_timeline(
@@ -5042,7 +5451,7 @@ public class RoomListItem:
     }
 
     
-    public func isDirect()  -> Bool {
+    open func isDirect()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -5055,7 +5464,7 @@ public class RoomListItem:
     /**
      * Checks whether the Room's timeline has been initialized before.
      */
-    public func isTimelineInitialized()  -> Bool {
+    open func isTimelineInitialized()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -5065,7 +5474,7 @@ public class RoomListItem:
 }
         )
     }
-    public func latestEvent() async  -> EventTimelineItem? {
+    open func latestEvent() async  -> EventTimelineItem? {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_latest_event(
@@ -5082,7 +5491,7 @@ public class RoomListItem:
     }
 
     
-    public func name()  -> String? {
+    open func name()  -> String? {
         return try!  FfiConverterOptionString.lift(
             try! 
     rustCall() {
@@ -5092,7 +5501,7 @@ public class RoomListItem:
 }
         )
     }
-    public func roomInfo() async throws  -> RoomInfo {
+    open func roomInfo() async throws  -> RoomInfo {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_room_info(
@@ -5108,7 +5517,7 @@ public class RoomListItem:
     }
 
     
-    public func subscribe(settings: RoomSubscription?)  {
+    open func subscribe(settings: RoomSubscription?)  {
         try! 
     rustCall() {
     
@@ -5117,7 +5526,7 @@ public class RoomListItem:
     )
 }
     }
-    public func unsubscribe()  {
+    open func unsubscribe()  {
         try! 
     rustCall() {
     
@@ -5160,6 +5569,8 @@ public struct FfiConverterTypeRoomListItem: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeRoomListItem_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListItem {
     return try FfiConverterTypeRoomListItem.lift(pointer)
 }
@@ -5187,15 +5598,29 @@ public protocol RoomListServiceProtocol : AnyObject {
     
 }
 
-public class RoomListService:
+open class RoomListService:
     RoomListServiceProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -5203,6 +5628,10 @@ public class RoomListService:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistservice(pointer, $0) }
     }
 
@@ -5210,7 +5639,7 @@ public class RoomListService:
 
     
     
-    public func allRooms() async throws  -> RoomList {
+    open func allRooms() async throws  -> RoomList {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_all_rooms(
@@ -5226,7 +5655,7 @@ public class RoomListService:
     }
 
     
-    public func applyInput(input: RoomListInput) async throws  {
+    open func applyInput(input: RoomListInput) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_apply_input(
@@ -5243,7 +5672,7 @@ public class RoomListService:
     }
 
     
-    public func invites() async throws  -> RoomList {
+    open func invites() async throws  -> RoomList {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistservice_invites(
@@ -5259,7 +5688,7 @@ public class RoomListService:
     }
 
     
-    public func room(roomId: String) throws  -> RoomListItem {
+    open func room(roomId: String) throws  -> RoomListItem {
         return try  FfiConverterTypeRoomListItem.lift(
             try 
     rustCallWithError(FfiConverterTypeRoomListError.lift) {
@@ -5269,7 +5698,7 @@ public class RoomListService:
 }
         )
     }
-    public func state(listener: RoomListServiceStateListener)  -> TaskHandle {
+    open func state(listener: RoomListServiceStateListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -5280,7 +5709,7 @@ public class RoomListService:
 }
         )
     }
-    public func syncIndicator(delayBeforeShowingInMs: UInt32, delayBeforeHidingInMs: UInt32, listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle {
+    open func syncIndicator(delayBeforeShowingInMs: UInt32, delayBeforeHidingInMs: UInt32, listener: RoomListServiceSyncIndicatorListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -5328,337 +5757,14 @@ public struct FfiConverterTypeRoomListService: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeRoomListService_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomListService {
     return try FfiConverterTypeRoomListService.lift(pointer)
 }
 
 public func FfiConverterTypeRoomListService_lower(_ value: RoomListService) -> UnsafeMutableRawPointer {
     return FfiConverterTypeRoomListService.lower(value)
-}
-
-
-
-
-public protocol RoomMemberProtocol : AnyObject {
-    
-    func avatarUrl()  -> String?
-    
-    func canBan()  -> Bool
-    
-    func canInvite()  -> Bool
-    
-    func canKick()  -> Bool
-    
-    func canRedactOther()  -> Bool
-    
-    func canRedactOwn()  -> Bool
-    
-    func canSendMessage(event: MessageLikeEventType)  -> Bool
-    
-    func canSendState(stateEvent: StateEventType)  -> Bool
-    
-    func canTriggerRoomNotification()  -> Bool
-    
-    func displayName()  -> String?
-    
-    /**
-     * Adds the room member to the current account data's ignore list
-     * which will ignore the user across all rooms.
-     */
-    func ignore() throws 
-    
-    func isAccountUser()  -> Bool
-    
-    func isIgnored()  -> Bool
-    
-    func isNameAmbiguous()  -> Bool
-    
-    func membership()  -> MembershipState
-    
-    func normalizedPowerLevel()  -> Int64
-    
-    func powerLevel()  -> Int64
-    
-    func suggestedRoleForPowerLevel()  -> RoomMemberRole
-    
-    /**
-     * Removes the room member from the current account data's ignore list
-     * which will unignore the user across all rooms.
-     */
-    func unignore() throws 
-    
-    func userId()  -> String
-    
-}
-
-public class RoomMember:
-    RoomMemberProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
-
-    // TODO: We'd like this to be `private` but for Swifty reasons,
-    // we can't implement `FfiConverter` without making this `required` and we can't
-    // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        self.pointer = pointer
-    }
-
-    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_roommember(self.pointer, $0) }
-    }
-
-    deinit {
-        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommember(pointer, $0) }
-    }
-
-    
-
-    
-    
-    public func avatarUrl()  -> String? {
-        return try!  FfiConverterOptionString.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_avatar_url(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func canBan()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_ban(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func canInvite()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_invite(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func canKick()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_kick(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func canRedactOther()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact_other(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func canRedactOwn()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_redact_own(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func canSendMessage(event: MessageLikeEventType)  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_message(self.uniffiClonePointer(), 
-        FfiConverterTypeMessageLikeEventType.lower(event),$0
-    )
-}
-        )
-    }
-    public func canSendState(stateEvent: StateEventType)  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_send_state(self.uniffiClonePointer(), 
-        FfiConverterTypeStateEventType.lower(stateEvent),$0
-    )
-}
-        )
-    }
-    public func canTriggerRoomNotification()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_can_trigger_room_notification(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func displayName()  -> String? {
-        return try!  FfiConverterOptionString.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_display_name(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    /**
-     * Adds the room member to the current account data's ignore list
-     * which will ignore the user across all rooms.
-     */
-    public func ignore() throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_roommember_ignore(self.uniffiClonePointer(), $0
-    )
-}
-    }
-    public func isAccountUser()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_is_account_user(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func isIgnored()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_is_ignored(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func isNameAmbiguous()  -> Bool {
-        return try!  FfiConverterBool.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_is_name_ambiguous(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func membership()  -> MembershipState {
-        return try!  FfiConverterTypeMembershipState.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_membership(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func normalizedPowerLevel()  -> Int64 {
-        return try!  FfiConverterInt64.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_normalized_power_level(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func powerLevel()  -> Int64 {
-        return try!  FfiConverterInt64.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_power_level(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    public func suggestedRoleForPowerLevel()  -> RoomMemberRole {
-        return try!  FfiConverterTypeRoomMemberRole_lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_suggested_role_for_power_level(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-    /**
-     * Removes the room member from the current account data's ignore list
-     * which will unignore the user across all rooms.
-     */
-    public func unignore() throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_roommember_unignore(self.uniffiClonePointer(), $0
-    )
-}
-    }
-    public func userId()  -> String {
-        return try!  FfiConverterString.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_roommember_user_id(self.uniffiClonePointer(), $0
-    )
-}
-        )
-    }
-
-}
-
-public struct FfiConverterTypeRoomMember: FfiConverter {
-
-    typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = RoomMember
-
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMember {
-        return RoomMember(unsafeFromRawPointer: pointer)
-    }
-
-    public static func lower(_ value: RoomMember) -> UnsafeMutableRawPointer {
-        return value.uniffiClonePointer()
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMember {
-        let v: UInt64 = try readInt(&buf)
-        // The Rust code won't compile if a pointer won't fit in a UInt64.
-        // We have to go via `UInt` because that's the thing that's the size of a pointer.
-        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
-        if (ptr == nil) {
-            throw UniffiInternalError.unexpectedNullPointer
-        }
-        return try lift(ptr!)
-    }
-
-    public static func write(_ value: RoomMember, into buf: inout [UInt8]) {
-        // This fiddling is because `Int` is the thing that's the same size as a pointer.
-        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
-        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
-    }
-}
-
-
-public func FfiConverterTypeRoomMember_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMember {
-    return try FfiConverterTypeRoomMember.lift(pointer)
-}
-
-public func FfiConverterTypeRoomMember_lower(_ value: RoomMember) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeRoomMember.lower(value)
 }
 
 
@@ -5672,15 +5778,29 @@ public protocol RoomMembersIteratorProtocol : AnyObject {
     
 }
 
-public class RoomMembersIterator:
+open class RoomMembersIterator:
     RoomMembersIteratorProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -5688,6 +5808,10 @@ public class RoomMembersIterator:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommembersiterator(pointer, $0) }
     }
 
@@ -5695,7 +5819,7 @@ public class RoomMembersIterator:
 
     
     
-    public func len()  -> UInt32 {
+    open func len()  -> UInt32 {
         return try!  FfiConverterUInt32.lift(
             try! 
     rustCall() {
@@ -5705,7 +5829,7 @@ public class RoomMembersIterator:
 }
         )
     }
-    public func nextChunk(chunkSize: UInt32)  -> [RoomMember]? {
+    open func nextChunk(chunkSize: UInt32)  -> [RoomMember]? {
         return try!  FfiConverterOptionSequenceTypeRoomMember.lift(
             try! 
     rustCall() {
@@ -5751,6 +5875,8 @@ public struct FfiConverterTypeRoomMembersIterator: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeRoomMembersIterator_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMembersIterator {
     return try FfiConverterTypeRoomMembersIterator.lift(pointer)
 }
@@ -5768,15 +5894,29 @@ public protocol RoomMessageEventContentWithoutRelationProtocol : AnyObject {
     
 }
 
-public class RoomMessageEventContentWithoutRelation:
+open class RoomMessageEventContentWithoutRelation:
     RoomMessageEventContentWithoutRelationProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -5784,6 +5924,10 @@ public class RoomMessageEventContentWithoutRelation:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommessageeventcontentwithoutrelation(pointer, $0) }
     }
 
@@ -5791,7 +5935,7 @@ public class RoomMessageEventContentWithoutRelation:
 
     
     
-    public func withMentions(mentions: Mentions)  -> RoomMessageEventContentWithoutRelation {
+    open func withMentions(mentions: Mentions)  -> RoomMessageEventContentWithoutRelation {
         return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
             try! 
     rustCall() {
@@ -5837,6 +5981,8 @@ public struct FfiConverterTypeRoomMessageEventContentWithoutRelation: FfiConvert
 }
 
 
+
+
 public func FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(_ pointer: UnsafeMutableRawPointer) throws -> RoomMessageEventContentWithoutRelation {
     return try FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(pointer)
 }
@@ -5856,15 +6002,29 @@ public protocol SendAttachmentJoinHandleProtocol : AnyObject {
     
 }
 
-public class SendAttachmentJoinHandle:
+open class SendAttachmentJoinHandle:
     SendAttachmentJoinHandleProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -5872,6 +6032,10 @@ public class SendAttachmentJoinHandle:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sendattachmentjoinhandle(pointer, $0) }
     }
 
@@ -5879,7 +6043,7 @@ public class SendAttachmentJoinHandle:
 
     
     
-    public func cancel()  {
+    open func cancel()  {
         try! 
     rustCall() {
     
@@ -5887,7 +6051,7 @@ public class SendAttachmentJoinHandle:
     )
 }
     }
-    public func join() async throws  {
+    open func join() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sendattachmentjoinhandle_join(
@@ -5938,6 +6102,8 @@ public struct FfiConverterTypeSendAttachmentJoinHandle: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeSendAttachmentJoinHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> SendAttachmentJoinHandle {
     return try FfiConverterTypeSendAttachmentJoinHandle.lift(pointer)
 }
@@ -5967,15 +6133,29 @@ public protocol SessionVerificationControllerProtocol : AnyObject {
     
 }
 
-public class SessionVerificationController:
+open class SessionVerificationController:
     SessionVerificationControllerProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -5983,6 +6163,10 @@ public class SessionVerificationController:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sessionverificationcontroller(pointer, $0) }
     }
 
@@ -5990,7 +6174,7 @@ public class SessionVerificationController:
 
     
     
-    public func approveVerification() async throws  {
+    open func approveVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_approve_verification(
@@ -6006,7 +6190,7 @@ public class SessionVerificationController:
     }
 
     
-    public func cancelVerification() async throws  {
+    open func cancelVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_cancel_verification(
@@ -6022,7 +6206,7 @@ public class SessionVerificationController:
     }
 
     
-    public func declineVerification() async throws  {
+    open func declineVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_decline_verification(
@@ -6038,7 +6222,7 @@ public class SessionVerificationController:
     }
 
     
-    public func isVerified() async throws  -> Bool {
+    open func isVerified() async throws  -> Bool {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_is_verified(
@@ -6054,7 +6238,7 @@ public class SessionVerificationController:
     }
 
     
-    public func requestVerification() async throws  {
+    open func requestVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_request_verification(
@@ -6070,7 +6254,7 @@ public class SessionVerificationController:
     }
 
     
-    public func setDelegate(delegate: SessionVerificationControllerDelegate?)  {
+    open func setDelegate(delegate: SessionVerificationControllerDelegate?)  {
         try! 
     rustCall() {
     
@@ -6079,7 +6263,7 @@ public class SessionVerificationController:
     )
 }
     }
-    public func startSasVerification() async throws  {
+    open func startSasVerification() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_start_sas_verification(
@@ -6130,6 +6314,8 @@ public struct FfiConverterTypeSessionVerificationController: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeSessionVerificationController_lift(_ pointer: UnsafeMutableRawPointer) throws -> SessionVerificationController {
     return try FfiConverterTypeSessionVerificationController.lift(pointer)
 }
@@ -6149,15 +6335,29 @@ public protocol SessionVerificationEmojiProtocol : AnyObject {
     
 }
 
-public class SessionVerificationEmoji:
+open class SessionVerificationEmoji:
     SessionVerificationEmojiProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -6165,6 +6365,10 @@ public class SessionVerificationEmoji:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sessionverificationemoji(pointer, $0) }
     }
 
@@ -6172,7 +6376,7 @@ public class SessionVerificationEmoji:
 
     
     
-    public func description()  -> String {
+    open func description()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -6182,7 +6386,7 @@ public class SessionVerificationEmoji:
 }
         )
     }
-    public func symbol()  -> String {
+    open func symbol()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -6227,6 +6431,8 @@ public struct FfiConverterTypeSessionVerificationEmoji: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeSessionVerificationEmoji_lift(_ pointer: UnsafeMutableRawPointer) throws -> SessionVerificationEmoji {
     return try FfiConverterTypeSessionVerificationEmoji.lift(pointer)
 }
@@ -6248,15 +6454,29 @@ public protocol SpanProtocol : AnyObject {
     
 }
 
-public class Span:
+open class Span:
     SpanProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -6300,6 +6520,10 @@ public class Span:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_span(pointer, $0) }
     }
 
@@ -6314,7 +6538,7 @@ public class Span:
 
     
     
-    public func enter()  {
+    open func enter()  {
         try! 
     rustCall() {
     
@@ -6322,7 +6546,7 @@ public class Span:
     )
 }
     }
-    public func exit()  {
+    open func exit()  {
         try! 
     rustCall() {
     
@@ -6330,7 +6554,7 @@ public class Span:
     )
 }
     }
-    public func isNone()  -> Bool {
+    open func isNone()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -6375,6 +6599,8 @@ public struct FfiConverterTypeSpan: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeSpan_lift(_ pointer: UnsafeMutableRawPointer) throws -> Span {
     return try FfiConverterTypeSpan.lift(pointer)
 }
@@ -6398,15 +6624,29 @@ public protocol SyncServiceProtocol : AnyObject {
     
 }
 
-public class SyncService:
+open class SyncService:
     SyncServiceProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -6414,6 +6654,10 @@ public class SyncService:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_syncservice(pointer, $0) }
     }
 
@@ -6421,7 +6665,7 @@ public class SyncService:
 
     
     
-    public func roomListService()  -> RoomListService {
+    open func roomListService()  -> RoomListService {
         return try!  FfiConverterTypeRoomListService.lift(
             try! 
     rustCall() {
@@ -6431,7 +6675,7 @@ public class SyncService:
 }
         )
     }
-    public func start() async  {
+    open func start() async  {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservice_start(
@@ -6448,7 +6692,7 @@ public class SyncService:
     }
 
     
-    public func state(listener: SyncServiceStateObserver)  -> TaskHandle {
+    open func state(listener: SyncServiceStateObserver)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
     rustCall() {
@@ -6459,7 +6703,7 @@ public class SyncService:
 }
         )
     }
-    public func stop() async throws  {
+    open func stop() async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservice_stop(
@@ -6510,6 +6754,8 @@ public struct FfiConverterTypeSyncService: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeSyncService_lift(_ pointer: UnsafeMutableRawPointer) throws -> SyncService {
     return try FfiConverterTypeSyncService.lift(pointer)
 }
@@ -6529,15 +6775,29 @@ public protocol SyncServiceBuilderProtocol : AnyObject {
     
 }
 
-public class SyncServiceBuilder:
+open class SyncServiceBuilder:
     SyncServiceBuilderProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -6545,6 +6805,10 @@ public class SyncServiceBuilder:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_syncservicebuilder(pointer, $0) }
     }
 
@@ -6552,7 +6816,7 @@ public class SyncServiceBuilder:
 
     
     
-    public func finish() async throws  -> SyncService {
+    open func finish() async throws  -> SyncService {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_finish(
@@ -6568,7 +6832,7 @@ public class SyncServiceBuilder:
     }
 
     
-    public func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder {
+    open func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder {
         return try!  FfiConverterTypeSyncServiceBuilder.lift(
             try! 
     rustCall() {
@@ -6614,6 +6878,8 @@ public struct FfiConverterTypeSyncServiceBuilder: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeSyncServiceBuilder_lift(_ pointer: UnsafeMutableRawPointer) throws -> SyncServiceBuilder {
     return try FfiConverterTypeSyncServiceBuilder.lift(pointer)
 }
@@ -6648,15 +6914,29 @@ public protocol TaskHandleProtocol : AnyObject {
  *
  * It's a thin wrapper around [`JoinHandle`].
  */
-public class TaskHandle:
+open class TaskHandle:
     TaskHandleProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -6664,6 +6944,10 @@ public class TaskHandle:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_taskhandle(pointer, $0) }
     }
 
@@ -6671,7 +6955,7 @@ public class TaskHandle:
 
     
     
-    public func cancel()  {
+    open func cancel()  {
         try! 
     rustCall() {
     
@@ -6682,7 +6966,7 @@ public class TaskHandle:
     /**
      * Check whether the handle is finished.
      */
-    public func isFinished()  -> Bool {
+    open func isFinished()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -6725,6 +7009,8 @@ public struct FfiConverterTypeTaskHandle: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeTaskHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> TaskHandle {
@@ -6809,15 +7095,29 @@ public protocol TimelineProtocol : AnyObject {
     
 }
 
-public class Timeline:
+open class Timeline:
     TimelineProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -6825,6 +7125,10 @@ public class Timeline:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timeline(pointer, $0) }
     }
 
@@ -6832,7 +7136,7 @@ public class Timeline:
 
     
     
-    public func addListener(listener: TimelineListener) async  -> RoomTimelineListenerResult {
+    open func addListener(listener: TimelineListener) async  -> RoomTimelineListenerResult {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_add_listener(
@@ -6850,7 +7154,7 @@ public class Timeline:
     }
 
     
-    public func cancelSend(txnId: String)  {
+    open func cancelSend(txnId: String)  {
         try! 
     rustCall() {
     
@@ -6859,7 +7163,7 @@ public class Timeline:
     )
 }
     }
-    public func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws  {
+    open func createPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_create_poll(self.uniffiClonePointer(), 
@@ -6870,7 +7174,7 @@ public class Timeline:
     )
 }
     }
-    public func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws  {
+    open func edit(newContent: RoomMessageEventContentWithoutRelation, editItem: EventTimelineItem) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_edit(self.uniffiClonePointer(), 
@@ -6879,7 +7183,7 @@ public class Timeline:
     )
 }
     }
-    public func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) async throws  {
+    open func editPoll(question: String, answers: [String], maxSelections: UInt8, pollKind: PollKind, editItem: EventTimelineItem) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_edit_poll(
@@ -6900,7 +7204,7 @@ public class Timeline:
     }
 
     
-    public func endPoll(pollStartId: String, text: String) throws  {
+    open func endPoll(pollStartId: String, text: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_end_poll(self.uniffiClonePointer(), 
@@ -6909,7 +7213,7 @@ public class Timeline:
     )
 }
     }
-    public func fetchDetailsForEvent(eventId: String) throws  {
+    open func fetchDetailsForEvent(eventId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_fetch_details_for_event(self.uniffiClonePointer(), 
@@ -6917,7 +7221,7 @@ public class Timeline:
     )
 }
     }
-    public func fetchMembers() async  {
+    open func fetchMembers() async  {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_fetch_members(
@@ -6934,7 +7238,7 @@ public class Timeline:
     }
 
     
-    public func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem {
+    open func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem {
         return try  FfiConverterTypeEventTimelineItem.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -6944,7 +7248,7 @@ public class Timeline:
 }
         )
     }
-    public func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation {
+    open func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation {
         return try  FfiConverterTypeRoomMessageEventContentWithoutRelation.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -6954,7 +7258,7 @@ public class Timeline:
 }
         )
     }
-    public func latestEvent() async  -> EventTimelineItem? {
+    open func latestEvent() async  -> EventTimelineItem? {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_latest_event(
@@ -6979,7 +7283,7 @@ public class Timeline:
      * reply also belongs to the unthreaded timeline. No threaded receipt
      * will be sent here (see also #3123).
      */
-    public func markAsRead(receiptType: ReceiptType) async throws  {
+    open func markAsRead(receiptType: ReceiptType) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_timeline_mark_as_read(
@@ -7001,7 +7305,7 @@ public class Timeline:
      *
      * Raises an exception if there are no timeline listeners.
      */
-    public func paginateBackwards(opts: PaginationOptions) throws  {
+    open func paginateBackwards(opts: PaginationOptions) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_paginate_backwards(self.uniffiClonePointer(), 
@@ -7009,7 +7313,7 @@ public class Timeline:
     )
 }
     }
-    public func retryDecryption(sessionIds: [String])  {
+    open func retryDecryption(sessionIds: [String])  {
         try! 
     rustCall() {
     
@@ -7018,7 +7322,7 @@ public class Timeline:
     )
 }
     }
-    public func retrySend(txnId: String)  {
+    open func retrySend(txnId: String)  {
         try! 
     rustCall() {
     
@@ -7027,7 +7331,7 @@ public class Timeline:
     )
 }
     }
-    public func send(msg: RoomMessageEventContentWithoutRelation)  {
+    open func send(msg: RoomMessageEventContentWithoutRelation)  {
         try! 
     rustCall() {
     
@@ -7036,7 +7340,7 @@ public class Timeline:
     )
 }
     }
-    public func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+    open func sendAudio(url: String, audioInfo: AudioInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
@@ -7049,7 +7353,7 @@ public class Timeline:
 }
         )
     }
-    public func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+    open func sendFile(url: String, fileInfo: FileInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
@@ -7062,7 +7366,7 @@ public class Timeline:
 }
         )
     }
-    public func sendImage(url: String, thumbnailUrl: String?, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+    open func sendImage(url: String, thumbnailUrl: String?, imageInfo: ImageInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
@@ -7076,7 +7380,7 @@ public class Timeline:
 }
         )
     }
-    public func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?)  {
+    open func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?)  {
         try! 
     rustCall() {
     
@@ -7089,7 +7393,7 @@ public class Timeline:
     )
 }
     }
-    public func sendPollResponse(pollStartId: String, answers: [String]) throws  {
+    open func sendPollResponse(pollStartId: String, answers: [String]) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_send_poll_response(self.uniffiClonePointer(), 
@@ -7098,7 +7402,7 @@ public class Timeline:
     )
 }
     }
-    public func sendReadReceipt(receiptType: ReceiptType, eventId: String) throws  {
+    open func sendReadReceipt(receiptType: ReceiptType, eventId: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_send_read_receipt(self.uniffiClonePointer(), 
@@ -7107,7 +7411,7 @@ public class Timeline:
     )
 }
     }
-    public func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws  {
+    open func sendReply(msg: RoomMessageEventContentWithoutRelation, replyItem: EventTimelineItem) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_send_reply(self.uniffiClonePointer(), 
@@ -7116,7 +7420,7 @@ public class Timeline:
     )
 }
     }
-    public func sendVideo(url: String, thumbnailUrl: String?, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+    open func sendVideo(url: String, thumbnailUrl: String?, videoInfo: VideoInfo, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
@@ -7130,7 +7434,7 @@ public class Timeline:
 }
         )
     }
-    public func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
+    open func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle {
         return try!  FfiConverterTypeSendAttachmentJoinHandle.lift(
             try! 
     rustCall() {
@@ -7144,7 +7448,7 @@ public class Timeline:
 }
         )
     }
-    public func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle {
+    open func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle {
         return try  FfiConverterTypeTaskHandle.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -7154,7 +7458,7 @@ public class Timeline:
 }
         )
     }
-    public func toggleReaction(eventId: String, key: String) throws  {
+    open func toggleReaction(eventId: String, key: String) throws  {
         try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_toggle_reaction(self.uniffiClonePointer(), 
@@ -7198,6 +7502,8 @@ public struct FfiConverterTypeTimeline: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeTimeline_lift(_ pointer: UnsafeMutableRawPointer) throws -> Timeline {
     return try FfiConverterTypeTimeline.lift(pointer)
 }
@@ -7229,15 +7535,29 @@ public protocol TimelineDiffProtocol : AnyObject {
     
 }
 
-public class TimelineDiff:
+open class TimelineDiff:
     TimelineDiffProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -7245,6 +7565,10 @@ public class TimelineDiff:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelinediff(pointer, $0) }
     }
 
@@ -7252,7 +7576,7 @@ public class TimelineDiff:
 
     
     
-    public func append()  -> [TimelineItem]? {
+    open func append()  -> [TimelineItem]? {
         return try!  FfiConverterOptionSequenceTypeTimelineItem.lift(
             try! 
     rustCall() {
@@ -7262,7 +7586,7 @@ public class TimelineDiff:
 }
         )
     }
-    public func change()  -> TimelineChange {
+    open func change()  -> TimelineChange {
         return try!  FfiConverterTypeTimelineChange.lift(
             try! 
     rustCall() {
@@ -7272,7 +7596,7 @@ public class TimelineDiff:
 }
         )
     }
-    public func insert()  -> InsertData? {
+    open func insert()  -> InsertData? {
         return try!  FfiConverterOptionTypeInsertData.lift(
             try! 
     rustCall() {
@@ -7282,7 +7606,7 @@ public class TimelineDiff:
 }
         )
     }
-    public func pushBack()  -> TimelineItem? {
+    open func pushBack()  -> TimelineItem? {
         return try!  FfiConverterOptionTypeTimelineItem.lift(
             try! 
     rustCall() {
@@ -7292,7 +7616,7 @@ public class TimelineDiff:
 }
         )
     }
-    public func pushFront()  -> TimelineItem? {
+    open func pushFront()  -> TimelineItem? {
         return try!  FfiConverterOptionTypeTimelineItem.lift(
             try! 
     rustCall() {
@@ -7302,7 +7626,7 @@ public class TimelineDiff:
 }
         )
     }
-    public func remove()  -> UInt32? {
+    open func remove()  -> UInt32? {
         return try!  FfiConverterOptionUInt32.lift(
             try! 
     rustCall() {
@@ -7312,7 +7636,7 @@ public class TimelineDiff:
 }
         )
     }
-    public func reset()  -> [TimelineItem]? {
+    open func reset()  -> [TimelineItem]? {
         return try!  FfiConverterOptionSequenceTypeTimelineItem.lift(
             try! 
     rustCall() {
@@ -7322,7 +7646,7 @@ public class TimelineDiff:
 }
         )
     }
-    public func set()  -> SetData? {
+    open func set()  -> SetData? {
         return try!  FfiConverterOptionTypeSetData.lift(
             try! 
     rustCall() {
@@ -7367,6 +7691,8 @@ public struct FfiConverterTypeTimelineDiff: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeTimelineDiff_lift(_ pointer: UnsafeMutableRawPointer) throws -> TimelineDiff {
     return try FfiConverterTypeTimelineDiff.lift(pointer)
 }
@@ -7390,15 +7716,29 @@ public protocol TimelineEventProtocol : AnyObject {
     
 }
 
-public class TimelineEvent:
+open class TimelineEvent:
     TimelineEventProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -7406,6 +7746,10 @@ public class TimelineEvent:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineevent(pointer, $0) }
     }
 
@@ -7413,7 +7757,7 @@ public class TimelineEvent:
 
     
     
-    public func eventId()  -> String {
+    open func eventId()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -7423,7 +7767,7 @@ public class TimelineEvent:
 }
         )
     }
-    public func eventType() throws  -> TimelineEventType {
+    open func eventType() throws  -> TimelineEventType {
         return try  FfiConverterTypeTimelineEventType.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
@@ -7432,7 +7776,7 @@ public class TimelineEvent:
 }
         )
     }
-    public func senderId()  -> String {
+    open func senderId()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -7442,7 +7786,7 @@ public class TimelineEvent:
 }
         )
     }
-    public func timestamp()  -> UInt64 {
+    open func timestamp()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
@@ -7487,6 +7831,8 @@ public struct FfiConverterTypeTimelineEvent: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeTimelineEvent_lift(_ pointer: UnsafeMutableRawPointer) throws -> TimelineEvent {
     return try FfiConverterTypeTimelineEvent.lift(pointer)
 }
@@ -7502,15 +7848,29 @@ public protocol TimelineEventTypeFilterProtocol : AnyObject {
     
 }
 
-public class TimelineEventTypeFilter:
+open class TimelineEventTypeFilter:
     TimelineEventTypeFilterProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -7518,6 +7878,10 @@ public class TimelineEventTypeFilter:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineeventtypefilter(pointer, $0) }
     }
 
@@ -7576,6 +7940,8 @@ public struct FfiConverterTypeTimelineEventTypeFilter: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeTimelineEventTypeFilter_lift(_ pointer: UnsafeMutableRawPointer) throws -> TimelineEventTypeFilter {
     return try FfiConverterTypeTimelineEventTypeFilter.lift(pointer)
 }
@@ -7599,15 +7965,29 @@ public protocol TimelineItemProtocol : AnyObject {
     
 }
 
-public class TimelineItem:
+open class TimelineItem:
     TimelineItemProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -7615,6 +7995,10 @@ public class TimelineItem:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineitem(pointer, $0) }
     }
 
@@ -7622,7 +8006,7 @@ public class TimelineItem:
 
     
     
-    public func asEvent()  -> EventTimelineItem? {
+    open func asEvent()  -> EventTimelineItem? {
         return try!  FfiConverterOptionTypeEventTimelineItem.lift(
             try! 
     rustCall() {
@@ -7632,7 +8016,7 @@ public class TimelineItem:
 }
         )
     }
-    public func asVirtual()  -> VirtualTimelineItem? {
+    open func asVirtual()  -> VirtualTimelineItem? {
         return try!  FfiConverterOptionTypeVirtualTimelineItem.lift(
             try! 
     rustCall() {
@@ -7642,7 +8026,7 @@ public class TimelineItem:
 }
         )
     }
-    public func fmtDebug()  -> String {
+    open func fmtDebug()  -> String {
         return try!  FfiConverterString.lift(
             try! 
     rustCall() {
@@ -7652,7 +8036,7 @@ public class TimelineItem:
 }
         )
     }
-    public func uniqueId()  -> UInt64 {
+    open func uniqueId()  -> UInt64 {
         return try!  FfiConverterUInt64.lift(
             try! 
     rustCall() {
@@ -7697,6 +8081,8 @@ public struct FfiConverterTypeTimelineItem: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeTimelineItem_lift(_ pointer: UnsafeMutableRawPointer) throws -> TimelineItem {
     return try FfiConverterTypeTimelineItem.lift(pointer)
 }
@@ -7716,15 +8102,29 @@ public protocol TimelineItemContentProtocol : AnyObject {
     
 }
 
-public class TimelineItemContent:
+open class TimelineItemContent:
     TimelineItemContentProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -7732,6 +8132,10 @@ public class TimelineItemContent:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineitemcontent(pointer, $0) }
     }
 
@@ -7739,7 +8143,7 @@ public class TimelineItemContent:
 
     
     
-    public func asMessage()  -> Message? {
+    open func asMessage()  -> Message? {
         return try!  FfiConverterOptionTypeMessage.lift(
             try! 
     rustCall() {
@@ -7749,7 +8153,7 @@ public class TimelineItemContent:
 }
         )
     }
-    public func kind()  -> TimelineItemContentKind {
+    open func kind()  -> TimelineItemContentKind {
         return try!  FfiConverterTypeTimelineItemContentKind.lift(
             try! 
     rustCall() {
@@ -7794,6 +8198,8 @@ public struct FfiConverterTypeTimelineItemContent: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeTimelineItemContent_lift(_ pointer: UnsafeMutableRawPointer) throws -> TimelineItemContent {
     return try FfiConverterTypeTimelineItemContent.lift(pointer)
 }
@@ -7815,15 +8221,29 @@ public protocol UnreadNotificationsCountProtocol : AnyObject {
     
 }
 
-public class UnreadNotificationsCount:
+open class UnreadNotificationsCount:
     UnreadNotificationsCountProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -7831,6 +8251,10 @@ public class UnreadNotificationsCount:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_unreadnotificationscount(pointer, $0) }
     }
 
@@ -7838,7 +8262,7 @@ public class UnreadNotificationsCount:
 
     
     
-    public func hasNotifications()  -> Bool {
+    open func hasNotifications()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
     rustCall() {
@@ -7848,7 +8272,7 @@ public class UnreadNotificationsCount:
 }
         )
     }
-    public func highlightCount()  -> UInt32 {
+    open func highlightCount()  -> UInt32 {
         return try!  FfiConverterUInt32.lift(
             try! 
     rustCall() {
@@ -7858,7 +8282,7 @@ public class UnreadNotificationsCount:
 }
         )
     }
-    public func notificationCount()  -> UInt32 {
+    open func notificationCount()  -> UInt32 {
         return try!  FfiConverterUInt32.lift(
             try! 
     rustCall() {
@@ -7903,6 +8327,8 @@ public struct FfiConverterTypeUnreadNotificationsCount: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeUnreadNotificationsCount_lift(_ pointer: UnsafeMutableRawPointer) throws -> UnreadNotificationsCount {
     return try FfiConverterTypeUnreadNotificationsCount.lift(pointer)
 }
@@ -7928,15 +8354,29 @@ public protocol WidgetDriverProtocol : AnyObject {
  * An object that handles all interactions of a widget living inside a webview
  * or IFrame with the Matrix world.
  */
-public class WidgetDriver:
+open class WidgetDriver:
     WidgetDriverProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -7944,6 +8384,10 @@ public class WidgetDriver:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriver(pointer, $0) }
     }
 
@@ -7951,7 +8395,7 @@ public class WidgetDriver:
 
     
     
-    public func run(room: Room, capabilitiesProvider: WidgetCapabilitiesProvider) async  {
+    open func run(room: Room, capabilitiesProvider: WidgetCapabilitiesProvider) async  {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriver_run(
@@ -8005,6 +8449,8 @@ public struct FfiConverterTypeWidgetDriver: FfiConverter {
 }
 
 
+
+
 public func FfiConverterTypeWidgetDriver_lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetDriver {
     return try FfiConverterTypeWidgetDriver.lift(pointer)
 }
@@ -8043,15 +8489,29 @@ public protocol WidgetDriverHandleProtocol : AnyObject {
  * A handle that encapsulates the communication between a widget driver and the
  * corresponding widget (inside a webview or IFrame).
  */
-public class WidgetDriverHandle:
+open class WidgetDriverHandle:
     WidgetDriverHandleProtocol {
-    fileprivate let pointer: UnsafeMutableRawPointer
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
 
     // TODO: We'd like this to be `private` but for Swifty reasons,
     // we can't implement `FfiConverter` without making this `required` and we can't
     // make it `required` without making it `public`.
-    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
@@ -8059,6 +8519,10 @@ public class WidgetDriverHandle:
     }
 
     deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriverhandle(pointer, $0) }
     }
 
@@ -8073,7 +8537,7 @@ public class WidgetDriverHandle:
      *
      * Returns `None` if the widget driver is no longer running.
      */
-    public func recv() async  -> String? {
+    open func recv() async  -> String? {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_recv(
@@ -8094,7 +8558,7 @@ public class WidgetDriverHandle:
      *
      * Returns `false` if the widget driver is no longer running.
      */
-    public func send(msg: String) async  -> Bool {
+    open func send(msg: String) async  -> Bool {
         return try!  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_widgetdriverhandle_send(
@@ -8145,6 +8609,8 @@ public struct FfiConverterTypeWidgetDriverHandle: FfiConverter {
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
     }
 }
+
+
 
 
 public func FfiConverterTypeWidgetDriverHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> WidgetDriverHandle {
@@ -10647,6 +11113,127 @@ public func FfiConverterTypeRoomListRange_lower(_ value: RoomListRange) -> RustB
 }
 
 
+public struct RoomMember {
+    public var userId: String
+    public var displayName: String?
+    public var avatarUrl: String?
+    public var membership: MembershipState
+    public var isNameAmbiguous: Bool
+    public var powerLevel: Int64
+    public var normalizedPowerLevel: Int64
+    public var isIgnored: Bool
+    public var suggestedRoleForPowerLevel: RoomMemberRole
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        userId: String, 
+        displayName: String?, 
+        avatarUrl: String?, 
+        membership: MembershipState, 
+        isNameAmbiguous: Bool, 
+        powerLevel: Int64, 
+        normalizedPowerLevel: Int64, 
+        isIgnored: Bool, 
+        suggestedRoleForPowerLevel: RoomMemberRole) {
+        self.userId = userId
+        self.displayName = displayName
+        self.avatarUrl = avatarUrl
+        self.membership = membership
+        self.isNameAmbiguous = isNameAmbiguous
+        self.powerLevel = powerLevel
+        self.normalizedPowerLevel = normalizedPowerLevel
+        self.isIgnored = isIgnored
+        self.suggestedRoleForPowerLevel = suggestedRoleForPowerLevel
+    }
+}
+
+
+extension RoomMember: Equatable, Hashable {
+    public static func ==(lhs: RoomMember, rhs: RoomMember) -> Bool {
+        if lhs.userId != rhs.userId {
+            return false
+        }
+        if lhs.displayName != rhs.displayName {
+            return false
+        }
+        if lhs.avatarUrl != rhs.avatarUrl {
+            return false
+        }
+        if lhs.membership != rhs.membership {
+            return false
+        }
+        if lhs.isNameAmbiguous != rhs.isNameAmbiguous {
+            return false
+        }
+        if lhs.powerLevel != rhs.powerLevel {
+            return false
+        }
+        if lhs.normalizedPowerLevel != rhs.normalizedPowerLevel {
+            return false
+        }
+        if lhs.isIgnored != rhs.isIgnored {
+            return false
+        }
+        if lhs.suggestedRoleForPowerLevel != rhs.suggestedRoleForPowerLevel {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(userId)
+        hasher.combine(displayName)
+        hasher.combine(avatarUrl)
+        hasher.combine(membership)
+        hasher.combine(isNameAmbiguous)
+        hasher.combine(powerLevel)
+        hasher.combine(normalizedPowerLevel)
+        hasher.combine(isIgnored)
+        hasher.combine(suggestedRoleForPowerLevel)
+    }
+}
+
+
+public struct FfiConverterTypeRoomMember: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMember {
+        return
+            try RoomMember(
+                userId: FfiConverterString.read(from: &buf), 
+                displayName: FfiConverterOptionString.read(from: &buf), 
+                avatarUrl: FfiConverterOptionString.read(from: &buf), 
+                membership: FfiConverterTypeMembershipState.read(from: &buf), 
+                isNameAmbiguous: FfiConverterBool.read(from: &buf), 
+                powerLevel: FfiConverterInt64.read(from: &buf), 
+                normalizedPowerLevel: FfiConverterInt64.read(from: &buf), 
+                isIgnored: FfiConverterBool.read(from: &buf), 
+                suggestedRoleForPowerLevel: FfiConverterTypeRoomMemberRole.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RoomMember, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.userId, into: &buf)
+        FfiConverterOptionString.write(value.displayName, into: &buf)
+        FfiConverterOptionString.write(value.avatarUrl, into: &buf)
+        FfiConverterTypeMembershipState.write(value.membership, into: &buf)
+        FfiConverterBool.write(value.isNameAmbiguous, into: &buf)
+        FfiConverterInt64.write(value.powerLevel, into: &buf)
+        FfiConverterInt64.write(value.normalizedPowerLevel, into: &buf)
+        FfiConverterBool.write(value.isIgnored, into: &buf)
+        FfiConverterTypeRoomMemberRole.write(value.suggestedRoleForPowerLevel, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeRoomMember_lift(_ buf: RustBuffer) throws -> RoomMember {
+    return try FfiConverterTypeRoomMember.lift(buf)
+}
+
+public func FfiConverterTypeRoomMember_lower(_ value: RoomMember) -> RustBuffer {
+    return FfiConverterTypeRoomMember.lower(value)
+}
+
+
 /**
  * `RoomNotificationSettings` represents the current settings for a `Room`
  */
@@ -11506,6 +12093,79 @@ public func FfiConverterTypeUnstableVoiceContent_lift(_ buf: RustBuffer) throws 
 
 public func FfiConverterTypeUnstableVoiceContent_lower(_ value: UnstableVoiceContent) -> RustBuffer {
     return FfiConverterTypeUnstableVoiceContent.lower(value)
+}
+
+
+/**
+ * An update for a particular user's power level within the room.
+ */
+public struct UserPowerLevelUpdate {
+    /**
+     * The user ID of the user to update.
+     */
+    public var userId: String
+    /**
+     * The power level to assign to the user.
+     */
+    public var powerLevel: Int64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The user ID of the user to update.
+         */
+        userId: String, 
+        /**
+         * The power level to assign to the user.
+         */
+        powerLevel: Int64) {
+        self.userId = userId
+        self.powerLevel = powerLevel
+    }
+}
+
+
+extension UserPowerLevelUpdate: Equatable, Hashable {
+    public static func ==(lhs: UserPowerLevelUpdate, rhs: UserPowerLevelUpdate) -> Bool {
+        if lhs.userId != rhs.userId {
+            return false
+        }
+        if lhs.powerLevel != rhs.powerLevel {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(userId)
+        hasher.combine(powerLevel)
+    }
+}
+
+
+public struct FfiConverterTypeUserPowerLevelUpdate: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UserPowerLevelUpdate {
+        return
+            try UserPowerLevelUpdate(
+                userId: FfiConverterString.read(from: &buf), 
+                powerLevel: FfiConverterInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UserPowerLevelUpdate, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.userId, into: &buf)
+        FfiConverterInt64.write(value.powerLevel, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeUserPowerLevelUpdate_lift(_ buf: RustBuffer) throws -> UserPowerLevelUpdate {
+    return try FfiConverterTypeUserPowerLevelUpdate.lift(buf)
+}
+
+public func FfiConverterTypeUserPowerLevelUpdate_lower(_ value: UserPowerLevelUpdate) -> RustBuffer {
+    return FfiConverterTypeUserPowerLevelUpdate.lower(value)
 }
 
 
@@ -12383,10 +13043,6 @@ public enum AuthenticationError {
     
     case Generic(message: String)
     
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeAuthenticationError.lift(error)
-    }
 }
 
 
@@ -12682,10 +13338,6 @@ public enum ClientBuildError {
     
     case Generic(message: String)
     
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeClientBuildError.lift(error)
-    }
 }
 
 
@@ -12741,10 +13393,6 @@ public enum ClientError {
     case Generic(
         msg: String
     )
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeClientError.lift(error)
-    }
 }
 
 
@@ -14347,10 +14995,6 @@ public enum NotificationSettingsError {
      * Unable to update push rule.
      */
     case UnableToUpdatePushRule
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeNotificationSettingsError.lift(error)
-    }
 }
 
 
@@ -14749,10 +15393,6 @@ public enum ParseError {
     
     case Other(message: String)
     
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeParseError.lift(error)
-    }
 }
 
 
@@ -15174,10 +15814,6 @@ public enum RecoveryError {
     case SecretStorage(
         errorMessage: String
     )
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeRecoveryError.lift(error)
-    }
 }
 
 
@@ -15395,10 +16031,6 @@ public enum RoomError {
     
     case FailedSendingAttachment(message: String)
     
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeRoomError.lift(error)
-    }
 }
 
 
@@ -15856,10 +16488,6 @@ public enum RoomListError {
     case EventCache(
         error: String
     )
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeRoomListError.lift(error)
-    }
 }
 
 
@@ -16912,10 +17540,6 @@ public enum SteadyStateError {
     
     case Lagged(message: String)
     
-
-    fileprivate static func uniffiErrorHandler(_ error: RustBuffer) throws -> Error {
-        return try FfiConverterTypeSteadyStateError.lift(error)
-    }
 }
 
 
@@ -17587,63 +18211,6 @@ public protocol BackPaginationStatusListener : AnyObject {
     
 }
 
-fileprivate extension NSLock {
-    func withLock<T>(f: () throws -> T) rethrows -> T {
-        self.lock()
-        defer { self.unlock() }
-        return try f()
-    }
-}
-
-fileprivate typealias UniFFICallbackHandle = UInt64
-fileprivate class UniFFICallbackHandleMap<T> {
-    private var leftMap: [UniFFICallbackHandle: T] = [:]
-    private var counter: [UniFFICallbackHandle: UInt64] = [:]
-    private var rightMap: [ObjectIdentifier: UniFFICallbackHandle] = [:]
-
-    private let lock = NSLock()
-    private var currentHandle: UniFFICallbackHandle = 1
-    private let stride: UniFFICallbackHandle = 1
-
-    func insert(obj: T) -> UniFFICallbackHandle {
-        lock.withLock {
-            let id = ObjectIdentifier(obj as AnyObject)
-            let handle = rightMap[id] ?? {
-                currentHandle += stride
-                let handle = currentHandle
-                leftMap[handle] = obj
-                rightMap[id] = handle
-                return handle
-            }()
-            counter[handle] = (counter[handle] ?? 0) + 1
-            return handle
-        }
-    }
-
-    func get(handle: UniFFICallbackHandle) -> T? {
-        lock.withLock {
-            leftMap[handle]
-        }
-    }
-
-    func delete(handle: UniFFICallbackHandle) {
-        remove(handle: handle)
-    }
-
-    @discardableResult
-    func remove(handle: UniFFICallbackHandle) -> T? {
-        lock.withLock {
-            defer { counter[handle] = (counter[handle] ?? 1) - 1 }
-            guard counter[handle] == 1 else { return leftMap[handle] }
-            let obj = leftMap.removeValue(forKey: handle)
-            if let obj = obj {
-                rightMap.removeValue(forKey: ObjectIdentifier(obj as AnyObject))
-            }
-            return obj
-        }
-    }
-}
-
 // Magic number for the Rust proxy to call using the same mechanism as every other method,
 // to free the callback once it's dropped by Rust.
 private let IDX_CALLBACK_FREE: Int32 = 0
@@ -17652,79 +18219,69 @@ private let UNIFFI_CALLBACK_SUCCESS: Int32 = 0
 private let UNIFFI_CALLBACK_ERROR: Int32 = 1
 private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 
-// Declaration and FfiConverters for BackPaginationStatusListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceBackPaginationStatusListener {
 
-fileprivate let uniffiCallbackHandlerBackPaginationStatusListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: BackPaginationStatusListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    status:  try FfiConverterTypeBackPaginationStatus.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceBackPaginationStatusListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceBackPaginationStatusListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceBackPaginationStatusListener = UniffiVTableCallbackInterfaceBackPaginationStatusListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            status: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: BackPaginationStatusListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceBackPaginationStatusListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 status: try FfiConverterTypeBackPaginationStatus_lift(status)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceBackPaginationStatusListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface BackPaginationStatusListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitBackPaginationStatusListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_backpaginationstatuslistener(uniffiCallbackHandlerBackPaginationStatusListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_backpaginationstatuslistener(&UniffiCallbackInterfaceBackPaginationStatusListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceBackPaginationStatusListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<BackPaginationStatusListener>()
+    fileprivate static var handleMap = UniffiHandleMap<BackPaginationStatusListener>()
 }
 
 extension FfiConverterCallbackInterfaceBackPaginationStatusListener : FfiConverter {
     typealias SwiftType = BackPaginationStatusListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -17744,79 +18301,69 @@ public protocol BackupStateListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for BackupStateListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceBackupStateListener {
 
-fileprivate let uniffiCallbackHandlerBackupStateListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: BackupStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    status:  try FfiConverterTypeBackupState.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceBackupStateListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceBackupStateListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceBackupStateListener = UniffiVTableCallbackInterfaceBackupStateListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            status: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: BackupStateListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceBackupStateListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 status: try FfiConverterTypeBackupState.lift(status)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceBackupStateListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface BackupStateListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitBackupStateListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_backupstatelistener(uniffiCallbackHandlerBackupStateListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_backupstatelistener(&UniffiCallbackInterfaceBackupStateListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceBackupStateListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<BackupStateListener>()
+    fileprivate static var handleMap = UniffiHandleMap<BackupStateListener>()
 }
 
 extension FfiConverterCallbackInterfaceBackupStateListener : FfiConverter {
     typealias SwiftType = BackupStateListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -17836,79 +18383,69 @@ public protocol BackupSteadyStateListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for BackupSteadyStateListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceBackupSteadyStateListener {
 
-fileprivate let uniffiCallbackHandlerBackupSteadyStateListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: BackupSteadyStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    status:  try FfiConverterTypeBackupUploadState.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceBackupSteadyStateListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceBackupSteadyStateListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceBackupSteadyStateListener = UniffiVTableCallbackInterfaceBackupSteadyStateListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            status: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: BackupSteadyStateListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceBackupSteadyStateListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 status: try FfiConverterTypeBackupUploadState.lift(status)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceBackupSteadyStateListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface BackupSteadyStateListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitBackupSteadyStateListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_backupsteadystatelistener(uniffiCallbackHandlerBackupSteadyStateListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_backupsteadystatelistener(&UniffiCallbackInterfaceBackupSteadyStateListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceBackupSteadyStateListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<BackupSteadyStateListener>()
+    fileprivate static var handleMap = UniffiHandleMap<BackupSteadyStateListener>()
 }
 
 extension FfiConverterCallbackInterfaceBackupSteadyStateListener : FfiConverter {
     typealias SwiftType = BackupSteadyStateListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -17930,99 +18467,92 @@ public protocol ClientDelegate : AnyObject {
 
 
 
-// Declaration and FfiConverters for ClientDelegate Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceClientDelegate {
 
-fileprivate let uniffiCallbackHandlerClientDelegate : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeDidReceiveAuthError(_ swiftCallbackInterface: ClientDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didReceiveAuthError(
-                    isSoftLogout:  try FfiConverterBool.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-    func invokeDidRefreshTokens(_ swiftCallbackInterface: ClientDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didRefreshTokens(
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceClientDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceClientDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceClientDelegate = UniffiVTableCallbackInterfaceClientDelegate(
+        didReceiveAuthError: { (
+            uniffiHandle: UInt64,
+            isSoftLogout: Int8,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: ClientDelegate
             do {
-                return try invokeDidReceiveAuthError(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceClientDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 2:
-            guard let cb = FfiConverterCallbackInterfaceClientDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.didReceiveAuthError(
+                 isSoftLogout: try FfiConverterBool.lift(isSoftLogout)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        didRefreshTokens: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: ClientDelegate
             do {
-                return try invokeDidRefreshTokens(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceClientDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.didRefreshTokens(
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceClientDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface ClientDelegate: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitClientDelegate() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_clientdelegate(uniffiCallbackHandlerClientDelegate)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_clientdelegate(&UniffiCallbackInterfaceClientDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceClientDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<ClientDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<ClientDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceClientDelegate : FfiConverter {
     typealias SwiftType = ClientDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18044,109 +18574,95 @@ public protocol ClientSessionDelegate : AnyObject {
 
 
 
-// Declaration and FfiConverters for ClientSessionDelegate Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceClientSessionDelegate {
 
-fileprivate let uniffiCallbackHandlerClientSessionDelegate : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeRetrieveSessionFromKeychain(_ swiftCallbackInterface: ClientSessionDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            let result =  try swiftCallbackInterface.retrieveSessionFromKeychain(
-                    userId:  try FfiConverterString.read(from: &reader)
-                    )
-            var writer = [UInt8]()
-            FfiConverterTypeSession.write(result, into: &writer)
-            out_buf.pointee = RustBuffer(bytes: writer)
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        do {
-            return try makeCall()
-        } catch let error as ClientError {
-            out_buf.pointee = FfiConverterTypeClientError.lower(error)
-            return UNIFFI_CALLBACK_ERROR
-        }
-    }
-
-    func invokeSaveSessionInKeychain(_ swiftCallbackInterface: ClientSessionDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.saveSessionInKeychain(
-                    session:  try FfiConverterTypeSession.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceClientSessionDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceClientSessionDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceClientSessionDelegate = UniffiVTableCallbackInterfaceClientSessionDelegate(
+        retrieveSessionFromKeychain: { (
+            uniffiHandle: UInt64,
+            userId: RustBuffer,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: ClientSessionDelegate
             do {
-                return try invokeRetrieveSessionFromKeychain(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceClientSessionDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 2:
-            guard let cb = FfiConverterCallbackInterfaceClientSessionDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { try uniffiObj.retrieveSessionFromKeychain(
+                 userId: try FfiConverterString.lift(userId)
+            ) }
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterTypeSession.lower($0) }
+            uniffiTraitInterfaceCallWithError(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn,
+                lowerError: FfiConverterTypeClientError.lower
+            )
+        },
+        saveSessionInKeychain: { (
+            uniffiHandle: UInt64,
+            session: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: ClientSessionDelegate
             do {
-                return try invokeSaveSessionInKeychain(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceClientSessionDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.saveSessionInKeychain(
+                 session: try FfiConverterTypeSession.lift(session)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceClientSessionDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface ClientSessionDelegate: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitClientSessionDelegate() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_clientsessiondelegate(uniffiCallbackHandlerClientSessionDelegate)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_clientsessiondelegate(&UniffiCallbackInterfaceClientSessionDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceClientSessionDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<ClientSessionDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<ClientSessionDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceClientSessionDelegate : FfiConverter {
     typealias SwiftType = ClientSessionDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18166,79 +18682,69 @@ public protocol EnableRecoveryProgressListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for EnableRecoveryProgressListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceEnableRecoveryProgressListener {
 
-fileprivate let uniffiCallbackHandlerEnableRecoveryProgressListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: EnableRecoveryProgressListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    status:  try FfiConverterTypeEnableRecoveryProgress.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceEnableRecoveryProgressListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceEnableRecoveryProgressListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceEnableRecoveryProgressListener = UniffiVTableCallbackInterfaceEnableRecoveryProgressListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            status: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: EnableRecoveryProgressListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceEnableRecoveryProgressListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 status: try FfiConverterTypeEnableRecoveryProgress.lift(status)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceEnableRecoveryProgressListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface EnableRecoveryProgressListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitEnableRecoveryProgressListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_enablerecoveryprogresslistener(uniffiCallbackHandlerEnableRecoveryProgressListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_enablerecoveryprogresslistener(&UniffiCallbackInterfaceEnableRecoveryProgressListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceEnableRecoveryProgressListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<EnableRecoveryProgressListener>()
+    fileprivate static var handleMap = UniffiHandleMap<EnableRecoveryProgressListener>()
 }
 
 extension FfiConverterCallbackInterfaceEnableRecoveryProgressListener : FfiConverter {
     typealias SwiftType = EnableRecoveryProgressListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18258,79 +18764,69 @@ public protocol IgnoredUsersListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for IgnoredUsersListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceIgnoredUsersListener {
 
-fileprivate let uniffiCallbackHandlerIgnoredUsersListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeCall(_ swiftCallbackInterface: IgnoredUsersListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.call(
-                    ignoredUserIds:  try FfiConverterSequenceString.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceIgnoredUsersListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceIgnoredUsersListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceIgnoredUsersListener = UniffiVTableCallbackInterfaceIgnoredUsersListener(
+        call: { (
+            uniffiHandle: UInt64,
+            ignoredUserIds: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: IgnoredUsersListener
             do {
-                return try invokeCall(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceIgnoredUsersListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.call(
+                 ignoredUserIds: try FfiConverterSequenceString.lift(ignoredUserIds)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceIgnoredUsersListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface IgnoredUsersListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitIgnoredUsersListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_ignoreduserslistener(uniffiCallbackHandlerIgnoredUsersListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_ignoreduserslistener(&UniffiCallbackInterfaceIgnoredUsersListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceIgnoredUsersListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<IgnoredUsersListener>()
+    fileprivate static var handleMap = UniffiHandleMap<IgnoredUsersListener>()
 }
 
 extension FfiConverterCallbackInterfaceIgnoredUsersListener : FfiConverter {
     typealias SwiftType = IgnoredUsersListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18353,77 +18849,67 @@ public protocol NotificationSettingsDelegate : AnyObject {
 
 
 
-// Declaration and FfiConverters for NotificationSettingsDelegate Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceNotificationSettingsDelegate {
 
-fileprivate let uniffiCallbackHandlerNotificationSettingsDelegate : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeSettingsDidChange(_ swiftCallbackInterface: NotificationSettingsDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.settingsDidChange(
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceNotificationSettingsDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceNotificationSettingsDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceNotificationSettingsDelegate = UniffiVTableCallbackInterfaceNotificationSettingsDelegate(
+        settingsDidChange: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: NotificationSettingsDelegate
             do {
-                return try invokeSettingsDidChange(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceNotificationSettingsDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.settingsDidChange(
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceNotificationSettingsDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface NotificationSettingsDelegate: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitNotificationSettingsDelegate() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_notificationsettingsdelegate(uniffiCallbackHandlerNotificationSettingsDelegate)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_notificationsettingsdelegate(&UniffiCallbackInterfaceNotificationSettingsDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceNotificationSettingsDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<NotificationSettingsDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<NotificationSettingsDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceNotificationSettingsDelegate : FfiConverter {
     typealias SwiftType = NotificationSettingsDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18443,79 +18929,69 @@ public protocol ProgressWatcher : AnyObject {
 
 
 
-// Declaration and FfiConverters for ProgressWatcher Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceProgressWatcher {
 
-fileprivate let uniffiCallbackHandlerProgressWatcher : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeTransmissionProgress(_ swiftCallbackInterface: ProgressWatcher, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.transmissionProgress(
-                    progress:  try FfiConverterTypeTransmissionProgress.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceProgressWatcher.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceProgressWatcher.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceProgressWatcher = UniffiVTableCallbackInterfaceProgressWatcher(
+        transmissionProgress: { (
+            uniffiHandle: UInt64,
+            progress: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: ProgressWatcher
             do {
-                return try invokeTransmissionProgress(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceProgressWatcher.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.transmissionProgress(
+                 progress: try FfiConverterTypeTransmissionProgress.lift(progress)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceProgressWatcher.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface ProgressWatcher: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitProgressWatcher() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_progresswatcher(uniffiCallbackHandlerProgressWatcher)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_progresswatcher(&UniffiCallbackInterfaceProgressWatcher.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceProgressWatcher {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<ProgressWatcher>()
+    fileprivate static var handleMap = UniffiHandleMap<ProgressWatcher>()
 }
 
 extension FfiConverterCallbackInterfaceProgressWatcher : FfiConverter {
     typealias SwiftType = ProgressWatcher
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18535,79 +19011,69 @@ public protocol RecoveryStateListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for RecoveryStateListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceRecoveryStateListener {
 
-fileprivate let uniffiCallbackHandlerRecoveryStateListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: RecoveryStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    status:  try FfiConverterTypeRecoveryState.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceRecoveryStateListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceRecoveryStateListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceRecoveryStateListener = UniffiVTableCallbackInterfaceRecoveryStateListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            status: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: RecoveryStateListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceRecoveryStateListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 status: try FfiConverterTypeRecoveryState.lift(status)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceRecoveryStateListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface RecoveryStateListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitRecoveryStateListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_recoverystatelistener(uniffiCallbackHandlerRecoveryStateListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_recoverystatelistener(&UniffiCallbackInterfaceRecoveryStateListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceRecoveryStateListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<RecoveryStateListener>()
+    fileprivate static var handleMap = UniffiHandleMap<RecoveryStateListener>()
 }
 
 extension FfiConverterCallbackInterfaceRecoveryStateListener : FfiConverter {
     typealias SwiftType = RecoveryStateListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18627,79 +19093,69 @@ public protocol RoomInfoListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for RoomInfoListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceRoomInfoListener {
 
-fileprivate let uniffiCallbackHandlerRoomInfoListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeCall(_ swiftCallbackInterface: RoomInfoListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.call(
-                    roomInfo:  try FfiConverterTypeRoomInfo.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceRoomInfoListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceRoomInfoListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceRoomInfoListener = UniffiVTableCallbackInterfaceRoomInfoListener(
+        call: { (
+            uniffiHandle: UInt64,
+            roomInfo: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: RoomInfoListener
             do {
-                return try invokeCall(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceRoomInfoListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.call(
+                 roomInfo: try FfiConverterTypeRoomInfo.lift(roomInfo)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceRoomInfoListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface RoomInfoListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitRoomInfoListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_roominfolistener(uniffiCallbackHandlerRoomInfoListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_roominfolistener(&UniffiCallbackInterfaceRoomInfoListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceRoomInfoListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<RoomInfoListener>()
+    fileprivate static var handleMap = UniffiHandleMap<RoomInfoListener>()
 }
 
 extension FfiConverterCallbackInterfaceRoomInfoListener : FfiConverter {
     typealias SwiftType = RoomInfoListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18719,79 +19175,69 @@ public protocol RoomListEntriesListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for RoomListEntriesListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceRoomListEntriesListener {
 
-fileprivate let uniffiCallbackHandlerRoomListEntriesListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: RoomListEntriesListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    roomEntriesUpdate:  try FfiConverterSequenceTypeRoomListEntriesUpdate.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceRoomListEntriesListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceRoomListEntriesListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceRoomListEntriesListener = UniffiVTableCallbackInterfaceRoomListEntriesListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            roomEntriesUpdate: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: RoomListEntriesListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceRoomListEntriesListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 roomEntriesUpdate: try FfiConverterSequenceTypeRoomListEntriesUpdate.lift(roomEntriesUpdate)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceRoomListEntriesListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface RoomListEntriesListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitRoomListEntriesListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_roomlistentrieslistener(uniffiCallbackHandlerRoomListEntriesListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_roomlistentrieslistener(&UniffiCallbackInterfaceRoomListEntriesListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceRoomListEntriesListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<RoomListEntriesListener>()
+    fileprivate static var handleMap = UniffiHandleMap<RoomListEntriesListener>()
 }
 
 extension FfiConverterCallbackInterfaceRoomListEntriesListener : FfiConverter {
     typealias SwiftType = RoomListEntriesListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18811,79 +19257,69 @@ public protocol RoomListLoadingStateListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for RoomListLoadingStateListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceRoomListLoadingStateListener {
 
-fileprivate let uniffiCallbackHandlerRoomListLoadingStateListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: RoomListLoadingStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    state:  try FfiConverterTypeRoomListLoadingState.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceRoomListLoadingStateListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceRoomListLoadingStateListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceRoomListLoadingStateListener = UniffiVTableCallbackInterfaceRoomListLoadingStateListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            state: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: RoomListLoadingStateListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceRoomListLoadingStateListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 state: try FfiConverterTypeRoomListLoadingState.lift(state)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceRoomListLoadingStateListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface RoomListLoadingStateListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitRoomListLoadingStateListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_roomlistloadingstatelistener(uniffiCallbackHandlerRoomListLoadingStateListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_roomlistloadingstatelistener(&UniffiCallbackInterfaceRoomListLoadingStateListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceRoomListLoadingStateListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<RoomListLoadingStateListener>()
+    fileprivate static var handleMap = UniffiHandleMap<RoomListLoadingStateListener>()
 }
 
 extension FfiConverterCallbackInterfaceRoomListLoadingStateListener : FfiConverter {
     typealias SwiftType = RoomListLoadingStateListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18903,79 +19339,69 @@ public protocol RoomListServiceStateListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for RoomListServiceStateListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceRoomListServiceStateListener {
 
-fileprivate let uniffiCallbackHandlerRoomListServiceStateListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: RoomListServiceStateListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    state:  try FfiConverterTypeRoomListServiceState.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceRoomListServiceStateListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceRoomListServiceStateListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceRoomListServiceStateListener = UniffiVTableCallbackInterfaceRoomListServiceStateListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            state: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: RoomListServiceStateListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceRoomListServiceStateListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 state: try FfiConverterTypeRoomListServiceState.lift(state)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceRoomListServiceStateListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface RoomListServiceStateListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitRoomListServiceStateListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_roomlistservicestatelistener(uniffiCallbackHandlerRoomListServiceStateListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_roomlistservicestatelistener(&UniffiCallbackInterfaceRoomListServiceStateListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceRoomListServiceStateListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<RoomListServiceStateListener>()
+    fileprivate static var handleMap = UniffiHandleMap<RoomListServiceStateListener>()
 }
 
 extension FfiConverterCallbackInterfaceRoomListServiceStateListener : FfiConverter {
     typealias SwiftType = RoomListServiceStateListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -18995,79 +19421,69 @@ public protocol RoomListServiceSyncIndicatorListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for RoomListServiceSyncIndicatorListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceRoomListServiceSyncIndicatorListener {
 
-fileprivate let uniffiCallbackHandlerRoomListServiceSyncIndicatorListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: RoomListServiceSyncIndicatorListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    syncIndicator:  try FfiConverterTypeRoomListServiceSyncIndicator.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceRoomListServiceSyncIndicatorListener = UniffiVTableCallbackInterfaceRoomListServiceSyncIndicatorListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            syncIndicator: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: RoomListServiceSyncIndicatorListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 syncIndicator: try FfiConverterTypeRoomListServiceSyncIndicator.lift(syncIndicator)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface RoomListServiceSyncIndicatorListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitRoomListServiceSyncIndicatorListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_roomlistservicesyncindicatorlistener(uniffiCallbackHandlerRoomListServiceSyncIndicatorListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_roomlistservicesyncindicatorlistener(&UniffiCallbackInterfaceRoomListServiceSyncIndicatorListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<RoomListServiceSyncIndicatorListener>()
+    fileprivate static var handleMap = UniffiHandleMap<RoomListServiceSyncIndicatorListener>()
 }
 
 extension FfiConverterCallbackInterfaceRoomListServiceSyncIndicatorListener : FfiConverter {
     typealias SwiftType = RoomListServiceSyncIndicatorListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -19097,179 +19513,184 @@ public protocol SessionVerificationControllerDelegate : AnyObject {
 
 
 
-// Declaration and FfiConverters for SessionVerificationControllerDelegate Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceSessionVerificationControllerDelegate {
 
-fileprivate let uniffiCallbackHandlerSessionVerificationControllerDelegate : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeDidAcceptVerificationRequest(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didAcceptVerificationRequest(
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-    func invokeDidStartSasVerification(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didStartSasVerification(
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-    func invokeDidReceiveVerificationData(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didReceiveVerificationData(
-                    data:  try FfiConverterTypeSessionVerificationData.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-    func invokeDidFail(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didFail(
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-    func invokeDidCancel(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didCancel(
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-    func invokeDidFinish(_ swiftCallbackInterface: SessionVerificationControllerDelegate, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.didFinish(
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceSessionVerificationControllerDelegate = UniffiVTableCallbackInterfaceSessionVerificationControllerDelegate(
+        didAcceptVerificationRequest: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SessionVerificationControllerDelegate
             do {
-                return try invokeDidAcceptVerificationRequest(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 2:
-            guard let cb = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.didAcceptVerificationRequest(
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        didStartSasVerification: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SessionVerificationControllerDelegate
             do {
-                return try invokeDidStartSasVerification(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 3:
-            guard let cb = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.didStartSasVerification(
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        didReceiveVerificationData: { (
+            uniffiHandle: UInt64,
+            data: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SessionVerificationControllerDelegate
             do {
-                return try invokeDidReceiveVerificationData(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 4:
-            guard let cb = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.didReceiveVerificationData(
+                 data: try FfiConverterTypeSessionVerificationData.lift(data)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        didFail: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SessionVerificationControllerDelegate
             do {
-                return try invokeDidFail(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 5:
-            guard let cb = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.didFail(
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        didCancel: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SessionVerificationControllerDelegate
             do {
-                return try invokeDidCancel(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        case 6:
-            guard let cb = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+            let makeCall = { uniffiObj.didCancel(
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        didFinish: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SessionVerificationControllerDelegate
             do {
-                return try invokeDidFinish(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.didFinish(
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface SessionVerificationControllerDelegate: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitSessionVerificationControllerDelegate() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_sessionverificationcontrollerdelegate(uniffiCallbackHandlerSessionVerificationControllerDelegate)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_sessionverificationcontrollerdelegate(&UniffiCallbackInterfaceSessionVerificationControllerDelegate.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSessionVerificationControllerDelegate {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<SessionVerificationControllerDelegate>()
+    fileprivate static var handleMap = UniffiHandleMap<SessionVerificationControllerDelegate>()
 }
 
 extension FfiConverterCallbackInterfaceSessionVerificationControllerDelegate : FfiConverter {
     typealias SwiftType = SessionVerificationControllerDelegate
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -19289,79 +19710,69 @@ public protocol SyncServiceStateObserver : AnyObject {
 
 
 
-// Declaration and FfiConverters for SyncServiceStateObserver Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceSyncServiceStateObserver {
 
-fileprivate let uniffiCallbackHandlerSyncServiceStateObserver : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: SyncServiceStateObserver, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    state:  try FfiConverterTypeSyncServiceState.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceSyncServiceStateObserver.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceSyncServiceStateObserver.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceSyncServiceStateObserver = UniffiVTableCallbackInterfaceSyncServiceStateObserver(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            state: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: SyncServiceStateObserver
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceSyncServiceStateObserver.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 state: try FfiConverterTypeSyncServiceState.lift(state)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceSyncServiceStateObserver.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface SyncServiceStateObserver: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitSyncServiceStateObserver() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_syncservicestateobserver(uniffiCallbackHandlerSyncServiceStateObserver)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_syncservicestateobserver(&UniffiCallbackInterfaceSyncServiceStateObserver.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceSyncServiceStateObserver {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<SyncServiceStateObserver>()
+    fileprivate static var handleMap = UniffiHandleMap<SyncServiceStateObserver>()
 }
 
 extension FfiConverterCallbackInterfaceSyncServiceStateObserver : FfiConverter {
     typealias SwiftType = SyncServiceStateObserver
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -19381,79 +19792,69 @@ public protocol TimelineListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for TimelineListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceTimelineListener {
 
-fileprivate let uniffiCallbackHandlerTimelineListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeOnUpdate(_ swiftCallbackInterface: TimelineListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.onUpdate(
-                    diff:  try FfiConverterSequenceTypeTimelineDiff.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceTimelineListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceTimelineListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceTimelineListener = UniffiVTableCallbackInterfaceTimelineListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            diff: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: TimelineListener
             do {
-                return try invokeOnUpdate(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceTimelineListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.onUpdate(
+                 diff: try FfiConverterSequenceTypeTimelineDiff.lift(diff)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceTimelineListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface TimelineListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitTimelineListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_timelinelistener(uniffiCallbackHandlerTimelineListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_timelinelistener(&UniffiCallbackInterfaceTimelineListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceTimelineListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<TimelineListener>()
+    fileprivate static var handleMap = UniffiHandleMap<TimelineListener>()
 }
 
 extension FfiConverterCallbackInterfaceTimelineListener : FfiConverter {
     typealias SwiftType = TimelineListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -19473,79 +19874,69 @@ public protocol TypingNotificationsListener : AnyObject {
 
 
 
-// Declaration and FfiConverters for TypingNotificationsListener Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceTypingNotificationsListener {
 
-fileprivate let uniffiCallbackHandlerTypingNotificationsListener : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeCall(_ swiftCallbackInterface: TypingNotificationsListener, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            swiftCallbackInterface.call(
-                    typingUserIds:  try FfiConverterSequenceString.read(from: &reader)
-                    )
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceTypingNotificationsListener.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceTypingNotificationsListener.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceTypingNotificationsListener = UniffiVTableCallbackInterfaceTypingNotificationsListener(
+        call: { (
+            uniffiHandle: UInt64,
+            typingUserIds: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: TypingNotificationsListener
             do {
-                return try invokeCall(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceTypingNotificationsListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.call(
+                 typingUserIds: try FfiConverterSequenceString.lift(typingUserIds)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceTypingNotificationsListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface TypingNotificationsListener: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitTypingNotificationsListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_typingnotificationslistener(uniffiCallbackHandlerTypingNotificationsListener)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_typingnotificationslistener(&UniffiCallbackInterfaceTypingNotificationsListener.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceTypingNotificationsListener {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<TypingNotificationsListener>()
+    fileprivate static var handleMap = UniffiHandleMap<TypingNotificationsListener>()
 }
 
 extension FfiConverterCallbackInterfaceTypingNotificationsListener : FfiConverter {
     typealias SwiftType = TypingNotificationsListener
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -19565,82 +19956,69 @@ public protocol WidgetCapabilitiesProvider : AnyObject {
 
 
 
-// Declaration and FfiConverters for WidgetCapabilitiesProvider Callback Interface
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceWidgetCapabilitiesProvider {
 
-fileprivate let uniffiCallbackHandlerWidgetCapabilitiesProvider : ForeignCallback =
-    { (handle: UniFFICallbackHandle, method: Int32, argsData: UnsafePointer<UInt8>, argsLen: Int32, out_buf: UnsafeMutablePointer<RustBuffer>) -> Int32 in
-    
-
-    func invokeAcquireCapabilities(_ swiftCallbackInterface: WidgetCapabilitiesProvider, _ argsData: UnsafePointer<UInt8>, _ argsLen: Int32, _ out_buf: UnsafeMutablePointer<RustBuffer>) throws -> Int32 {
-        var reader = createReader(data: Data(bytes: argsData, count: Int(argsLen)))
-        func makeCall() throws -> Int32 {
-            let result =  swiftCallbackInterface.acquireCapabilities(
-                    capabilities:  try FfiConverterTypeWidgetCapabilities.read(from: &reader)
-                    )
-            var writer = [UInt8]()
-            FfiConverterTypeWidgetCapabilities.write(result, into: &writer)
-            out_buf.pointee = RustBuffer(bytes: writer)
-            return UNIFFI_CALLBACK_SUCCESS
-        }
-        return try makeCall()
-    }
-
-
-    switch method {
-        case IDX_CALLBACK_FREE:
-            FfiConverterCallbackInterfaceWidgetCapabilitiesProvider.handleMap.remove(handle: handle)
-            // Successful return
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_SUCCESS
-        case 1:
-            guard let cb = FfiConverterCallbackInterfaceWidgetCapabilitiesProvider.handleMap.get(handle: handle) else {
-                out_buf.pointee = FfiConverterString.lower("No callback in handlemap; this is a Uniffi bug")
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-            }
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceWidgetCapabilitiesProvider = UniffiVTableCallbackInterfaceWidgetCapabilitiesProvider(
+        acquireCapabilities: { (
+            uniffiHandle: UInt64,
+            capabilities: RustBuffer,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: WidgetCapabilitiesProvider
             do {
-                return try invokeAcquireCapabilities(cb, argsData, argsLen, out_buf)
-            } catch let error {
-                out_buf.pointee = FfiConverterString.lower(String(describing: error))
-                return UNIFFI_CALLBACK_UNEXPECTED_ERROR
+                try uniffiObj = FfiConverterCallbackInterfaceWidgetCapabilitiesProvider.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
             }
-        
-        // This should never happen, because an out of bounds method index won't
-        // ever be used. Once we can catch errors, we should return an InternalError.
-        // https://github.com/mozilla/uniffi-rs/issues/351
-        default:
-            // An unexpected error happened.
-            // See docs of ForeignCallback in `uniffi_core/src/ffi/foreigncallbacks.rs`
-            return UNIFFI_CALLBACK_UNEXPECTED_ERROR
-    }
+            let makeCall = { uniffiObj.acquireCapabilities(
+                 capabilities: try FfiConverterTypeWidgetCapabilities.lift(capabilities)
+            ) }
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterTypeWidgetCapabilities.lower($0) }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceWidgetCapabilitiesProvider.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface WidgetCapabilitiesProvider: handle missing in uniffiFree")
+            }
+        }
+    )
 }
 
 private func uniffiCallbackInitWidgetCapabilitiesProvider() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_widgetcapabilitiesprovider(uniffiCallbackHandlerWidgetCapabilitiesProvider)
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_widgetcapabilitiesprovider(&UniffiCallbackInterfaceWidgetCapabilitiesProvider.vtable)
 }
 
 // FfiConverter protocol for callback interfaces
 fileprivate struct FfiConverterCallbackInterfaceWidgetCapabilitiesProvider {
-    fileprivate static var handleMap = UniFFICallbackHandleMap<WidgetCapabilitiesProvider>()
+    fileprivate static var handleMap = UniffiHandleMap<WidgetCapabilitiesProvider>()
 }
 
 extension FfiConverterCallbackInterfaceWidgetCapabilitiesProvider : FfiConverter {
     typealias SwiftType = WidgetCapabilitiesProvider
-    // We can use Handle as the FfiType because it's a typealias to UInt64
-    typealias FfiType = UniFFICallbackHandle
+    typealias FfiType = UInt64
 
-    public static func lift(_ handle: UniFFICallbackHandle) throws -> SwiftType {
-        guard let callback = handleMap.get(handle: handle) else {
-            throw UniffiInternalError.unexpectedStaleHandle
-        }
-        return callback
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UniFFICallbackHandle = try readInt(&buf)
+        let handle: UInt64 = try readInt(&buf)
         return try lift(handle)
     }
 
-    public static func lower(_ v: SwiftType) -> UniFFICallbackHandle {
+    public static func lower(_ v: SwiftType) -> UInt64 {
         return handleMap.insert(obj: v)
     }
 
@@ -19922,27 +20300,6 @@ fileprivate struct FfiConverterOptionTypeRoom: FfiConverterRustBuffer {
     }
 }
 
-fileprivate struct FfiConverterOptionTypeRoomMember: FfiConverterRustBuffer {
-    typealias SwiftType = RoomMember?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeRoomMember.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeRoomMember.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 fileprivate struct FfiConverterOptionTypeTaskHandle: FfiConverterRustBuffer {
     typealias SwiftType = TaskHandle?
 
@@ -20211,6 +20568,27 @@ fileprivate struct FfiConverterOptionTypePowerLevels: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypePowerLevels.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypeRoomMember: FfiConverterRustBuffer {
+    typealias SwiftType = RoomMember?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeRoomMember.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeRoomMember.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -20657,27 +21035,6 @@ fileprivate struct FfiConverterOptionSequenceString: FfiConverterRustBuffer {
     }
 }
 
-fileprivate struct FfiConverterOptionSequenceTypeRoomMember: FfiConverterRustBuffer {
-    typealias SwiftType = [RoomMember]?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterSequenceTypeRoomMember.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterSequenceTypeRoomMember.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
 fileprivate struct FfiConverterOptionSequenceTypeTimelineItem: FfiConverterRustBuffer {
     typealias SwiftType = [TimelineItem]?
 
@@ -20715,6 +21072,27 @@ fileprivate struct FfiConverterOptionSequenceTypeRequiredState: FfiConverterRust
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceTypeRequiredState.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionSequenceTypeRoomMember: FfiConverterRustBuffer {
+    typealias SwiftType = [RoomMember]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceTypeRoomMember.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceTypeRoomMember.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -20824,28 +21202,6 @@ fileprivate struct FfiConverterSequenceTypeRoom: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeRoom.read(from: &buf))
-        }
-        return seq
-    }
-}
-
-fileprivate struct FfiConverterSequenceTypeRoomMember: FfiConverterRustBuffer {
-    typealias SwiftType = [RoomMember]
-
-    public static func write(_ value: [RoomMember], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for item in value {
-            FfiConverterTypeRoomMember.write(item, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RoomMember] {
-        let len: Int32 = try readInt(&buf)
-        var seq = [RoomMember]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeRoomMember.read(from: &buf))
         }
         return seq
     }
@@ -21022,6 +21378,50 @@ fileprivate struct FfiConverterSequenceTypeRoomListRange: FfiConverterRustBuffer
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeRoomListRange.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+fileprivate struct FfiConverterSequenceTypeRoomMember: FfiConverterRustBuffer {
+    typealias SwiftType = [RoomMember]
+
+    public static func write(_ value: [RoomMember], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRoomMember.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RoomMember] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RoomMember]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRoomMember.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+fileprivate struct FfiConverterSequenceTypeUserPowerLevelUpdate: FfiConverterRustBuffer {
+    typealias SwiftType = [UserPowerLevelUpdate]
+
+    public static func write(_ value: [UserPowerLevelUpdate], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeUserPowerLevelUpdate.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UserPowerLevelUpdate] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [UserPowerLevelUpdate]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeUserPowerLevelUpdate.read(from: &buf))
         }
         return seq
     }
@@ -21284,11 +21684,13 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
+fileprivate let uniffiContinuationHandleMap = UniffiHandleMap<UnsafeContinuation<Int8, Never>>()
+
 fileprivate func uniffiRustCallAsync<F, T>(
-    rustFutureFunc: () -> UnsafeMutableRawPointer,
-    pollFunc: (UnsafeMutableRawPointer, @escaping UniFfiRustFutureContinuation, UnsafeMutableRawPointer) -> (),
-    completeFunc: (UnsafeMutableRawPointer, UnsafeMutablePointer<RustCallStatus>) -> F,
-    freeFunc: (UnsafeMutableRawPointer) -> (),
+    rustFutureFunc: () -> UInt64,
+    pollFunc: (UInt64, @escaping UniffiRustFutureContinuationCallback, UInt64) -> (),
+    completeFunc: (UInt64, UnsafeMutablePointer<RustCallStatus>) -> F,
+    freeFunc: (UInt64) -> (),
     liftFunc: (F) throws -> T,
     errorHandler: ((RustBuffer) throws -> Error)?
 ) async throws -> T {
@@ -21302,7 +21704,11 @@ fileprivate func uniffiRustCallAsync<F, T>(
     var pollResult: Int8;
     repeat {
         pollResult = await withUnsafeContinuation {
-            pollFunc(rustFuture, uniffiFutureContinuationCallback, ContinuationHolder($0).toOpaque())
+            pollFunc(
+                rustFuture,
+                uniffiFutureContinuationCallback,
+                uniffiContinuationHandleMap.insert(obj: $0)
+            )
         }
     } while pollResult != UNIFFI_RUST_FUTURE_POLL_READY
 
@@ -21314,29 +21720,11 @@ fileprivate func uniffiRustCallAsync<F, T>(
 
 // Callback handlers for an async calls.  These are invoked by Rust when the future is ready.  They
 // lift the return value or error and resume the suspended function.
-fileprivate func uniffiFutureContinuationCallback(ptr: UnsafeMutableRawPointer, pollResult: Int8) {
-    ContinuationHolder.fromOpaque(ptr).resume(pollResult)
-}
-
-// Wraps UnsafeContinuation in a class so that we can use reference counting when passing it across
-// the FFI
-fileprivate class ContinuationHolder {
-    let continuation: UnsafeContinuation<Int8, Never>
-
-    init(_ continuation: UnsafeContinuation<Int8, Never>) {
-        self.continuation = continuation
-    }
-
-    func resume(_ pollResult: Int8) {
-        self.continuation.resume(returning: pollResult)
-    }
-
-    func toOpaque() -> UnsafeMutableRawPointer {
-        return Unmanaged<ContinuationHolder>.passRetained(self).toOpaque()
-    }
-
-    static func fromOpaque(_ ptr: UnsafeRawPointer) -> ContinuationHolder {
-        return Unmanaged<ContinuationHolder>.fromOpaque(ptr).takeRetainedValue()
+fileprivate func uniffiFutureContinuationCallback(handle: UInt64, pollResult: Int8) {
+    if let continuation = try? uniffiContinuationHandleMap.remove(handle: handle) {
+        continuation.resume(returning: pollResult)
+    } else {
+        print("uniffiFutureContinuationCallback invalid handle")
     }
 }
 public func genTransactionId()  -> String {
@@ -21549,7 +21937,7 @@ private enum InitializationResult {
 // the code inside is only computed once.
 private var initializationResult: InitializationResult {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 25
+    let bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_matrix_sdk_ffi_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
@@ -22041,7 +22429,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_invited_members_count() != 1023) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 59542) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 64006) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 16947) {
@@ -22074,7 +22462,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read() != 43726) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 10689) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 53375) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 42670) {
@@ -22146,7 +22534,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_unban_user() != 51089) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_power_level_for_user() != 61757) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_power_levels_for_users() != 34363) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 34800) {
@@ -22227,70 +22615,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 50946) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_avatar_url() != 1477) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_ban() != 50640) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_invite() != 40387) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_kick() != 30187) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact_other() != 20089) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_redact_own() != 37633) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_message() != 43693) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_send_state() != 29675) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_can_trigger_room_notification() != 52227) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_display_name() != 15676) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_ignore() != 22989) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_account_user() != 63497) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_ignored() != 11040) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_is_name_ambiguous() != 53436) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_membership() != 65393) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_normalized_power_level() != 1601) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_power_level() != 18720) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_suggested_role_for_power_level() != 13704) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_unignore() != 18171) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommember_user_id() != 4931) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_len() != 39835) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_next_chunk() != 36918) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_next_chunk() != 36165) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 19759) {
