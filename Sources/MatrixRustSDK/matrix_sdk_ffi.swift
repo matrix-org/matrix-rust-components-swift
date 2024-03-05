@@ -17854,6 +17854,7 @@ public enum TimelineItemContentKind {
         endTime: UInt64?, 
         hasBeenEdited: Bool
     )
+    case callInvite
     case unableToDecrypt(
         msg: EncryptedMessage
     )
@@ -17909,33 +17910,35 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
             hasBeenEdited: try FfiConverterBool.read(from: &buf)
         )
         
-        case 5: return .unableToDecrypt(
+        case 5: return .callInvite
+        
+        case 6: return .unableToDecrypt(
             msg: try FfiConverterTypeEncryptedMessage.read(from: &buf)
         )
         
-        case 6: return .roomMembership(
+        case 7: return .roomMembership(
             userId: try FfiConverterString.read(from: &buf), 
             change: try FfiConverterOptionTypeMembershipChange.read(from: &buf)
         )
         
-        case 7: return .profileChange(
+        case 8: return .profileChange(
             displayName: try FfiConverterOptionString.read(from: &buf), 
             prevDisplayName: try FfiConverterOptionString.read(from: &buf), 
             avatarUrl: try FfiConverterOptionString.read(from: &buf), 
             prevAvatarUrl: try FfiConverterOptionString.read(from: &buf)
         )
         
-        case 8: return .state(
+        case 9: return .state(
             stateKey: try FfiConverterString.read(from: &buf), 
             content: try FfiConverterTypeOtherState.read(from: &buf)
         )
         
-        case 9: return .failedToParseMessageLike(
+        case 10: return .failedToParseMessageLike(
             eventType: try FfiConverterString.read(from: &buf), 
             error: try FfiConverterString.read(from: &buf)
         )
         
-        case 10: return .failedToParseState(
+        case 11: return .failedToParseState(
             eventType: try FfiConverterString.read(from: &buf), 
             stateKey: try FfiConverterString.read(from: &buf), 
             error: try FfiConverterString.read(from: &buf)
@@ -17975,19 +17978,23 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
             FfiConverterBool.write(hasBeenEdited, into: &buf)
             
         
-        case let .unableToDecrypt(msg):
+        case .callInvite:
             writeInt(&buf, Int32(5))
+        
+        
+        case let .unableToDecrypt(msg):
+            writeInt(&buf, Int32(6))
             FfiConverterTypeEncryptedMessage.write(msg, into: &buf)
             
         
         case let .roomMembership(userId,change):
-            writeInt(&buf, Int32(6))
+            writeInt(&buf, Int32(7))
             FfiConverterString.write(userId, into: &buf)
             FfiConverterOptionTypeMembershipChange.write(change, into: &buf)
             
         
         case let .profileChange(displayName,prevDisplayName,avatarUrl,prevAvatarUrl):
-            writeInt(&buf, Int32(7))
+            writeInt(&buf, Int32(8))
             FfiConverterOptionString.write(displayName, into: &buf)
             FfiConverterOptionString.write(prevDisplayName, into: &buf)
             FfiConverterOptionString.write(avatarUrl, into: &buf)
@@ -17995,19 +18002,19 @@ public struct FfiConverterTypeTimelineItemContentKind: FfiConverterRustBuffer {
             
         
         case let .state(stateKey,content):
-            writeInt(&buf, Int32(8))
+            writeInt(&buf, Int32(9))
             FfiConverterString.write(stateKey, into: &buf)
             FfiConverterTypeOtherState.write(content, into: &buf)
             
         
         case let .failedToParseMessageLike(eventType,error):
-            writeInt(&buf, Int32(9))
+            writeInt(&buf, Int32(10))
             FfiConverterString.write(eventType, into: &buf)
             FfiConverterString.write(error, into: &buf)
             
         
         case let .failedToParseState(eventType,stateKey,error):
-            writeInt(&buf, Int32(10))
+            writeInt(&buf, Int32(11))
             FfiConverterString.write(eventType, into: &buf)
             FfiConverterString.write(stateKey, into: &buf)
             FfiConverterString.write(error, into: &buf)
