@@ -3869,8 +3869,6 @@ public protocol RoomProtocol : AnyObject {
     
     func banUser(userId: String, reason: String?) async throws 
     
-    func buildPowerLevelChangesFromCurrent() async throws  -> RoomPowerLevelChanges
-    
     func canUserBan(userId: String) async throws  -> Bool
     
     func canUserInvite(userId: String) async throws  -> Bool
@@ -3901,6 +3899,8 @@ public protocol RoomProtocol : AnyObject {
     func discardRoomKey() async throws 
     
     func displayName() throws  -> String
+    
+    func getPowerLevels() async throws  -> RoomPowerLevels
     
     /**
      * Is there a non expired membership with application "m.call" and scope
@@ -4007,6 +4007,8 @@ public protocol RoomProtocol : AnyObject {
      * offensive and 0 is inoffensive (optional).
      */
     func reportContent(eventId: String, score: Int32?, reason: String?) throws 
+    
+    func resetPowerLevels() async throws  -> RoomPowerLevels
     
     func roomInfo() async throws  -> RoomInfo
     
@@ -4186,22 +4188,6 @@ open class Room:
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeClientError.lift
-        )
-    }
-
-    
-    open func buildPowerLevelChangesFromCurrent() async throws  -> RoomPowerLevelChanges {
-        return try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_build_power_level_changes_from_current(
-                    self.uniffiClonePointer()
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeRoomPowerLevelChanges_lift,
             errorHandler: FfiConverterTypeClientError.lift
         )
     }
@@ -4389,6 +4375,22 @@ open class Room:
 }
         )
     }
+    open func getPowerLevels() async throws  -> RoomPowerLevels {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_get_power_levels(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomPowerLevels.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     /**
      * Is there a non expired membership with application "m.call" and scope
      * "m.room" in this room.
@@ -4739,6 +4741,22 @@ open class Room:
     )
 }
     }
+    open func resetPowerLevels() async throws  -> RoomPowerLevels {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_reset_power_levels(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomPowerLevels.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     open func roomInfo() async throws  -> RoomInfo {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -11304,6 +11322,196 @@ public func FfiConverterTypeRoomNotificationSettings_lift(_ buf: RustBuffer) thr
 
 public func FfiConverterTypeRoomNotificationSettings_lower(_ value: RoomNotificationSettings) -> RustBuffer {
     return FfiConverterTypeRoomNotificationSettings.lower(value)
+}
+
+
+public struct RoomPowerLevels {
+    /**
+     * The level required to ban a user.
+     */
+    public var ban: Int64
+    /**
+     * The level required to invite a user.
+     */
+    public var invite: Int64
+    /**
+     * The level required to kick a user.
+     */
+    public var kick: Int64
+    /**
+     * The level required to redact an event.
+     */
+    public var redact: Int64
+    /**
+     * The default level required to send message events.
+     */
+    public var eventsDefault: Int64
+    /**
+     * The default level required to send state events.
+     */
+    public var stateDefault: Int64
+    /**
+     * The default power level for every user in the room.
+     */
+    public var usersDefault: Int64
+    /**
+     * The level required to change the room's name.
+     */
+    public var roomName: Int64
+    /**
+     * The level required to change the room's avatar.
+     */
+    public var roomAvatar: Int64
+    /**
+     * The level required to change the room's topic.
+     */
+    public var roomTopic: Int64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The level required to ban a user.
+         */
+        ban: Int64, 
+        /**
+         * The level required to invite a user.
+         */
+        invite: Int64, 
+        /**
+         * The level required to kick a user.
+         */
+        kick: Int64, 
+        /**
+         * The level required to redact an event.
+         */
+        redact: Int64, 
+        /**
+         * The default level required to send message events.
+         */
+        eventsDefault: Int64, 
+        /**
+         * The default level required to send state events.
+         */
+        stateDefault: Int64, 
+        /**
+         * The default power level for every user in the room.
+         */
+        usersDefault: Int64, 
+        /**
+         * The level required to change the room's name.
+         */
+        roomName: Int64, 
+        /**
+         * The level required to change the room's avatar.
+         */
+        roomAvatar: Int64, 
+        /**
+         * The level required to change the room's topic.
+         */
+        roomTopic: Int64) {
+        self.ban = ban
+        self.invite = invite
+        self.kick = kick
+        self.redact = redact
+        self.eventsDefault = eventsDefault
+        self.stateDefault = stateDefault
+        self.usersDefault = usersDefault
+        self.roomName = roomName
+        self.roomAvatar = roomAvatar
+        self.roomTopic = roomTopic
+    }
+}
+
+
+extension RoomPowerLevels: Equatable, Hashable {
+    public static func ==(lhs: RoomPowerLevels, rhs: RoomPowerLevels) -> Bool {
+        if lhs.ban != rhs.ban {
+            return false
+        }
+        if lhs.invite != rhs.invite {
+            return false
+        }
+        if lhs.kick != rhs.kick {
+            return false
+        }
+        if lhs.redact != rhs.redact {
+            return false
+        }
+        if lhs.eventsDefault != rhs.eventsDefault {
+            return false
+        }
+        if lhs.stateDefault != rhs.stateDefault {
+            return false
+        }
+        if lhs.usersDefault != rhs.usersDefault {
+            return false
+        }
+        if lhs.roomName != rhs.roomName {
+            return false
+        }
+        if lhs.roomAvatar != rhs.roomAvatar {
+            return false
+        }
+        if lhs.roomTopic != rhs.roomTopic {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(ban)
+        hasher.combine(invite)
+        hasher.combine(kick)
+        hasher.combine(redact)
+        hasher.combine(eventsDefault)
+        hasher.combine(stateDefault)
+        hasher.combine(usersDefault)
+        hasher.combine(roomName)
+        hasher.combine(roomAvatar)
+        hasher.combine(roomTopic)
+    }
+}
+
+
+public struct FfiConverterTypeRoomPowerLevels: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomPowerLevels {
+        return
+            try RoomPowerLevels(
+                ban: FfiConverterInt64.read(from: &buf), 
+                invite: FfiConverterInt64.read(from: &buf), 
+                kick: FfiConverterInt64.read(from: &buf), 
+                redact: FfiConverterInt64.read(from: &buf), 
+                eventsDefault: FfiConverterInt64.read(from: &buf), 
+                stateDefault: FfiConverterInt64.read(from: &buf), 
+                usersDefault: FfiConverterInt64.read(from: &buf), 
+                roomName: FfiConverterInt64.read(from: &buf), 
+                roomAvatar: FfiConverterInt64.read(from: &buf), 
+                roomTopic: FfiConverterInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RoomPowerLevels, into buf: inout [UInt8]) {
+        FfiConverterInt64.write(value.ban, into: &buf)
+        FfiConverterInt64.write(value.invite, into: &buf)
+        FfiConverterInt64.write(value.kick, into: &buf)
+        FfiConverterInt64.write(value.redact, into: &buf)
+        FfiConverterInt64.write(value.eventsDefault, into: &buf)
+        FfiConverterInt64.write(value.stateDefault, into: &buf)
+        FfiConverterInt64.write(value.usersDefault, into: &buf)
+        FfiConverterInt64.write(value.roomName, into: &buf)
+        FfiConverterInt64.write(value.roomAvatar, into: &buf)
+        FfiConverterInt64.write(value.roomTopic, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeRoomPowerLevels_lift(_ buf: RustBuffer) throws -> RoomPowerLevels {
+    return try FfiConverterTypeRoomPowerLevels.lift(buf)
+}
+
+public func FfiConverterTypeRoomPowerLevels_lower(_ value: RoomPowerLevels) -> RustBuffer {
+    return FfiConverterTypeRoomPowerLevels.lower(value)
 }
 
 
@@ -22385,9 +22593,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_ban_user() != 25865) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_build_power_level_changes_from_current() != 13995) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_can_user_ban() != 22009) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -22419,6 +22624,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 39695) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_power_levels() != 54094) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_has_active_room_call() != 33588) {
@@ -22500,6 +22708,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 39574) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_reset_power_levels() != 63622) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 41146) {
