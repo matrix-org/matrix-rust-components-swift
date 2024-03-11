@@ -3107,6 +3107,13 @@ public func FfiConverterTypeNotificationClientBuilder_lower(_ value: Notificatio
 public protocol NotificationSettingsProtocol : AnyObject {
     
     /**
+     * Check whether [MSC 4028 push rule][rule] is enabled on the homeserver.
+     *
+     * [rule]: https://github.com/matrix-org/matrix-spec-proposals/blob/giomfo/push_encrypted_events/proposals/4028-push-all-encrypted-events-except-for-muted-rooms.md
+     */
+    func canHomeserverPushEncryptedEventToDevice() async  -> Bool
+    
+    /**
      * Returns true if [MSC 4028 push rule][rule] is supported and enabled.
      *
      * [rule]: https://github.com/matrix-org/matrix-spec-proposals/blob/giomfo/push_encrypted_events/proposals/4028-push-all-encrypted-events-except-for-muted-rooms.md
@@ -3272,6 +3279,28 @@ open class NotificationSettings:
     
 
     
+    
+    /**
+     * Check whether [MSC 4028 push rule][rule] is enabled on the homeserver.
+     *
+     * [rule]: https://github.com/matrix-org/matrix-spec-proposals/blob/giomfo/push_encrypted_events/proposals/4028-push-all-encrypted-events-except-for-muted-rooms.md
+     */
+    open func canHomeserverPushEncryptedEventToDevice() async  -> Bool {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_notificationsettings_can_homeserver_push_encrypted_event_to_device(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: nil
+            
+        )
+    }
+
     
     /**
      * Returns true if [MSC 4028 push rule][rule] is supported and enabled.
@@ -15310,7 +15339,8 @@ public enum OtherState {
     )
     case roomPinnedEvents
     case roomPowerLevels(
-        users: [String: Int64]
+        users: [String: Int64], 
+        previous: [String: Int64]?
     )
     case roomServerAcl
     case roomThirdPartyInvite(
@@ -15365,7 +15395,8 @@ public struct FfiConverterTypeOtherState: FfiConverterRustBuffer {
         case 13: return .roomPinnedEvents
         
         case 14: return .roomPowerLevels(
-            users: try FfiConverterDictionaryStringInt64.read(from: &buf)
+            users: try FfiConverterDictionaryStringInt64.read(from: &buf), 
+            previous: try FfiConverterOptionDictionaryStringInt64.read(from: &buf)
         )
         
         case 15: return .roomServerAcl
@@ -15450,9 +15481,10 @@ public struct FfiConverterTypeOtherState: FfiConverterRustBuffer {
             writeInt(&buf, Int32(13))
         
         
-        case let .roomPowerLevels(users):
+        case let .roomPowerLevels(users,previous):
             writeInt(&buf, Int32(14))
             FfiConverterDictionaryStringInt64.write(users, into: &buf)
+            FfiConverterOptionDictionaryStringInt64.write(previous, into: &buf)
             
         
         case .roomServerAcl:
@@ -21313,6 +21345,27 @@ fileprivate struct FfiConverterOptionSequenceTypeRoomMember: FfiConverterRustBuf
     }
 }
 
+fileprivate struct FfiConverterOptionDictionaryStringInt64: FfiConverterRustBuffer {
+    typealias SwiftType = [String: Int64]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterDictionaryStringInt64.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterDictionaryStringInt64.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeEventItemOrigin: FfiConverterRustBuffer {
     typealias SwiftType = EventItemOrigin?
 
@@ -22513,6 +22566,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationclientbuilder_finish() != 40007) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_homeserver_push_encrypted_event_to_device() != 37323) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_push_encrypted_event_to_device() != 21251) {
