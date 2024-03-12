@@ -1730,6 +1730,10 @@ public protocol EncryptionProtocol : AnyObject {
     
     func resetRecoveryKey() async throws  -> String
     
+    func verificationState()  -> VerificationState
+    
+    func verificationStateListener(listener: VerificationStateListener)  -> TaskHandle
+    
     func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws 
     
 }
@@ -1960,6 +1964,27 @@ open class Encryption:
     }
 
     
+    open func verificationState()  -> VerificationState {
+        return try!  FfiConverterTypeVerificationState.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_encryption_verification_state(self.uniffiClonePointer(), $0
+    )
+}
+        )
+    }
+    open func verificationStateListener(listener: VerificationStateListener)  -> TaskHandle {
+        return try!  FfiConverterTypeTaskHandle.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_encryption_verification_state_listener(self.uniffiClonePointer(), 
+        FfiConverterCallbackInterfaceVerificationStateListener.lower(listener),$0
+    )
+}
+        )
+    }
     open func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -6820,6 +6845,8 @@ public protocol SyncServiceBuilderProtocol : AnyObject {
     
     func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder
     
+    func withUnifiedInvitesInRoomList(withUnifiedInvites: Bool)  -> SyncServiceBuilder
+    
 }
 
 open class SyncServiceBuilder:
@@ -6886,6 +6913,17 @@ open class SyncServiceBuilder:
     
     uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_cross_process_lock(self.uniffiClonePointer(), 
         FfiConverterOptionString.lower(appIdentifier),$0
+    )
+}
+        )
+    }
+    open func withUnifiedInvitesInRoomList(withUnifiedInvites: Bool)  -> SyncServiceBuilder {
+        return try!  FfiConverterTypeSyncServiceBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_unified_invites_in_room_list(self.uniffiClonePointer(), 
+        FfiConverterBool.lower(withUnifiedInvites),$0
     )
 }
         )
@@ -18277,6 +18315,65 @@ public func FfiConverterTypeTimelineItemContentKind_lower(_ value: TimelineItemC
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+public enum VerificationState {
+    
+    case unknown
+    case verified
+    case unverified
+}
+
+public struct FfiConverterTypeVerificationState: FfiConverterRustBuffer {
+    typealias SwiftType = VerificationState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VerificationState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .unknown
+        
+        case 2: return .verified
+        
+        case 3: return .unverified
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: VerificationState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .unknown:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .verified:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .unverified:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeVerificationState_lift(_ buf: RustBuffer) throws -> VerificationState {
+    return try FfiConverterTypeVerificationState.lift(buf)
+}
+
+public func FfiConverterTypeVerificationState_lower(_ value: VerificationState) -> RustBuffer {
+    return FfiConverterTypeVerificationState.lower(value)
+}
+
+
+extension VerificationState: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
  * A [`TimelineItem`](super::TimelineItem) that doesn't correspond to an event.
  */
@@ -20172,6 +20269,88 @@ fileprivate struct FfiConverterCallbackInterfaceTypingNotificationsListener {
 
 extension FfiConverterCallbackInterfaceTypingNotificationsListener : FfiConverter {
     typealias SwiftType = TypingNotificationsListener
+    typealias FfiType = UInt64
+
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+
+public protocol VerificationStateListener : AnyObject {
+    
+    func onUpdate(status: VerificationState) 
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceVerificationStateListener {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceVerificationStateListener = UniffiVTableCallbackInterfaceVerificationStateListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            status: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: VerificationStateListener
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceVerificationStateListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.onUpdate(
+                 status: try FfiConverterTypeVerificationState.lift(status)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceVerificationStateListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface VerificationStateListener: handle missing in uniffiFree")
+            }
+        }
+    )
+}
+
+private func uniffiCallbackInitVerificationStateListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_verificationstatelistener(&UniffiCallbackInterfaceVerificationStateListener.vtable)
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceVerificationStateListener {
+    fileprivate static var handleMap = UniffiHandleMap<VerificationStateListener>()
+}
+
+extension FfiConverterCallbackInterfaceVerificationStateListener : FfiConverter {
+    typealias SwiftType = VerificationStateListener
     typealias FfiType = UInt64
 
     public static func lift(_ handle: UInt64) throws -> SwiftType {
@@ -22478,6 +22657,12 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 20380) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_verification_state() != 29114) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_verification_state_listener() != 26187) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 16813) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -22955,6 +23140,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 43169) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_unified_invites_in_room_list() != 46590) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 9124) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23213,6 +23401,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_typingnotificationslistener_call() != 50844) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_verificationstatelistener_on_update() != 9392) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 43759) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23236,6 +23427,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitSyncServiceStateObserver()
     uniffiCallbackInitTimelineListener()
     uniffiCallbackInitTypingNotificationsListener()
+    uniffiCallbackInitVerificationStateListener()
     uniffiCallbackInitWidgetCapabilitiesProvider()
     return InitializationResult.ok
 }
