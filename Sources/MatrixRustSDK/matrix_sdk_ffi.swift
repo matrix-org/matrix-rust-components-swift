@@ -6847,6 +6847,8 @@ public protocol SyncServiceBuilderProtocol : AnyObject {
     
     func withUnifiedInvitesInRoomList(withUnifiedInvites: Bool)  -> SyncServiceBuilder
     
+    func withUtdHook(delegate: UnableToDecryptDelegate)  -> SyncServiceBuilder
+    
 }
 
 open class SyncServiceBuilder:
@@ -6924,6 +6926,17 @@ open class SyncServiceBuilder:
     
     uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_unified_invites_in_room_list(self.uniffiClonePointer(), 
         FfiConverterBool.lower(withUnifiedInvites),$0
+    )
+}
+        )
+    }
+    open func withUtdHook(delegate: UnableToDecryptDelegate)  -> SyncServiceBuilder {
+        return try!  FfiConverterTypeSyncServiceBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_utd_hook(self.uniffiClonePointer(), 
+        FfiConverterCallbackInterfaceUnableToDecryptDelegate.lower(delegate),$0
     )
 }
         )
@@ -8776,6 +8789,8 @@ public func FfiConverterTypeAudioInfo_lower(_ value: AudioInfo) -> RustBuffer {
 
 public struct AudioMessageContent {
     public var body: String
+    public var formatted: FormattedBody?
+    public var filename: String?
     public var source: MediaSource
     public var info: AudioInfo?
     public var audio: UnstableAudioDetailsContent?
@@ -8785,11 +8800,15 @@ public struct AudioMessageContent {
     // declare one manually.
     public init(
         body: String, 
+        formatted: FormattedBody?, 
+        filename: String?, 
         source: MediaSource, 
         info: AudioInfo?, 
         audio: UnstableAudioDetailsContent?, 
         voice: UnstableVoiceContent?) {
         self.body = body
+        self.formatted = formatted
+        self.filename = filename
         self.source = source
         self.info = info
         self.audio = audio
@@ -8804,6 +8823,8 @@ public struct FfiConverterTypeAudioMessageContent: FfiConverterRustBuffer {
         return
             try AudioMessageContent(
                 body: FfiConverterString.read(from: &buf), 
+                formatted: FfiConverterOptionTypeFormattedBody.read(from: &buf), 
+                filename: FfiConverterOptionString.read(from: &buf), 
                 source: FfiConverterTypeMediaSource.read(from: &buf), 
                 info: FfiConverterOptionTypeAudioInfo.read(from: &buf), 
                 audio: FfiConverterOptionTypeUnstableAudioDetailsContent.read(from: &buf), 
@@ -8813,6 +8834,8 @@ public struct FfiConverterTypeAudioMessageContent: FfiConverterRustBuffer {
 
     public static func write(_ value: AudioMessageContent, into buf: inout [UInt8]) {
         FfiConverterString.write(value.body, into: &buf)
+        FfiConverterOptionTypeFormattedBody.write(value.formatted, into: &buf)
+        FfiConverterOptionString.write(value.filename, into: &buf)
         FfiConverterTypeMediaSource.write(value.source, into: &buf)
         FfiConverterOptionTypeAudioInfo.write(value.info, into: &buf)
         FfiConverterOptionTypeUnstableAudioDetailsContent.write(value.audio, into: &buf)
@@ -9220,6 +9243,7 @@ public func FfiConverterTypeFileInfo_lower(_ value: FileInfo) -> RustBuffer {
 
 public struct FileMessageContent {
     public var body: String
+    public var formatted: FormattedBody?
     public var filename: String?
     public var source: MediaSource
     public var info: FileInfo?
@@ -9228,10 +9252,12 @@ public struct FileMessageContent {
     // declare one manually.
     public init(
         body: String, 
+        formatted: FormattedBody?, 
         filename: String?, 
         source: MediaSource, 
         info: FileInfo?) {
         self.body = body
+        self.formatted = formatted
         self.filename = filename
         self.source = source
         self.info = info
@@ -9245,6 +9271,7 @@ public struct FfiConverterTypeFileMessageContent: FfiConverterRustBuffer {
         return
             try FileMessageContent(
                 body: FfiConverterString.read(from: &buf), 
+                formatted: FfiConverterOptionTypeFormattedBody.read(from: &buf), 
                 filename: FfiConverterOptionString.read(from: &buf), 
                 source: FfiConverterTypeMediaSource.read(from: &buf), 
                 info: FfiConverterOptionTypeFileInfo.read(from: &buf)
@@ -9253,6 +9280,7 @@ public struct FfiConverterTypeFileMessageContent: FfiConverterRustBuffer {
 
     public static func write(_ value: FileMessageContent, into buf: inout [UInt8]) {
         FfiConverterString.write(value.body, into: &buf)
+        FfiConverterOptionTypeFormattedBody.write(value.formatted, into: &buf)
         FfiConverterOptionString.write(value.filename, into: &buf)
         FfiConverterTypeMediaSource.write(value.source, into: &buf)
         FfiConverterOptionTypeFileInfo.write(value.info, into: &buf)
@@ -9462,6 +9490,8 @@ public func FfiConverterTypeImageInfo_lower(_ value: ImageInfo) -> RustBuffer {
 
 public struct ImageMessageContent {
     public var body: String
+    public var formatted: FormattedBody?
+    public var filename: String?
     public var source: MediaSource
     public var info: ImageInfo?
 
@@ -9469,9 +9499,13 @@ public struct ImageMessageContent {
     // declare one manually.
     public init(
         body: String, 
+        formatted: FormattedBody?, 
+        filename: String?, 
         source: MediaSource, 
         info: ImageInfo?) {
         self.body = body
+        self.formatted = formatted
+        self.filename = filename
         self.source = source
         self.info = info
     }
@@ -9484,6 +9518,8 @@ public struct FfiConverterTypeImageMessageContent: FfiConverterRustBuffer {
         return
             try ImageMessageContent(
                 body: FfiConverterString.read(from: &buf), 
+                formatted: FfiConverterOptionTypeFormattedBody.read(from: &buf), 
+                filename: FfiConverterOptionString.read(from: &buf), 
                 source: FfiConverterTypeMediaSource.read(from: &buf), 
                 info: FfiConverterOptionTypeImageInfo.read(from: &buf)
         )
@@ -9491,6 +9527,8 @@ public struct FfiConverterTypeImageMessageContent: FfiConverterRustBuffer {
 
     public static func write(_ value: ImageMessageContent, into buf: inout [UInt8]) {
         FfiConverterString.write(value.body, into: &buf)
+        FfiConverterOptionTypeFormattedBody.write(value.formatted, into: &buf)
+        FfiConverterOptionString.write(value.filename, into: &buf)
         FfiConverterTypeMediaSource.write(value.source, into: &buf)
         FfiConverterOptionTypeImageInfo.write(value.info, into: &buf)
     }
@@ -12274,6 +12312,86 @@ public func FfiConverterTypeTransmissionProgress_lower(_ value: TransmissionProg
 }
 
 
+public struct UnableToDecryptInfo {
+    /**
+     * The identifier of the event that couldn't get decrypted.
+     */
+    public var eventId: String
+    /**
+     * If the event could be decrypted late (that is, the event was encrypted
+     * at first, but could be decrypted later on), then this indicates the
+     * time it took to decrypt the event. If it is not set, this is
+     * considered a definite UTD.
+     *
+     * If set, this is in milliseconds.
+     */
+    public var timeToDecryptMs: UInt64?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The identifier of the event that couldn't get decrypted.
+         */
+        eventId: String, 
+        /**
+         * If the event could be decrypted late (that is, the event was encrypted
+         * at first, but could be decrypted later on), then this indicates the
+         * time it took to decrypt the event. If it is not set, this is
+         * considered a definite UTD.
+         *
+         * If set, this is in milliseconds.
+         */
+        timeToDecryptMs: UInt64?) {
+        self.eventId = eventId
+        self.timeToDecryptMs = timeToDecryptMs
+    }
+}
+
+
+extension UnableToDecryptInfo: Equatable, Hashable {
+    public static func ==(lhs: UnableToDecryptInfo, rhs: UnableToDecryptInfo) -> Bool {
+        if lhs.eventId != rhs.eventId {
+            return false
+        }
+        if lhs.timeToDecryptMs != rhs.timeToDecryptMs {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(eventId)
+        hasher.combine(timeToDecryptMs)
+    }
+}
+
+
+public struct FfiConverterTypeUnableToDecryptInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UnableToDecryptInfo {
+        return
+            try UnableToDecryptInfo(
+                eventId: FfiConverterString.read(from: &buf), 
+                timeToDecryptMs: FfiConverterOptionUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UnableToDecryptInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.eventId, into: &buf)
+        FfiConverterOptionUInt64.write(value.timeToDecryptMs, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeUnableToDecryptInfo_lift(_ buf: RustBuffer) throws -> UnableToDecryptInfo {
+    return try FfiConverterTypeUnableToDecryptInfo.lift(buf)
+}
+
+public func FfiConverterTypeUnableToDecryptInfo_lower(_ value: UnableToDecryptInfo) -> RustBuffer {
+    return FfiConverterTypeUnableToDecryptInfo.lower(value)
+}
+
+
 public struct UnstableAudioDetailsContent {
     public var duration: TimeInterval
     public var waveform: [UInt16]
@@ -12584,6 +12702,8 @@ public func FfiConverterTypeVideoInfo_lower(_ value: VideoInfo) -> RustBuffer {
 
 public struct VideoMessageContent {
     public var body: String
+    public var formatted: FormattedBody?
+    public var filename: String?
     public var source: MediaSource
     public var info: VideoInfo?
 
@@ -12591,9 +12711,13 @@ public struct VideoMessageContent {
     // declare one manually.
     public init(
         body: String, 
+        formatted: FormattedBody?, 
+        filename: String?, 
         source: MediaSource, 
         info: VideoInfo?) {
         self.body = body
+        self.formatted = formatted
+        self.filename = filename
         self.source = source
         self.info = info
     }
@@ -12606,6 +12730,8 @@ public struct FfiConverterTypeVideoMessageContent: FfiConverterRustBuffer {
         return
             try VideoMessageContent(
                 body: FfiConverterString.read(from: &buf), 
+                formatted: FfiConverterOptionTypeFormattedBody.read(from: &buf), 
+                filename: FfiConverterOptionString.read(from: &buf), 
                 source: FfiConverterTypeMediaSource.read(from: &buf), 
                 info: FfiConverterOptionTypeVideoInfo.read(from: &buf)
         )
@@ -12613,6 +12739,8 @@ public struct FfiConverterTypeVideoMessageContent: FfiConverterRustBuffer {
 
     public static func write(_ value: VideoMessageContent, into buf: inout [UInt8]) {
         FfiConverterString.write(value.body, into: &buf)
+        FfiConverterOptionTypeFormattedBody.write(value.formatted, into: &buf)
+        FfiConverterOptionString.write(value.filename, into: &buf)
         FfiConverterTypeMediaSource.write(value.source, into: &buf)
         FfiConverterOptionTypeVideoInfo.write(value.info, into: &buf)
     }
@@ -16393,6 +16521,7 @@ public enum RoomListEntriesDynamicFilterKind {
     case nonLeft
     case unread
     case favourite
+    case invite
     case category(
         expect: RoomListFilterCategory
     )
@@ -16426,17 +16555,19 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
         
         case 5: return .favourite
         
-        case 6: return .category(
+        case 6: return .invite
+        
+        case 7: return .category(
             expect: try FfiConverterTypeRoomListFilterCategory.read(from: &buf)
         )
         
-        case 7: return .none
+        case 8: return .none
         
-        case 8: return .normalizedMatchRoomName(
+        case 9: return .normalizedMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
-        case 9: return .fuzzyMatchRoomName(
+        case 10: return .fuzzyMatchRoomName(
             pattern: try FfiConverterString.read(from: &buf)
         )
         
@@ -16470,22 +16601,26 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
             writeInt(&buf, Int32(5))
         
         
-        case let .category(expect):
+        case .invite:
             writeInt(&buf, Int32(6))
+        
+        
+        case let .category(expect):
+            writeInt(&buf, Int32(7))
             FfiConverterTypeRoomListFilterCategory.write(expect, into: &buf)
             
         
         case .none:
-            writeInt(&buf, Int32(7))
+            writeInt(&buf, Int32(8))
         
         
         case let .normalizedMatchRoomName(pattern):
-            writeInt(&buf, Int32(8))
+            writeInt(&buf, Int32(9))
             FfiConverterString.write(pattern, into: &buf)
             
         
         case let .fuzzyMatchRoomName(pattern):
-            writeInt(&buf, Int32(9))
+            writeInt(&buf, Int32(10))
             FfiConverterString.write(pattern, into: &buf)
             
         }
@@ -20292,6 +20427,88 @@ extension FfiConverterCallbackInterfaceTypingNotificationsListener : FfiConverte
 
 
 
+public protocol UnableToDecryptDelegate : AnyObject {
+    
+    func onUtd(info: UnableToDecryptInfo) 
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceUnableToDecryptDelegate {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfaceUnableToDecryptDelegate = UniffiVTableCallbackInterfaceUnableToDecryptDelegate(
+        onUtd: { (
+            uniffiHandle: UInt64,
+            info: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: UnableToDecryptDelegate
+            do {
+                try uniffiObj = FfiConverterCallbackInterfaceUnableToDecryptDelegate.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.onUtd(
+                 info: try FfiConverterTypeUnableToDecryptInfo.lift(info)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceUnableToDecryptDelegate.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface UnableToDecryptDelegate: handle missing in uniffiFree")
+            }
+        }
+    )
+}
+
+private func uniffiCallbackInitUnableToDecryptDelegate() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_unabletodecryptdelegate(&UniffiCallbackInterfaceUnableToDecryptDelegate.vtable)
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfaceUnableToDecryptDelegate {
+    fileprivate static var handleMap = UniffiHandleMap<UnableToDecryptDelegate>()
+}
+
+extension FfiConverterCallbackInterfaceUnableToDecryptDelegate : FfiConverter {
+    typealias SwiftType = UnableToDecryptDelegate
+    typealias FfiType = UInt64
+
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+
 public protocol VerificationStateListener : AnyObject {
     
     func onUpdate(status: VerificationState) 
@@ -23143,6 +23360,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_unified_invites_in_room_list() != 46590) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_utd_hook() != 31250) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 9124) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23401,6 +23621,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_typingnotificationslistener_call() != 50844) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_unabletodecryptdelegate_on_utd() != 28912) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_verificationstatelistener_on_update() != 9392) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23427,6 +23650,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitSyncServiceStateObserver()
     uniffiCallbackInitTimelineListener()
     uniffiCallbackInitTypingNotificationsListener()
+    uniffiCallbackInitUnableToDecryptDelegate()
     uniffiCallbackInitVerificationStateListener()
     uniffiCallbackInitWidgetCapabilitiesProvider()
     return InitializationResult.ok
