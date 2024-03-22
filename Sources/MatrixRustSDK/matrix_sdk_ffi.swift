@@ -783,6 +783,11 @@ public protocol ClientProtocol : AnyObject {
     
     func createRoom(request: CreateRoomParameters) throws  -> String
     
+    /**
+     * Deletes a pusher of given pusher ids
+     */
+    func deletePusher(identifiers: PusherIdentifiers) async throws 
+    
     func deviceId() throws  -> String
     
     func displayName() throws  -> String
@@ -811,6 +816,8 @@ public protocol ClientProtocol : AnyObject {
     func ignoreUser(userId: String) async throws 
     
     func ignoredUsers() async throws  -> [String]
+    
+    func joinRoomById(roomId: String) async throws  -> Room
     
     /**
      * Login using a username and password.
@@ -855,7 +862,7 @@ public protocol ClientProtocol : AnyObject {
     /**
      * Registers a pusher with given parameters
      */
-    func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) throws 
+    func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) async throws 
     
     func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle
     
@@ -966,6 +973,26 @@ open class Client:
 }
         )
     }
+    /**
+     * Deletes a pusher of given pusher ids
+     */
+    open func deletePusher(identifiers: PusherIdentifiers) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_delete_pusher(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypePusherIdentifiers.lower(identifiers)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     open func deviceId() throws  -> String {
         return try  FfiConverterString.lift(
             try 
@@ -1136,6 +1163,23 @@ open class Client:
     }
 
     
+    open func joinRoomById(roomId: String) async throws  -> Room {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_join_room_by_id(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(roomId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoom.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     /**
      * Login using a username and password.
      */
@@ -1268,19 +1312,28 @@ open class Client:
     /**
      * Registers a pusher with given parameters
      */
-    open func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_set_pusher(self.uniffiClonePointer(), 
-        FfiConverterTypePusherIdentifiers.lower(identifiers),
-        FfiConverterTypePusherKind.lower(kind),
-        FfiConverterString.lower(appDisplayName),
-        FfiConverterString.lower(deviceDisplayName),
-        FfiConverterOptionString.lower(profileTag),
-        FfiConverterString.lower(lang),$0
-    )
-}
+    open func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_set_pusher(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypePusherIdentifiers.lower(identifiers),
+                    FfiConverterTypePusherKind.lower(kind),
+                    FfiConverterString.lower(appDisplayName),
+                    FfiConverterString.lower(deviceDisplayName),
+                    FfiConverterOptionString.lower(profileTag),
+                    FfiConverterString.lower(lang)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
+
+    
     open func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle {
         return try!  FfiConverterTypeTaskHandle.lift(
             try! 
@@ -23010,6 +23063,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_create_room() != 25555) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_delete_pusher() != 46707) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_device_id() != 44340) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23049,6 +23105,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_ignored_users() != 49620) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id() != 61264) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 55564) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23085,7 +23144,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_set_display_name() != 27968) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 36816) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 21191) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_ignored_users() != 46021) {
