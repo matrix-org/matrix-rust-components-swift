@@ -2405,6 +2405,12 @@ public func FfiConverterTypeEventTimelineItem_lower(_ value: EventTimelineItem) 
 public protocol HomeserverLoginDetailsProtocol : AnyObject {
     
     /**
+     * The URL of the discovered or manually set sliding sync proxy,
+     * if any.
+     */
+    func slidingSyncProxy()  -> String?
+    
+    /**
      * Whether the current homeserver supports login using OIDC.
      */
     func supportsOidcLogin()  -> Bool
@@ -2462,6 +2468,20 @@ open class HomeserverLoginDetails:
 
     
     
+    /**
+     * The URL of the discovered or manually set sliding sync proxy,
+     * if any.
+     */
+    open func slidingSyncProxy()  -> String? {
+        return try!  FfiConverterOptionString.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_homeserverlogindetails_sliding_sync_proxy(self.uniffiClonePointer(), $0
+    )
+}
+        )
+    }
     /**
      * Whether the current homeserver supports login using OIDC.
      */
@@ -23304,6 +23324,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_transaction_id() != 40338) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_sliding_sync_proxy() != 46815) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_oidc_login() != 46090) {
