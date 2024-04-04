@@ -806,6 +806,8 @@ public protocol ClientProtocol : AnyObject {
     
     func getProfile(userId: String) throws  -> UserProfile
     
+    func getRecentlyVisitedRooms() async throws  -> [String]
+    
     func getSessionVerificationController() throws  -> SessionVerificationController
     
     /**
@@ -867,6 +869,8 @@ public protocol ClientProtocol : AnyObject {
     func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle
     
     func syncService()  -> SyncServiceBuilder
+    
+    func trackRecentlyVisitedRoom(room: String) async throws 
     
     func unignoreUser(userId: String) async throws 
     
@@ -1108,6 +1112,22 @@ open class Client:
 }
         )
     }
+    open func getRecentlyVisitedRooms() async throws  -> [String] {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_recently_visited_rooms(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     open func getSessionVerificationController() throws  -> SessionVerificationController {
         return try  FfiConverterTypeSessionVerificationController.lift(
             try 
@@ -1355,6 +1375,23 @@ open class Client:
 }
         )
     }
+    open func trackRecentlyVisitedRoom(room: String) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_track_recently_visited_room(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(room)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     open func unignoreUser(userId: String) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -23150,6 +23187,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 54768) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_recently_visited_rooms() != 22399) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 62335) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23208,6 +23248,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_sync_service() != 52812) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_track_recently_visited_room() != 37070) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 9349) {
