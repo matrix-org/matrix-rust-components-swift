@@ -570,26 +570,26 @@ public protocol AuthenticationServiceProtocol : AnyObject {
      * Updates the service to authenticate with the homeserver for the
      * specified address.
      */
-    func configureHomeserver(serverNameOrHomeserverUrl: String) throws 
+    func configureHomeserver(serverNameOrHomeserverUrl: String) async throws 
     
     func homeserverDetails()  -> HomeserverLoginDetails?
     
     /**
      * Performs a password login using the current homeserver.
      */
-    func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  -> Client
+    func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) async throws  -> Client
     
     /**
      * Completes the OIDC login process.
      */
-    func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) throws  -> Client
+    func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) async throws  -> Client
     
     /**
      * Requests the URL needed for login in a web view using OIDC. Once the web
      * view has succeeded, call `login_with_oidc_callback` with the callback it
      * returns.
      */
-    func urlForOidcLogin() throws  -> OidcAuthenticationData
+    func urlForOidcLogin() async throws  -> OidcAuthenticationData
     
 }
 
@@ -655,14 +655,23 @@ open class AuthenticationService:
      * Updates the service to authenticate with the homeserver for the
      * specified address.
      */
-    open func configureHomeserver(serverNameOrHomeserverUrl: String) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_configure_homeserver(self.uniffiClonePointer(), 
-        FfiConverterString.lower(serverNameOrHomeserverUrl),$0
-    )
-}
+    open func configureHomeserver(serverNameOrHomeserverUrl: String) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_authenticationservice_configure_homeserver(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(serverNameOrHomeserverUrl)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAuthenticationError.lift
+        )
     }
+
+    
     open func homeserverDetails()  -> HomeserverLoginDetails? {
         return try!  FfiConverterOptionTypeHomeserverLoginDetails.lift(
             try! 
@@ -676,47 +685,68 @@ open class AuthenticationService:
     /**
      * Performs a password login using the current homeserver.
      */
-    open func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  -> Client {
-        return try  FfiConverterTypeClient.lift(
-            try 
-    rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login(self.uniffiClonePointer(), 
-        FfiConverterString.lower(username),
-        FfiConverterString.lower(password),
-        FfiConverterOptionString.lower(initialDeviceName),
-        FfiConverterOptionString.lower(deviceId),$0
-    )
-}
+    open func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) async throws  -> Client {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(username),
+                    FfiConverterString.lower(password),
+                    FfiConverterOptionString.lower(initialDeviceName),
+                    FfiConverterOptionString.lower(deviceId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeClient.lift,
+            errorHandler: FfiConverterTypeAuthenticationError.lift
         )
     }
+
+    
     /**
      * Completes the OIDC login process.
      */
-    open func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) throws  -> Client {
-        return try  FfiConverterTypeClient.lift(
-            try 
-    rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login_with_oidc_callback(self.uniffiClonePointer(), 
-        FfiConverterTypeOidcAuthenticationData.lower(authenticationData),
-        FfiConverterString.lower(callbackUrl),$0
-    )
-}
+    open func loginWithOidcCallback(authenticationData: OidcAuthenticationData, callbackUrl: String) async throws  -> Client {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_authenticationservice_login_with_oidc_callback(
+                    self.uniffiClonePointer(),
+                    FfiConverterTypeOidcAuthenticationData.lower(authenticationData),
+                    FfiConverterString.lower(callbackUrl)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeClient.lift,
+            errorHandler: FfiConverterTypeAuthenticationError.lift
         )
     }
+
+    
     /**
      * Requests the URL needed for login in a web view using OIDC. Once the web
      * view has succeeded, call `login_with_oidc_callback` with the callback it
      * returns.
      */
-    open func urlForOidcLogin() throws  -> OidcAuthenticationData {
-        return try  FfiConverterTypeOidcAuthenticationData.lift(
-            try 
-    rustCallWithError(FfiConverterTypeAuthenticationError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_authenticationservice_url_for_oidc_login(self.uniffiClonePointer(), $0
-    )
-}
+    open func urlForOidcLogin() async throws  -> OidcAuthenticationData {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_authenticationservice_url_for_oidc_login(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeOidcAuthenticationData.lift,
+            errorHandler: FfiConverterTypeAuthenticationError.lift
         )
     }
+
+    
 
 }
 
@@ -824,7 +854,7 @@ public protocol ClientProtocol : AnyObject {
     /**
      * Login using a username and password.
      */
-    func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws 
+    func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) async throws 
     
     /**
      * Log out the current user. This method returns an optional URL that
@@ -1203,17 +1233,26 @@ open class Client:
     /**
      * Login using a username and password.
      */
-    open func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_login(self.uniffiClonePointer(), 
-        FfiConverterString.lower(username),
-        FfiConverterString.lower(password),
-        FfiConverterOptionString.lower(initialDeviceName),
-        FfiConverterOptionString.lower(deviceId),$0
-    )
-}
+    open func login(username: String, password: String, initialDeviceName: String?, deviceId: String?) async throws  {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_login(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(username),
+                    FfiConverterString.lower(password),
+                    FfiConverterOptionString.lower(initialDeviceName),
+                    FfiConverterOptionString.lower(deviceId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
+
+    
     /**
      * Log out the current user. This method returns an optional URL that
      * should be presented to the user to complete logout (in the case of
@@ -1500,7 +1539,7 @@ public protocol ClientBuilderProtocol : AnyObject {
     
     func basePath(path: String)  -> ClientBuilder
     
-    func build() throws  -> Client
+    func build() async throws  -> Client
     
     func disableAutomaticTokenRefresh()  -> ClientBuilder
     
@@ -1598,15 +1637,22 @@ open class ClientBuilder:
 }
         )
     }
-    open func build() throws  -> Client {
-        return try  FfiConverterTypeClient.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientBuildError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_build(self.uniffiClonePointer(), $0
-    )
-}
+    open func build() async throws  -> Client {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_clientbuilder_build(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeClient.lift,
+            errorHandler: FfiConverterTypeClientBuildError.lift
         )
     }
+
+    
     open func disableAutomaticTokenRefresh()  -> ClientBuilder {
         return try!  FfiConverterTypeClientBuilder.lift(
             try! 
@@ -23127,19 +23173,19 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roommessageeventcontentwithoutrelation_with_mentions() != 8867) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 39888) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_configure_homeserver() != 13406) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_homeserver_details() != 39542) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 50794) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login() != 30740) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login_with_oidc_callback() != 32717) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_login_with_oidc_callback() != 52385) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_url_for_oidc_login() != 47926) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_authenticationservice_url_for_oidc_login() != 64804) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 42952) {
@@ -23205,7 +23251,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id() != 61264) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 55564) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 32848) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 7127) {
@@ -23271,7 +23317,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 40888) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 22728) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 56018) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_automatic_token_refresh() != 43839) {
