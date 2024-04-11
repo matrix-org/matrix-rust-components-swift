@@ -10051,6 +10051,66 @@ public func FfiConverterTypeLocationContent_lower(_ value: LocationContent) -> R
 }
 
 
+/**
+ * A Matrix entity that can be a room, room alias, user, or event, and a list
+ * of via servers.
+ */
+public struct MatrixEntity {
+    public var id: MatrixId
+    public var via: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: MatrixId, via: [String]) {
+        self.id = id
+        self.via = via
+    }
+}
+
+
+extension MatrixEntity: Equatable, Hashable {
+    public static func ==(lhs: MatrixEntity, rhs: MatrixEntity) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.via != rhs.via {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(via)
+    }
+}
+
+
+public struct FfiConverterTypeMatrixEntity: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MatrixEntity {
+        return
+            try MatrixEntity(
+                id: FfiConverterTypeMatrixId.read(from: &buf), 
+                via: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MatrixEntity, into buf: inout [UInt8]) {
+        FfiConverterTypeMatrixId.write(value.id, into: &buf)
+        FfiConverterSequenceString.write(value.via, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeMatrixEntity_lift(_ buf: RustBuffer) throws -> MatrixEntity {
+    return try FfiConverterTypeMatrixEntity.lift(buf)
+}
+
+public func FfiConverterTypeMatrixEntity_lower(_ value: MatrixEntity) -> RustBuffer {
+    return FfiConverterTypeMatrixEntity.lower(value)
+}
+
+
 public struct Mentions {
     public var userIds: [String]
     public var room: Bool
@@ -14599,6 +14659,101 @@ public func FfiConverterTypeLogLevel_lower(_ value: LogLevel) -> RustBuffer {
 
 
 extension LogLevel: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * A Matrix ID that can be a room, room alias, user, or event.
+ */
+
+public enum MatrixId {
+    
+    case room(id: String
+    )
+    case roomAlias(alias: String
+    )
+    case user(id: String
+    )
+    case eventOnRoomId(roomId: String, eventId: String
+    )
+    case eventOnRoomAlias(alias: String, eventId: String
+    )
+}
+
+
+public struct FfiConverterTypeMatrixId: FfiConverterRustBuffer {
+    typealias SwiftType = MatrixId
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MatrixId {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .room(id: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .roomAlias(alias: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .user(id: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .eventOnRoomId(roomId: try FfiConverterString.read(from: &buf), eventId: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 5: return .eventOnRoomAlias(alias: try FfiConverterString.read(from: &buf), eventId: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MatrixId, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .room(id):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(id, into: &buf)
+            
+        
+        case let .roomAlias(alias):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(alias, into: &buf)
+            
+        
+        case let .user(id):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(id, into: &buf)
+            
+        
+        case let .eventOnRoomId(roomId,eventId):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(roomId, into: &buf)
+            FfiConverterString.write(eventId, into: &buf)
+            
+        
+        case let .eventOnRoomAlias(alias,eventId):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(alias, into: &buf)
+            FfiConverterString.write(eventId, into: &buf)
+            
+        }
+    }
+}
+
+
+public func FfiConverterTypeMatrixId_lift(_ buf: RustBuffer) throws -> MatrixId {
+    return try FfiConverterTypeMatrixId.lift(buf)
+}
+
+public func FfiConverterTypeMatrixId_lower(_ value: MatrixId) -> RustBuffer {
+    return FfiConverterTypeMatrixId.lower(value)
+}
+
+
+extension MatrixId: Equatable, Hashable {}
 
 
 
@@ -21573,6 +21728,27 @@ fileprivate struct FfiConverterOptionTypeInsertData: FfiConverterRustBuffer {
     }
 }
 
+fileprivate struct FfiConverterOptionTypeMatrixEntity: FfiConverterRustBuffer {
+    typealias SwiftType = MatrixEntity?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeMatrixEntity.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeMatrixEntity.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 fileprivate struct FfiConverterOptionTypeNotificationItem: FfiConverterRustBuffer {
     typealias SwiftType = NotificationItem?
 
@@ -22987,6 +23163,17 @@ public func makeWidgetDriver(settings: WidgetSettings) throws  -> WidgetDriverAn
 }
     )
 }
+/**
+ * Generates a `matrix.to` permalink from to the given userID.
+ */
+public func matrixToUserPermalink(userId: String) throws  -> String {
+    return try  FfiConverterString.lift(
+        try rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_func_matrix_to_user_permalink(
+        FfiConverterString.lower(userId),$0)
+}
+    )
+}
 public func mediaSourceFromUrl(url: String)  -> MediaSource {
     return try!  FfiConverterTypeMediaSource.lift(
         try! rustCall() {
@@ -23055,6 +23242,18 @@ public func newVirtualElementCallWidget(props: VirtualElementCallWidgetOptions) 
         try rustCallWithError(FfiConverterTypeParseError.lift) {
     uniffi_matrix_sdk_ffi_fn_func_new_virtual_element_call_widget(
         FfiConverterTypeVirtualElementCallWidgetOptions.lower(props),$0)
+}
+    )
+}
+/**
+ * Parse a matrix entity from a given URI, be it either
+ * a `matrix.to` link or a `matrix:` URI
+ */
+public func parseMatrixEntityFrom(uri: String)  -> MatrixEntity? {
+    return try!  FfiConverterOptionTypeMatrixEntity.lift(
+        try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_parse_matrix_entity_from(
+        FfiConverterString.lower(uri),$0)
 }
     )
 }
@@ -23128,6 +23327,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 11382) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_user_permalink() != 56419) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 33587) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23147,6 +23349,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_new_virtual_element_call_widget() != 39901) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_func_parse_matrix_entity_from() != 20064) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 4038) {
