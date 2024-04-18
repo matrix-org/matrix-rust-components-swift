@@ -838,6 +838,11 @@ public protocol ClientProtocol : AnyObject {
     
     func getRecentlyVisitedRooms() async throws  -> [String]
     
+    /**
+     * Get the preview of a room, to interact with it.
+     */
+    func getRoomPreview(roomIdOrAlias: String) async throws  -> RoomPreview
+    
     func getSessionVerificationController() throws  -> SessionVerificationController
     
     /**
@@ -866,6 +871,11 @@ public protocol ClientProtocol : AnyObject {
     func notificationClient(processSetup: NotificationProcessSetup) throws  -> NotificationClientBuilder
     
     func removeAvatar() throws 
+    
+    /**
+     * Resolves the given room alias to a room id, if possible.
+     */
+    func resolveRoomAlias(roomAlias: String) async throws  -> String
     
     /**
      * Restores the client from a `Session`.
@@ -1158,6 +1168,26 @@ open class Client:
     }
 
     
+    /**
+     * Get the preview of a room, to interact with it.
+     */
+    open func getRoomPreview(roomIdOrAlias: String) async throws  -> RoomPreview {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_room_preview(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(roomIdOrAlias)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeRoomPreview.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     open func getSessionVerificationController() throws  -> SessionVerificationController {
         return try  FfiConverterTypeSessionVerificationController.lift(
             try 
@@ -1284,6 +1314,26 @@ open class Client:
     )
 }
     }
+    /**
+     * Resolves the given room alias to a room id, if possible.
+     */
+    open func resolveRoomAlias(roomAlias: String) async throws  -> String {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_resolve_room_alias(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(roomAlias)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     /**
      * Restores the client from a `Session`.
      */
@@ -12044,6 +12094,217 @@ public func FfiConverterTypeRoomPowerLevels_lift(_ buf: RustBuffer) throws -> Ro
 
 public func FfiConverterTypeRoomPowerLevels_lower(_ value: RoomPowerLevels) -> RustBuffer {
     return FfiConverterTypeRoomPowerLevels.lower(value)
+}
+
+
+/**
+ * The preview of a room, be it invited/joined/left, or not.
+ */
+public struct RoomPreview {
+    /**
+     * The room id for this room.
+     */
+    public var roomId: String
+    /**
+     * The canonical alias for the room.
+     */
+    public var canonicalAlias: String?
+    /**
+     * The room's name, if set.
+     */
+    public var name: String?
+    /**
+     * The room's topic, if set.
+     */
+    public var topic: String?
+    /**
+     * The MXC URI to the room's avatar, if set.
+     */
+    public var avatarUrl: String?
+    /**
+     * The number of joined members.
+     */
+    public var numJoinedMembers: UInt64
+    /**
+     * The room type (space, custom) or nothing, if it's a regular room.
+     */
+    public var roomType: String?
+    /**
+     * Is the history world-readable for this room?
+     */
+    public var isHistoryWorldReadable: Bool
+    /**
+     * Is the room joined by the current user?
+     */
+    public var isJoined: Bool
+    /**
+     * Is the current user invited to this room?
+     */
+    public var isInvited: Bool
+    /**
+     * is the join rule public for this room?
+     */
+    public var isPublic: Bool
+    /**
+     * Can we knock (or restricted-knock) to this room?
+     */
+    public var canKnock: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The room id for this room.
+         */roomId: String, 
+        /**
+         * The canonical alias for the room.
+         */canonicalAlias: String?, 
+        /**
+         * The room's name, if set.
+         */name: String?, 
+        /**
+         * The room's topic, if set.
+         */topic: String?, 
+        /**
+         * The MXC URI to the room's avatar, if set.
+         */avatarUrl: String?, 
+        /**
+         * The number of joined members.
+         */numJoinedMembers: UInt64, 
+        /**
+         * The room type (space, custom) or nothing, if it's a regular room.
+         */roomType: String?, 
+        /**
+         * Is the history world-readable for this room?
+         */isHistoryWorldReadable: Bool, 
+        /**
+         * Is the room joined by the current user?
+         */isJoined: Bool, 
+        /**
+         * Is the current user invited to this room?
+         */isInvited: Bool, 
+        /**
+         * is the join rule public for this room?
+         */isPublic: Bool, 
+        /**
+         * Can we knock (or restricted-knock) to this room?
+         */canKnock: Bool) {
+        self.roomId = roomId
+        self.canonicalAlias = canonicalAlias
+        self.name = name
+        self.topic = topic
+        self.avatarUrl = avatarUrl
+        self.numJoinedMembers = numJoinedMembers
+        self.roomType = roomType
+        self.isHistoryWorldReadable = isHistoryWorldReadable
+        self.isJoined = isJoined
+        self.isInvited = isInvited
+        self.isPublic = isPublic
+        self.canKnock = canKnock
+    }
+}
+
+
+extension RoomPreview: Equatable, Hashable {
+    public static func ==(lhs: RoomPreview, rhs: RoomPreview) -> Bool {
+        if lhs.roomId != rhs.roomId {
+            return false
+        }
+        if lhs.canonicalAlias != rhs.canonicalAlias {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.topic != rhs.topic {
+            return false
+        }
+        if lhs.avatarUrl != rhs.avatarUrl {
+            return false
+        }
+        if lhs.numJoinedMembers != rhs.numJoinedMembers {
+            return false
+        }
+        if lhs.roomType != rhs.roomType {
+            return false
+        }
+        if lhs.isHistoryWorldReadable != rhs.isHistoryWorldReadable {
+            return false
+        }
+        if lhs.isJoined != rhs.isJoined {
+            return false
+        }
+        if lhs.isInvited != rhs.isInvited {
+            return false
+        }
+        if lhs.isPublic != rhs.isPublic {
+            return false
+        }
+        if lhs.canKnock != rhs.canKnock {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(roomId)
+        hasher.combine(canonicalAlias)
+        hasher.combine(name)
+        hasher.combine(topic)
+        hasher.combine(avatarUrl)
+        hasher.combine(numJoinedMembers)
+        hasher.combine(roomType)
+        hasher.combine(isHistoryWorldReadable)
+        hasher.combine(isJoined)
+        hasher.combine(isInvited)
+        hasher.combine(isPublic)
+        hasher.combine(canKnock)
+    }
+}
+
+
+public struct FfiConverterTypeRoomPreview: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomPreview {
+        return
+            try RoomPreview(
+                roomId: FfiConverterString.read(from: &buf), 
+                canonicalAlias: FfiConverterOptionString.read(from: &buf), 
+                name: FfiConverterOptionString.read(from: &buf), 
+                topic: FfiConverterOptionString.read(from: &buf), 
+                avatarUrl: FfiConverterOptionString.read(from: &buf), 
+                numJoinedMembers: FfiConverterUInt64.read(from: &buf), 
+                roomType: FfiConverterOptionString.read(from: &buf), 
+                isHistoryWorldReadable: FfiConverterBool.read(from: &buf), 
+                isJoined: FfiConverterBool.read(from: &buf), 
+                isInvited: FfiConverterBool.read(from: &buf), 
+                isPublic: FfiConverterBool.read(from: &buf), 
+                canKnock: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RoomPreview, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.roomId, into: &buf)
+        FfiConverterOptionString.write(value.canonicalAlias, into: &buf)
+        FfiConverterOptionString.write(value.name, into: &buf)
+        FfiConverterOptionString.write(value.topic, into: &buf)
+        FfiConverterOptionString.write(value.avatarUrl, into: &buf)
+        FfiConverterUInt64.write(value.numJoinedMembers, into: &buf)
+        FfiConverterOptionString.write(value.roomType, into: &buf)
+        FfiConverterBool.write(value.isHistoryWorldReadable, into: &buf)
+        FfiConverterBool.write(value.isJoined, into: &buf)
+        FfiConverterBool.write(value.isInvited, into: &buf)
+        FfiConverterBool.write(value.isPublic, into: &buf)
+        FfiConverterBool.write(value.canKnock, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeRoomPreview_lift(_ buf: RustBuffer) throws -> RoomPreview {
+    return try FfiConverterTypeRoomPreview.lift(buf)
+}
+
+public func FfiConverterTypeRoomPreview_lower(_ value: RoomPreview) -> RustBuffer {
+    return FfiConverterTypeRoomPreview.lower(value)
 }
 
 
@@ -23441,6 +23702,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_recently_visited_rooms() != 22399) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_room_preview() != 16738) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 62335) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23466,6 +23730,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_remove_avatar() != 60365) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_resolve_room_alias() != 40454) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 19641) {
