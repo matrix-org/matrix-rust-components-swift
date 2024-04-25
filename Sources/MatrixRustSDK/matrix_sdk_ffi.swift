@@ -1587,6 +1587,21 @@ public protocol ClientBuilderProtocol : AnyObject {
     
     func addRootCertificates(certificates: [Data])  -> ClientBuilder
     
+    /**
+     * Automatically create a backup version if no backup exists.
+     */
+    func autoEnableBackups(autoEnableBackups: Bool)  -> ClientBuilder
+    
+    func autoEnableCrossSigning(autoEnableCrossSigning: Bool)  -> ClientBuilder
+    
+    /**
+     * Select a strategy to download room keys from the backup. By default
+     * we download after a decryption failure.
+     *
+     * Take a look at the [`BackupDownloadStrategy`] enum for more options.
+     */
+    func backupDownloadStrategy(backupDownloadStrategy: BackupDownloadStrategy)  -> ClientBuilder
+    
     func basePath(path: String)  -> ClientBuilder
     
     func build() async throws  -> Client
@@ -1672,6 +1687,48 @@ open class ClientBuilder:
     
     uniffi_matrix_sdk_ffi_fn_method_clientbuilder_add_root_certificates(self.uniffiClonePointer(), 
         FfiConverterSequenceData.lower(certificates),$0
+    )
+}
+        )
+    }
+    /**
+     * Automatically create a backup version if no backup exists.
+     */
+    open func autoEnableBackups(autoEnableBackups: Bool)  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_auto_enable_backups(self.uniffiClonePointer(), 
+        FfiConverterBool.lower(autoEnableBackups),$0
+    )
+}
+        )
+    }
+    open func autoEnableCrossSigning(autoEnableCrossSigning: Bool)  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_auto_enable_cross_signing(self.uniffiClonePointer(), 
+        FfiConverterBool.lower(autoEnableCrossSigning),$0
+    )
+}
+        )
+    }
+    /**
+     * Select a strategy to download room keys from the backup. By default
+     * we download after a decryption failure.
+     *
+     * Take a look at the [`BackupDownloadStrategy`] enum for more options.
+     */
+    open func backupDownloadStrategy(backupDownloadStrategy: BackupDownloadStrategy)  -> ClientBuilder {
+        return try!  FfiConverterTypeClientBuilder.lift(
+            try! 
+    rustCall() {
+    
+    uniffi_matrix_sdk_ffi_fn_method_clientbuilder_backup_download_strategy(self.uniffiClonePointer(), 
+        FfiConverterTypeBackupDownloadStrategy_lower(backupDownloadStrategy),$0
     )
 }
         )
@@ -1936,6 +1993,12 @@ public protocol EncryptionProtocol : AnyObject {
     
     func waitForBackupUploadSteadyState(progressListener: BackupSteadyStateListener?) async throws 
     
+    /**
+     * Waits for end-to-end encryption initialization tasks to finish, if any
+     * was running in the background.
+     */
+    func waitForE2eeInitializationTasks() async 
+    
 }
 
 open class Encryption:
@@ -2198,6 +2261,27 @@ open class Encryption:
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
             errorHandler: FfiConverterTypeSteadyStateError.lift
+        )
+    }
+
+    
+    /**
+     * Waits for end-to-end encryption initialization tasks to finish, if any
+     * was running in the background.
+     */
+    open func waitForE2eeInitializationTasks() async  {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_wait_for_e2ee_initialization_tasks(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: nil
+            
         )
     }
 
@@ -4197,7 +4281,11 @@ public protocol RoomProtocol : AnyObject {
     
     func invitedMembersCount()  -> UInt64
     
-    func inviter()  -> RoomMember?
+    /**
+     * For rooms one is invited to, retrieves the room member information for
+     * the user who invited the logged-in user to a room.
+     */
+    func inviter() async  -> RoomMember?
     
     func isDirect()  -> Bool
     
@@ -4317,6 +4405,14 @@ public protocol RoomProtocol : AnyObject {
     func suggestedRoleForUser(userId: String) async throws  -> RoomMemberRole
     
     func timeline() async throws  -> Timeline
+    
+    /**
+     * Returns a timeline focused on the given event.
+     *
+     * Note: this timeline is independent from that returned with
+     * [`Self::timeline`], and as such it is not cached.
+     */
+    func timelineFocusedOnEvent(eventId: String, numContextEvents: UInt16, internalIdPrefix: String?) async throws  -> Timeline
     
     func topic()  -> String?
     
@@ -4735,16 +4831,27 @@ open class Room:
 }
         )
     }
-    open func inviter()  -> RoomMember? {
-        return try!  FfiConverterOptionTypeRoomMember.lift(
-            try! 
-    rustCall() {
-    
-    uniffi_matrix_sdk_ffi_fn_method_room_inviter(self.uniffiClonePointer(), $0
-    )
-}
+    /**
+     * For rooms one is invited to, retrieves the room member information for
+     * the user who invited the logged-in user to a room.
+     */
+    open func inviter() async  -> RoomMember? {
+        return try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_inviter(
+                    self.uniffiClonePointer()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeRoomMember.lift,
+            errorHandler: nil
+            
         )
     }
+
+    
     open func isDirect()  -> Bool {
         return try!  FfiConverterBool.lift(
             try! 
@@ -5214,6 +5321,31 @@ open class Room:
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
             liftFunc: FfiConverterTypeTimeline.lift,
             errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
+    /**
+     * Returns a timeline focused on the given event.
+     *
+     * Note: this timeline is independent from that returned with
+     * [`Self::timeline`], and as such it is not cached.
+     */
+    open func timelineFocusedOnEvent(eventId: String, numContextEvents: UInt16, internalIdPrefix: String?) async throws  -> Timeline {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_timeline_focused_on_event(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(eventId),
+                    FfiConverterUInt16.lower(numContextEvents),
+                    FfiConverterOptionString.lower(internalIdPrefix)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeTimeline.lift,
+            errorHandler: FfiConverterTypeFocusEventError.lift
         )
     }
 
@@ -5830,8 +5962,11 @@ public protocol RoomListItemProtocol : AnyObject {
      * * `event_type_filter` - An optional [`TimelineEventTypeFilter`] to be
      * used to filter timeline events besides the default timeline filter. If
      * `None` is passed, only the default timeline filter will be used.
+     * * `internal_id_prefix` - An optional String that will be prepended to
+     * all the timeline item's internal IDs, making it possible to
+     * distinguish different timeline instances from each other.
      */
-    func initTimeline(eventTypeFilter: TimelineEventTypeFilter?) async throws 
+    func initTimeline(eventTypeFilter: TimelineEventTypeFilter?, internalIdPrefix: String?) async throws 
     
     func isDirect()  -> Bool
     
@@ -5949,13 +6084,17 @@ open class RoomListItem:
      * * `event_type_filter` - An optional [`TimelineEventTypeFilter`] to be
      * used to filter timeline events besides the default timeline filter. If
      * `None` is passed, only the default timeline filter will be used.
+     * * `internal_id_prefix` - An optional String that will be prepended to
+     * all the timeline item's internal IDs, making it possible to
+     * distinguish different timeline instances from each other.
      */
-    open func initTimeline(eventTypeFilter: TimelineEventTypeFilter?) async throws  {
+    open func initTimeline(eventTypeFilter: TimelineEventTypeFilter?, internalIdPrefix: String?) async throws  {
         return try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_roomlistitem_init_timeline(
                     self.uniffiClonePointer(),
-                    FfiConverterOptionTypeTimelineEventTypeFilter.lower(eventTypeFilter)
+                    FfiConverterOptionTypeTimelineEventTypeFilter.lower(eventTypeFilter),
+                    FfiConverterOptionString.lower(internalIdPrefix)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -7584,6 +7723,13 @@ public protocol TimelineProtocol : AnyObject {
     
     func fetchMembers() async 
     
+    /**
+     * Paginate forwards, when in focused mode.
+     *
+     * Returns whether we hit the end of the timeline or not.
+     */
+    func focusedPaginateForwards(numEvents: UInt16) async throws  -> Bool
+    
     func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem
     
     func getTimelineEventContentByEventId(eventId: String) throws  -> RoomMessageEventContentWithoutRelation
@@ -7601,11 +7747,11 @@ public protocol TimelineProtocol : AnyObject {
     func markAsRead(receiptType: ReceiptType) async throws 
     
     /**
-     * Loads older messages into the timeline.
+     * Paginate backwards, whether we are in focused mode or in live mode.
      *
-     * Raises an exception if there are no timeline listeners.
+     * Returns whether we hit the end of the timeline or not.
      */
-    func paginateBackwards(opts: PaginationOptions) throws 
+    func paginateBackwards(numEvents: UInt16) async throws  -> Bool
     
     func retryDecryption(sessionIds: [String]) 
     
@@ -7631,7 +7777,7 @@ public protocol TimelineProtocol : AnyObject {
     
     func sendVoiceMessage(url: String, audioInfo: AudioInfo, waveform: [UInt16], caption: String?, formattedCaption: FormattedBody?, progressWatcher: ProgressWatcher?)  -> SendAttachmentJoinHandle
     
-    func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle
+    func subscribeToBackPaginationStatus(listener: PaginationStatusListener) throws  -> TaskHandle
     
     func toggleReaction(eventId: String, key: String) throws 
     
@@ -7780,6 +7926,28 @@ open class Timeline:
     }
 
     
+    /**
+     * Paginate forwards, when in focused mode.
+     *
+     * Returns whether we hit the end of the timeline or not.
+     */
+    open func focusedPaginateForwards(numEvents: UInt16) async throws  -> Bool {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_focused_paginate_forwards(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt16.lower(numEvents)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+    }
+
+    
     open func getEventTimelineItemByEventId(eventId: String) throws  -> EventTimelineItem {
         return try  FfiConverterTypeEventTimelineItem.lift(
             try 
@@ -7843,18 +8011,27 @@ open class Timeline:
 
     
     /**
-     * Loads older messages into the timeline.
+     * Paginate backwards, whether we are in focused mode or in live mode.
      *
-     * Raises an exception if there are no timeline listeners.
+     * Returns whether we hit the end of the timeline or not.
      */
-    open func paginateBackwards(opts: PaginationOptions) throws  {
-        try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_paginate_backwards(self.uniffiClonePointer(), 
-        FfiConverterTypePaginationOptions.lower(opts),$0
-    )
-}
+    open func paginateBackwards(numEvents: UInt16) async throws  -> Bool {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_paginate_backwards(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt16.lower(numEvents)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
     }
+
+    
     open func retryDecryption(sessionIds: [String])  {
         try! 
     rustCall() {
@@ -7998,12 +8175,12 @@ open class Timeline:
 }
         )
     }
-    open func subscribeToBackPaginationStatus(listener: BackPaginationStatusListener) throws  -> TaskHandle {
+    open func subscribeToBackPaginationStatus(listener: PaginationStatusListener) throws  -> TaskHandle {
         return try  FfiConverterTypeTaskHandle.lift(
             try 
     rustCallWithError(FfiConverterTypeClientError.lift) {
     uniffi_matrix_sdk_ffi_fn_method_timeline_subscribe_to_back_pagination_status(self.uniffiClonePointer(), 
-        FfiConverterCallbackInterfaceBackPaginationStatusListener.lower(listener),$0
+        FfiConverterCallbackInterfacePaginationStatusListener.lower(listener),$0
     )
 }
         )
@@ -8511,7 +8688,7 @@ public protocol TimelineItemProtocol : AnyObject {
     
     func fmtDebug()  -> String
     
-    func uniqueId()  -> UInt64
+    func uniqueId()  -> String
     
 }
 
@@ -8586,8 +8763,8 @@ open class TimelineItem:
 }
         )
     }
-    open func uniqueId()  -> UInt64 {
-        return try!  FfiConverterUInt64.lift(
+    open func uniqueId()  -> String {
+        return try!  FfiConverterString.lift(
             try! 
     rustCall() {
     
@@ -11406,6 +11583,13 @@ public struct RoomInfo {
     public var alternativeAliases: [String]
     public var membership: Membership
     public var latestEvent: EventTimelineItem?
+    /**
+     * Member who invited the current user to a room that's in the invited
+     * state.
+     *
+     * Can be missing if the room membership invite event is missing from the
+     * store.
+     */
     public var inviter: RoomMember?
     public var activeMembersCount: UInt64
     public var invitedMembersCount: UInt64
@@ -11438,7 +11622,14 @@ public struct RoomInfo {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, isFavourite: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, userPowerLevels: [String: Int64], highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?, hasRoomCall: Bool, activeRoomCallParticipants: [String], 
+    public init(id: String, name: String?, topic: String?, avatarUrl: String?, isDirect: Bool, isPublic: Bool, isSpace: Bool, isTombstoned: Bool, isFavourite: Bool, canonicalAlias: String?, alternativeAliases: [String], membership: Membership, latestEvent: EventTimelineItem?, 
+        /**
+         * Member who invited the current user to a room that's in the invited
+         * state.
+         *
+         * Can be missing if the room membership invite event is missing from the
+         * store.
+         */inviter: RoomMember?, activeMembersCount: UInt64, invitedMembersCount: UInt64, joinedMembersCount: UInt64, userPowerLevels: [String: Int64], highlightCount: UInt64, notificationCount: UInt64, userDefinedNotificationMode: RoomNotificationMode?, hasRoomCall: Bool, activeRoomCallParticipants: [String], 
         /**
          * Whether this room has been explicitly marked as unread
          */isMarkedUnread: Bool, 
@@ -12984,6 +13175,11 @@ public struct UnableToDecryptInfo {
      * If set, this is in milliseconds.
      */
     public var timeToDecryptMs: UInt64?
+    /**
+     * What we know about what caused this UTD. E.g. was this event sent when
+     * we were not a member of this room?
+     */
+    public var cause: UtdCause
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -12998,9 +13194,14 @@ public struct UnableToDecryptInfo {
          * considered a definite UTD.
          *
          * If set, this is in milliseconds.
-         */timeToDecryptMs: UInt64?) {
+         */timeToDecryptMs: UInt64?, 
+        /**
+         * What we know about what caused this UTD. E.g. was this event sent when
+         * we were not a member of this room?
+         */cause: UtdCause) {
         self.eventId = eventId
         self.timeToDecryptMs = timeToDecryptMs
+        self.cause = cause
     }
 }
 
@@ -13013,12 +13214,16 @@ extension UnableToDecryptInfo: Equatable, Hashable {
         if lhs.timeToDecryptMs != rhs.timeToDecryptMs {
             return false
         }
+        if lhs.cause != rhs.cause {
+            return false
+        }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(eventId)
         hasher.combine(timeToDecryptMs)
+        hasher.combine(cause)
     }
 }
 
@@ -13028,13 +13233,15 @@ public struct FfiConverterTypeUnableToDecryptInfo: FfiConverterRustBuffer {
         return
             try UnableToDecryptInfo(
                 eventId: FfiConverterString.read(from: &buf), 
-                timeToDecryptMs: FfiConverterOptionUInt64.read(from: &buf)
+                timeToDecryptMs: FfiConverterOptionUInt64.read(from: &buf), 
+                cause: FfiConverterTypeUtdCause.read(from: &buf)
         )
     }
 
     public static func write(_ value: UnableToDecryptInfo, into buf: inout [UInt8]) {
         FfiConverterString.write(value.eventId, into: &buf)
         FfiConverterOptionUInt64.write(value.timeToDecryptMs, into: &buf)
+        FfiConverterTypeUtdCause.write(value.cause, into: &buf)
     }
 }
 
@@ -14554,7 +14761,11 @@ public enum EncryptedMessage {
     case megolmV1AesSha2(
         /**
          * The ID of the session used to encrypt the message.
-         */sessionId: String
+         */sessionId: String, 
+        /**
+         * What we know about what caused this UTD. E.g. was this event sent
+         * when we were not a member of this room?
+         */cause: UtdCause
     )
     case unknown
 }
@@ -14570,7 +14781,7 @@ public struct FfiConverterTypeEncryptedMessage: FfiConverterRustBuffer {
         case 1: return .olmV1Curve25519AesSha2(senderKey: try FfiConverterString.read(from: &buf)
         )
         
-        case 2: return .megolmV1AesSha2(sessionId: try FfiConverterString.read(from: &buf)
+        case 2: return .megolmV1AesSha2(sessionId: try FfiConverterString.read(from: &buf), cause: try FfiConverterTypeUtdCause.read(from: &buf)
         )
         
         case 3: return .unknown
@@ -14588,9 +14799,10 @@ public struct FfiConverterTypeEncryptedMessage: FfiConverterRustBuffer {
             FfiConverterString.write(senderKey, into: &buf)
             
         
-        case let .megolmV1AesSha2(sessionId):
+        case let .megolmV1AesSha2(sessionId,cause):
             writeInt(&buf, Int32(2))
             FfiConverterString.write(sessionId, into: &buf)
+            FfiConverterTypeUtdCause.write(cause, into: &buf)
             
         
         case .unknown:
@@ -14847,6 +15059,76 @@ public func FfiConverterTypeFilterTimelineEventType_lower(_ value: FilterTimelin
 extension FilterTimelineEventType: Equatable, Hashable {}
 
 
+
+
+public enum FocusEventError {
+
+    
+    
+    case InvalidEventId(eventId: String, err: String
+    )
+    case EventNotFound(eventId: String
+    )
+    case Other(msg: String
+    )
+}
+
+
+public struct FfiConverterTypeFocusEventError: FfiConverterRustBuffer {
+    typealias SwiftType = FocusEventError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> FocusEventError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .InvalidEventId(
+            eventId: try FfiConverterString.read(from: &buf), 
+            err: try FfiConverterString.read(from: &buf)
+            )
+        case 2: return .EventNotFound(
+            eventId: try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .Other(
+            msg: try FfiConverterString.read(from: &buf)
+            )
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: FocusEventError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case let .InvalidEventId(eventId,err):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(eventId, into: &buf)
+            FfiConverterString.write(err, into: &buf)
+            
+        
+        case let .EventNotFound(eventId):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(eventId, into: &buf)
+            
+        
+        case let .Other(msg):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(msg, into: &buf)
+            
+        }
+    }
+}
+
+
+extension FocusEventError: Equatable, Hashable {}
+
+extension FocusEventError: Error { }
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -19459,9 +19741,9 @@ extension WidgetEventFilter: Equatable, Hashable {}
 
 
 
-public protocol BackPaginationStatusListener : AnyObject {
+public protocol BackupStateListener : AnyObject {
     
-    func onUpdate(status: BackPaginationStatus) 
+    func onUpdate(status: BackupState) 
     
 }
 
@@ -19472,88 +19754,6 @@ private let IDX_CALLBACK_FREE: Int32 = 0
 private let UNIFFI_CALLBACK_SUCCESS: Int32 = 0
 private let UNIFFI_CALLBACK_ERROR: Int32 = 1
 private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
-
-// Put the implementation in a struct so we don't pollute the top-level namespace
-fileprivate struct UniffiCallbackInterfaceBackPaginationStatusListener {
-
-    // Create the VTable using a series of closures.
-    // Swift automatically converts these into C callback functions.
-    static var vtable: UniffiVTableCallbackInterfaceBackPaginationStatusListener = UniffiVTableCallbackInterfaceBackPaginationStatusListener(
-        onUpdate: { (
-            uniffiHandle: UInt64,
-            status: RustBuffer,
-            uniffiOutReturn: UnsafeMutableRawPointer,
-            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
-        ) in
-            let uniffiObj: BackPaginationStatusListener
-            do {
-                try uniffiObj = FfiConverterCallbackInterfaceBackPaginationStatusListener.handleMap.get(handle: uniffiHandle)
-            } catch {
-                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
-                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
-                return
-            }
-            let makeCall = { uniffiObj.onUpdate(
-                 status: try FfiConverterTypeBackPaginationStatus_lift(status)
-            ) }
-            
-            let writeReturn = { () }
-            uniffiTraitInterfaceCall(
-                callStatus: uniffiCallStatus,
-                makeCall: makeCall,
-                writeReturn: writeReturn
-            )
-        },
-        uniffiFree: { (uniffiHandle: UInt64) -> () in
-            let result = try? FfiConverterCallbackInterfaceBackPaginationStatusListener.handleMap.remove(handle: uniffiHandle)
-            if result == nil {
-                print("Uniffi callback interface BackPaginationStatusListener: handle missing in uniffiFree")
-            }
-        }
-    )
-}
-
-private func uniffiCallbackInitBackPaginationStatusListener() {
-    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_backpaginationstatuslistener(&UniffiCallbackInterfaceBackPaginationStatusListener.vtable)
-}
-
-// FfiConverter protocol for callback interfaces
-fileprivate struct FfiConverterCallbackInterfaceBackPaginationStatusListener {
-    fileprivate static var handleMap = UniffiHandleMap<BackPaginationStatusListener>()
-}
-
-extension FfiConverterCallbackInterfaceBackPaginationStatusListener : FfiConverter {
-    typealias SwiftType = BackPaginationStatusListener
-    typealias FfiType = UInt64
-
-    public static func lift(_ handle: UInt64) throws -> SwiftType {
-        try handleMap.get(handle: handle)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        let handle: UInt64 = try readInt(&buf)
-        return try lift(handle)
-    }
-
-    public static func lower(_ v: SwiftType) -> UInt64 {
-        return handleMap.insert(obj: v)
-    }
-
-    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
-        writeInt(&buf, lower(v))
-    }
-}
-
-
-
-
-public protocol BackupStateListener : AnyObject {
-    
-    func onUpdate(status: BackupState) 
-    
-}
-
-
 
 // Put the implementation in a struct so we don't pollute the top-level namespace
 fileprivate struct UniffiCallbackInterfaceBackupStateListener {
@@ -20152,6 +20352,88 @@ fileprivate struct FfiConverterCallbackInterfaceNotificationSettingsDelegate {
 
 extension FfiConverterCallbackInterfaceNotificationSettingsDelegate : FfiConverter {
     typealias SwiftType = NotificationSettingsDelegate
+    typealias FfiType = UInt64
+
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+
+
+public protocol PaginationStatusListener : AnyObject {
+    
+    func onUpdate(status: PaginationStatus) 
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfacePaginationStatusListener {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    static var vtable: UniffiVTableCallbackInterfacePaginationStatusListener = UniffiVTableCallbackInterfacePaginationStatusListener(
+        onUpdate: { (
+            uniffiHandle: UInt64,
+            status: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let uniffiObj: PaginationStatusListener
+            do {
+                try uniffiObj = FfiConverterCallbackInterfacePaginationStatusListener.handleMap.get(handle: uniffiHandle)
+            } catch {
+                uniffiCallStatus.pointee.code = CALL_UNEXPECTED_ERROR
+                uniffiCallStatus.pointee.errorBuf = FfiConverterString.lower("Callback handle map error: \(error)")
+                return
+            }
+            let makeCall = { uniffiObj.onUpdate(
+                 status: try FfiConverterTypePaginationStatus_lift(status)
+            ) }
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfacePaginationStatusListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface PaginationStatusListener: handle missing in uniffiFree")
+            }
+        }
+    )
+}
+
+private func uniffiCallbackInitPaginationStatusListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_paginationstatuslistener(&UniffiCallbackInterfacePaginationStatusListener.vtable)
+}
+
+// FfiConverter protocol for callback interfaces
+fileprivate struct FfiConverterCallbackInterfacePaginationStatusListener {
+    fileprivate static var handleMap = UniffiHandleMap<PaginationStatusListener>()
+}
+
+extension FfiConverterCallbackInterfacePaginationStatusListener : FfiConverter {
+    typealias SwiftType = PaginationStatusListener
     typealias FfiType = UInt64
 
     public static func lift(_ handle: UInt64) throws -> SwiftType {
@@ -23288,6 +23570,10 @@ fileprivate struct FfiConverterDictionaryStringSequenceString: FfiConverterRustB
 
 
 
+
+
+
+
 private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
 private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
 
@@ -23786,6 +24072,15 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_add_root_certificates() != 57950) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_auto_enable_backups() != 32504) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_auto_enable_cross_signing() != 27603) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_backup_download_strategy() != 2583) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_base_path() != 40888) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -23874,6 +24169,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 16813) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_e2ee_initialization_tasks() != 41585) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_eventtimelineitem_can_be_replied_to() != 42922) {
@@ -24098,7 +24396,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_invited_members_count() != 1023) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 64006) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 49874) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 16947) {
@@ -24203,6 +24501,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 701) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline_focused_on_event() != 54175) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 59745) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -24266,7 +24567,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_id() != 41176) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_init_timeline() != 15676) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_init_timeline() != 16609) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistitem_is_direct() != 46873) {
@@ -24410,6 +24711,9 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_members() != 37994) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_focused_paginate_forwards() != 38096) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_event_timeline_item_by_event_id() != 33483) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -24422,7 +24726,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_mark_as_read() != 15734) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 40762) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 56939) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_decryption() != 57065) {
@@ -24461,7 +24765,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 50962) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 9015) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 58309) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction() != 42402) {
@@ -24512,7 +24816,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_fmt_debug() != 38094) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_unique_id() != 8639) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_unique_id() != 30409) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timelineitemcontent_as_message() != 45784) {
@@ -24560,9 +24864,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_timelineeventtypefilter_include() != 21388) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_backpaginationstatuslistener_on_update() != 5891) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_backupstatelistener_on_update() != 24369) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -24588,6 +24889,9 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 51708) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_paginationstatuslistener_on_update() != 21279) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 20412) {
@@ -24651,7 +24955,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
 
-    uniffiCallbackInitBackPaginationStatusListener()
     uniffiCallbackInitBackupStateListener()
     uniffiCallbackInitBackupSteadyStateListener()
     uniffiCallbackInitClientDelegate()
@@ -24659,6 +24962,7 @@ private var initializationResult: InitializationResult {
     uniffiCallbackInitEnableRecoveryProgressListener()
     uniffiCallbackInitIgnoredUsersListener()
     uniffiCallbackInitNotificationSettingsDelegate()
+    uniffiCallbackInitPaginationStatusListener()
     uniffiCallbackInitProgressWatcher()
     uniffiCallbackInitRecoveryStateListener()
     uniffiCallbackInitRoomDirectorySearchEntriesListener()

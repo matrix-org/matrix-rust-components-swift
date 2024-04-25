@@ -7,8 +7,8 @@ import Foundation
 // Depending on the consumer's build setup, the low-level FFI code
 // might be in a separate module, or it might be compiled inline into
 // this module. This is a bit of light hackery to work with both.
-#if canImport(matrix_sdkFFI)
-import matrix_sdkFFI
+#if canImport(matrix_sdk_cryptoFFI)
+import matrix_sdk_cryptoFFI
 #endif
 
 fileprivate extension RustBuffer {
@@ -21,13 +21,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_matrix_sdk_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_matrix_sdk_crypto_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_matrix_sdk_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_matrix_sdk_crypto_rustbuffer_free(self, $0) }
     }
 }
 
@@ -371,19 +371,6 @@ fileprivate class UniffiHandleMap<T> {
 // Public interface members begin here.
 
 
-fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
-    typealias FfiType = Int64
-    typealias SwiftType = Int64
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int64 {
-        return try lift(readInt(&buf))
-    }
-
-    public static func write(_ value: Int64, into buf: inout [UInt8]) {
-        writeInt(&buf, lower(value))
-    }
-}
-
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -422,369 +409,238 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
-
-/**
- * A set of common power levels required for various operations within a room,
- * that can be applied as a single operation. When updating these
- * settings, any levels that are `None` will remain unchanged.
- */
-public struct RoomPowerLevelChanges {
-    /**
-     * The level required to ban a user.
-     */
-    public var ban: Int64?
-    /**
-     * The level required to invite a user.
-     */
-    public var invite: Int64?
-    /**
-     * The level required to kick a user.
-     */
-    public var kick: Int64?
-    /**
-     * The level required to redact an event.
-     */
-    public var redact: Int64?
-    /**
-     * The default level required to send message events.
-     */
-    public var eventsDefault: Int64?
-    /**
-     * The default level required to send state events.
-     */
-    public var stateDefault: Int64?
-    /**
-     * The default power level for every user in the room.
-     */
-    public var usersDefault: Int64?
-    /**
-     * The level required to change the room's name.
-     */
-    public var roomName: Int64?
-    /**
-     * The level required to change the room's avatar.
-     */
-    public var roomAvatar: Int64?
-    /**
-     * The level required to change the room's topic.
-     */
-    public var roomTopic: Int64?
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(
-        /**
-         * The level required to ban a user.
-         */ban: Int64? = nil, 
-        /**
-         * The level required to invite a user.
-         */invite: Int64? = nil, 
-        /**
-         * The level required to kick a user.
-         */kick: Int64? = nil, 
-        /**
-         * The level required to redact an event.
-         */redact: Int64? = nil, 
-        /**
-         * The default level required to send message events.
-         */eventsDefault: Int64? = nil, 
-        /**
-         * The default level required to send state events.
-         */stateDefault: Int64? = nil, 
-        /**
-         * The default power level for every user in the room.
-         */usersDefault: Int64? = nil, 
-        /**
-         * The level required to change the room's name.
-         */roomName: Int64? = nil, 
-        /**
-         * The level required to change the room's avatar.
-         */roomAvatar: Int64? = nil, 
-        /**
-         * The level required to change the room's topic.
-         */roomTopic: Int64? = nil) {
-        self.ban = ban
-        self.invite = invite
-        self.kick = kick
-        self.redact = redact
-        self.eventsDefault = eventsDefault
-        self.stateDefault = stateDefault
-        self.usersDefault = usersDefault
-        self.roomName = roomName
-        self.roomAvatar = roomAvatar
-        self.roomTopic = roomTopic
-    }
-}
-
-
-extension RoomPowerLevelChanges: Equatable, Hashable {
-    public static func ==(lhs: RoomPowerLevelChanges, rhs: RoomPowerLevelChanges) -> Bool {
-        if lhs.ban != rhs.ban {
-            return false
-        }
-        if lhs.invite != rhs.invite {
-            return false
-        }
-        if lhs.kick != rhs.kick {
-            return false
-        }
-        if lhs.redact != rhs.redact {
-            return false
-        }
-        if lhs.eventsDefault != rhs.eventsDefault {
-            return false
-        }
-        if lhs.stateDefault != rhs.stateDefault {
-            return false
-        }
-        if lhs.usersDefault != rhs.usersDefault {
-            return false
-        }
-        if lhs.roomName != rhs.roomName {
-            return false
-        }
-        if lhs.roomAvatar != rhs.roomAvatar {
-            return false
-        }
-        if lhs.roomTopic != rhs.roomTopic {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(ban)
-        hasher.combine(invite)
-        hasher.combine(kick)
-        hasher.combine(redact)
-        hasher.combine(eventsDefault)
-        hasher.combine(stateDefault)
-        hasher.combine(usersDefault)
-        hasher.combine(roomName)
-        hasher.combine(roomAvatar)
-        hasher.combine(roomTopic)
-    }
-}
-
-
-public struct FfiConverterTypeRoomPowerLevelChanges: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomPowerLevelChanges {
-        return
-            try RoomPowerLevelChanges(
-                ban: FfiConverterOptionInt64.read(from: &buf), 
-                invite: FfiConverterOptionInt64.read(from: &buf), 
-                kick: FfiConverterOptionInt64.read(from: &buf), 
-                redact: FfiConverterOptionInt64.read(from: &buf), 
-                eventsDefault: FfiConverterOptionInt64.read(from: &buf), 
-                stateDefault: FfiConverterOptionInt64.read(from: &buf), 
-                usersDefault: FfiConverterOptionInt64.read(from: &buf), 
-                roomName: FfiConverterOptionInt64.read(from: &buf), 
-                roomAvatar: FfiConverterOptionInt64.read(from: &buf), 
-                roomTopic: FfiConverterOptionInt64.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: RoomPowerLevelChanges, into buf: inout [UInt8]) {
-        FfiConverterOptionInt64.write(value.ban, into: &buf)
-        FfiConverterOptionInt64.write(value.invite, into: &buf)
-        FfiConverterOptionInt64.write(value.kick, into: &buf)
-        FfiConverterOptionInt64.write(value.redact, into: &buf)
-        FfiConverterOptionInt64.write(value.eventsDefault, into: &buf)
-        FfiConverterOptionInt64.write(value.stateDefault, into: &buf)
-        FfiConverterOptionInt64.write(value.usersDefault, into: &buf)
-        FfiConverterOptionInt64.write(value.roomName, into: &buf)
-        FfiConverterOptionInt64.write(value.roomAvatar, into: &buf)
-        FfiConverterOptionInt64.write(value.roomTopic, into: &buf)
-    }
-}
-
-
-public func FfiConverterTypeRoomPowerLevelChanges_lift(_ buf: RustBuffer) throws -> RoomPowerLevelChanges {
-    return try FfiConverterTypeRoomPowerLevelChanges.lift(buf)
-}
-
-public func FfiConverterTypeRoomPowerLevelChanges_lower(_ value: RoomPowerLevelChanges) -> RustBuffer {
-    return FfiConverterTypeRoomPowerLevelChanges.lower(value)
-}
-
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
- * Settings for end-to-end encryption features.
+ * The local trust state of a device.
  */
 
-public enum BackupDownloadStrategy {
+public enum LocalTrust {
     
     /**
-     * Automatically download all room keys from the backup when the backup
-     * recovery key has been received. The backup recovery key can be received
-     * in two ways:
-     *
-     * 1. Received as a `m.secret.send` to-device event, after a successful
-     * interactive verification.
-     * 2. Imported from secret storage (4S) using the
-     * [`SecretStore::import_secrets()`] method.
-     *
-     * [`SecretStore::import_secrets()`]: crate::encryption::secret_storage::SecretStore::import_secrets
+     * The device has been verified and is trusted.
      */
-    case oneShot
+    case verified
     /**
-     * Attempt to download a single room key if an event fails to be decrypted.
+     * The device been blacklisted from communicating.
      */
-    case afterDecryptionFailure
+    case blackListed
     /**
-     * Don't download any room keys automatically. The user can manually
-     * download room keys using the [`Backups::download_room_key()`] methods.
-     *
-     * This is the default option.
+     * The trust state of the device is being ignored.
      */
-    case manual
+    case ignored
+    /**
+     * The trust state is unset.
+     */
+    case unset
 }
 
 
-public struct FfiConverterTypeBackupDownloadStrategy: FfiConverterRustBuffer {
-    typealias SwiftType = BackupDownloadStrategy
+public struct FfiConverterTypeLocalTrust: FfiConverterRustBuffer {
+    typealias SwiftType = LocalTrust
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BackupDownloadStrategy {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LocalTrust {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .oneShot
+        case 1: return .verified
         
-        case 2: return .afterDecryptionFailure
+        case 2: return .blackListed
         
-        case 3: return .manual
+        case 3: return .ignored
+        
+        case 4: return .unset
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
-    public static func write(_ value: BackupDownloadStrategy, into buf: inout [UInt8]) {
+    public static func write(_ value: LocalTrust, into buf: inout [UInt8]) {
         switch value {
         
         
-        case .oneShot:
+        case .verified:
             writeInt(&buf, Int32(1))
         
         
-        case .afterDecryptionFailure:
+        case .blackListed:
             writeInt(&buf, Int32(2))
         
         
-        case .manual:
+        case .ignored:
             writeInt(&buf, Int32(3))
+        
+        
+        case .unset:
+            writeInt(&buf, Int32(4))
         
         }
     }
 }
 
 
-public func FfiConverterTypeBackupDownloadStrategy_lift(_ buf: RustBuffer) throws -> BackupDownloadStrategy {
-    return try FfiConverterTypeBackupDownloadStrategy.lift(buf)
+public func FfiConverterTypeLocalTrust_lift(_ buf: RustBuffer) throws -> LocalTrust {
+    return try FfiConverterTypeLocalTrust.lift(buf)
 }
 
-public func FfiConverterTypeBackupDownloadStrategy_lower(_ value: BackupDownloadStrategy) -> RustBuffer {
-    return FfiConverterTypeBackupDownloadStrategy.lower(value)
+public func FfiConverterTypeLocalTrust_lower(_ value: LocalTrust) -> RustBuffer {
+    return FfiConverterTypeLocalTrust.lower(value)
 }
 
 
-extension BackupDownloadStrategy: Equatable, Hashable {}
+extension LocalTrust: Equatable, Hashable {}
 
 
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
- * The role of a member in a room.
+ * The result of a signature check.
  */
 
-public enum RoomMemberRole {
+public enum SignatureState {
     
     /**
-     * The member is an administrator.
+     * The signature is missing.
      */
-    case administrator
+    case missing
     /**
-     * The member is a moderator.
+     * The signature is invalid.
      */
-    case moderator
+    case invalid
     /**
-     * The member is a regular user.
+     * The signature is valid but the device or user identity that created the
+     * signature is not trusted.
      */
-    case user
+    case validButNotTrusted
+    /**
+     * The signature is valid and the device or user identity that created the
+     * signature is trusted.
+     */
+    case validAndTrusted
 }
 
 
-public struct FfiConverterTypeRoomMemberRole: FfiConverterRustBuffer {
-    typealias SwiftType = RoomMemberRole
+public struct FfiConverterTypeSignatureState: FfiConverterRustBuffer {
+    typealias SwiftType = SignatureState
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomMemberRole {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SignatureState {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .administrator
+        case 1: return .missing
         
-        case 2: return .moderator
+        case 2: return .invalid
         
-        case 3: return .user
+        case 3: return .validButNotTrusted
+        
+        case 4: return .validAndTrusted
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
-    public static func write(_ value: RoomMemberRole, into buf: inout [UInt8]) {
+    public static func write(_ value: SignatureState, into buf: inout [UInt8]) {
         switch value {
         
         
-        case .administrator:
+        case .missing:
             writeInt(&buf, Int32(1))
         
         
-        case .moderator:
+        case .invalid:
             writeInt(&buf, Int32(2))
         
         
-        case .user:
+        case .validButNotTrusted:
             writeInt(&buf, Int32(3))
+        
+        
+        case .validAndTrusted:
+            writeInt(&buf, Int32(4))
         
         }
     }
 }
 
 
-public func FfiConverterTypeRoomMemberRole_lift(_ buf: RustBuffer) throws -> RoomMemberRole {
-    return try FfiConverterTypeRoomMemberRole.lift(buf)
+public func FfiConverterTypeSignatureState_lift(_ buf: RustBuffer) throws -> SignatureState {
+    return try FfiConverterTypeSignatureState.lift(buf)
 }
 
-public func FfiConverterTypeRoomMemberRole_lower(_ value: RoomMemberRole) -> RustBuffer {
-    return FfiConverterTypeRoomMemberRole.lower(value)
+public func FfiConverterTypeSignatureState_lower(_ value: SignatureState) -> RustBuffer {
+    return FfiConverterTypeSignatureState.lower(value)
 }
 
 
-extension RoomMemberRole: Equatable, Hashable {}
+extension SignatureState: Equatable, Hashable {}
 
 
 
-fileprivate struct FfiConverterOptionInt64: FfiConverterRustBuffer {
-    typealias SwiftType = Int64?
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Our best guess at the reason why an event can't be decrypted.
+ */
 
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
+public enum UtdCause {
+    
+    /**
+     * We don't have an explanation for why this UTD happened - it is probably
+     * a bug, or a network split between the two homeservers.
+     */
+    case unknown
+    /**
+     * This event was sent when we were not a member of the room (or invited),
+     * so it is impossible to decrypt (without MSC3061).
+     */
+    case membership
+}
+
+
+public struct FfiConverterTypeUtdCause: FfiConverterRustBuffer {
+    typealias SwiftType = UtdCause
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UtdCause {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .unknown
+        
+        case 2: return .membership
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
         }
-        writeInt(&buf, Int8(1))
-        FfiConverterInt64.write(value, into: &buf)
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterInt64.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
+    public static func write(_ value: UtdCause, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .unknown:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .membership:
+            writeInt(&buf, Int32(2))
+        
         }
     }
 }
+
+
+public func FfiConverterTypeUtdCause_lift(_ buf: RustBuffer) throws -> UtdCause {
+    return try FfiConverterTypeUtdCause.lift(buf)
+}
+
+public func FfiConverterTypeUtdCause_lower(_ value: UtdCause) -> RustBuffer {
+    return FfiConverterTypeUtdCause.lower(value)
+}
+
+
+extension UtdCause: Equatable, Hashable {}
+
+
 
 private enum InitializationResult {
     case ok
@@ -797,7 +653,7 @@ private var initializationResult: InitializationResult {
     // Get the bindings contract version from our ComponentInterface
     let bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
-    let scaffolding_contract_version = ffi_matrix_sdk_uniffi_contract_version()
+    let scaffolding_contract_version = ffi_matrix_sdk_crypto_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }

@@ -411,67 +411,6 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-
-public enum BackPaginationStatus {
-    
-    case idle
-    case paginating
-    case timelineStartReached
-}
-
-
-public struct FfiConverterTypeBackPaginationStatus: FfiConverterRustBuffer {
-    typealias SwiftType = BackPaginationStatus
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BackPaginationStatus {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .idle
-        
-        case 2: return .paginating
-        
-        case 3: return .timelineStartReached
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: BackPaginationStatus, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .idle:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .paginating:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .timelineStartReached:
-            writeInt(&buf, Int32(3))
-        
-        }
-    }
-}
-
-
-public func FfiConverterTypeBackPaginationStatus_lift(_ buf: RustBuffer) throws -> BackPaginationStatus {
-    return try FfiConverterTypeBackPaginationStatus.lift(buf)
-}
-
-public func FfiConverterTypeBackPaginationStatus_lower(_ value: BackPaginationStatus) -> RustBuffer {
-    return FfiConverterTypeBackPaginationStatus.lower(value)
-}
-
-
-extension BackPaginationStatus: Equatable, Hashable {}
-
-
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
  * Where this event came.
  */
@@ -540,6 +479,80 @@ public func FfiConverterTypeEventItemOrigin_lower(_ value: EventItemOrigin) -> R
 
 
 extension EventItemOrigin: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * The status of a pagination.
+ */
+
+public enum PaginationStatus {
+    
+    /**
+     * No pagination happening.
+     */
+    case idle
+    /**
+     * Timeline is paginating for this end.
+     */
+    case paginating
+    /**
+     * An end of the timeline (front or back) has been reached by this
+     * pagination.
+     */
+    case timelineEndReached
+}
+
+
+public struct FfiConverterTypePaginationStatus: FfiConverterRustBuffer {
+    typealias SwiftType = PaginationStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PaginationStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .idle
+        
+        case 2: return .paginating
+        
+        case 3: return .timelineEndReached
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: PaginationStatus, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .idle:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .paginating:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .timelineEndReached:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypePaginationStatus_lift(_ buf: RustBuffer) throws -> PaginationStatus {
+    return try FfiConverterTypePaginationStatus.lift(buf)
+}
+
+public func FfiConverterTypePaginationStatus_lower(_ value: PaginationStatus) -> RustBuffer {
+    return FfiConverterTypePaginationStatus.lower(value)
+}
+
+
+extension PaginationStatus: Equatable, Hashable {}
 
 
 
