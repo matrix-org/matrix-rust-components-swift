@@ -23711,7 +23711,18 @@ public func makeWidgetDriver(settings: WidgetSettings) throws  -> WidgetDriverAn
     )
 }
 /**
- * Generates a `matrix.to` permalink from to the given userID.
+ * Generates a `matrix.to` permalink to the given room alias.
+ */
+public func matrixToRoomAliasPermalink(roomAlias: String) throws  -> String {
+    return try  FfiConverterString.lift(
+        try rustCallWithError(FfiConverterTypeClientError.lift) {
+    uniffi_matrix_sdk_ffi_fn_func_matrix_to_room_alias_permalink(
+        FfiConverterString.lower(roomAlias),$0)
+}
+    )
+}
+/**
+ * Generates a `matrix.to` permalink to the given userID.
  */
 public func matrixToUserPermalink(userId: String) throws  -> String {
     return try  FfiConverterString.lift(
@@ -23874,7 +23885,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 11382) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_user_permalink() != 56419) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_room_alias_permalink() != 28565) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_user_permalink() != 46587) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_func_media_source_from_url() != 33587) {
