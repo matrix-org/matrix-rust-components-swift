@@ -805,7 +805,7 @@ public protocol ClientProtocol : AnyObject {
      */
     func accountData(eventType: String) throws  -> String?
     
-    func accountUrl(action: AccountManagementAction?) throws  -> String?
+    func accountUrl(action: AccountManagementAction?) async throws  -> String?
     
     func avatarUrl() throws  -> String?
     
@@ -979,16 +979,23 @@ open class Client:
 }
         )
     }
-    open func accountUrl(action: AccountManagementAction?) throws  -> String? {
-        return try  FfiConverterOptionString.lift(
-            try 
-    rustCallWithError(FfiConverterTypeClientError.lift) {
-    uniffi_matrix_sdk_ffi_fn_method_client_account_url(self.uniffiClonePointer(), 
-        FfiConverterOptionTypeAccountManagementAction.lower(action),$0
-    )
-}
+    open func accountUrl(action: AccountManagementAction?) async throws  -> String? {
+        return try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_account_url(
+                    self.uniffiClonePointer(),
+                    FfiConverterOptionTypeAccountManagementAction.lower(action)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionString.lift,
+            errorHandler: FfiConverterTypeClientError.lift
         )
     }
+
+    
     open func avatarUrl() throws  -> String? {
         return try  FfiConverterOptionString.lift(
             try 
@@ -14117,6 +14124,8 @@ public enum AccountManagementAction {
     )
     case sessionEnd(deviceId: String
     )
+    case accountDeactivate
+    case crossSigningReset
 }
 
 
@@ -14136,6 +14145,10 @@ public struct FfiConverterTypeAccountManagementAction: FfiConverterRustBuffer {
         
         case 4: return .sessionEnd(deviceId: try FfiConverterString.read(from: &buf)
         )
+        
+        case 5: return .accountDeactivate
+        
+        case 6: return .crossSigningReset
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -14162,6 +14175,14 @@ public struct FfiConverterTypeAccountManagementAction: FfiConverterRustBuffer {
             writeInt(&buf, Int32(4))
             FfiConverterString.write(deviceId, into: &buf)
             
+        
+        case .accountDeactivate:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .crossSigningReset:
+            writeInt(&buf, Int32(6))
+        
         }
     }
 }
@@ -23957,7 +23978,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 42952) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 54235) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 12497) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 18456) {
