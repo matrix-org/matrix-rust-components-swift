@@ -41,7 +41,7 @@ struct Release: AsyncParsableCommand {
     }
     
     mutating func zipBinary(at libraryDirectory: URL) throws -> (URL, String) {
-        let zipFileURL = buildDirectory.appending(component: "MatrixSDKFFI.xcframework.zip")
+        let zipFileURL = packageDirectory.appending(component: "MatrixSDKFFI.xcframework.zip")
         if FileManager.default.fileExists(atPath: zipFileURL.path()) {
             info("Deleting old framework")
             try FileManager.default.removeItem(at: zipFileURL)
