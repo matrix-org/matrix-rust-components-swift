@@ -26,18 +26,24 @@ struct Release: AsyncParsableCommand {
     mutating func run() async throws {
         info("Build directory: \(buildDirectory.path())")
         
-        let libraryDirectory = try buildLibrary()
-        let (zipFileURL, checksum) = try zipBinary(at: libraryDirectory)
+        let library = try buildLibrary()
+        let (zipFileURL, checksum) = try zipBinary(at: library.directory)
         
-        try await updatePackage(from: libraryDirectory, checksum: checksum)
-        let commitHash = try commitAndPush()
-        try await makeRelease(at: commitHash, uploading: zipFileURL)
+        try await updatePackage(with: library, checksum: checksum)
+        try commitAndPush(with: library)
+        try await makeRelease(with: library, uploading: zipFileURL)
     }
     
-    mutating func buildLibrary() throws -> URL {
+    mutating func buildLibrary() throws -> LibraryInfo {
+        let commitHash = try run(command: "git rev-parse HEAD", directory: buildDirectory)!.trimmingCharacters(in: .whitespacesAndNewlines)
+        let branch = try run(command: "git rev-parse --abbrev-ref HEAD", directory: buildDirectory)!.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        info("Building \(branch) at \(commitHash)")
+        
         // unset fixes an issue where swift compilation prevents building for targets other than macOS X
         try run(command: "unset SDKROOT && cargo xtask swift build-framework --release", directory: buildDirectory)
-        return buildDirectory.appending(component: "bindings/apple/generated/")
+        
+        return LibraryInfo(commitHash: commitHash, branch: branch, directory: buildDirectory.appending(component: "bindings/apple/generated/"))
     }
     
     mutating func zipBinary(at libraryDirectory: URL) throws -> (URL, String) {
@@ -55,9 +61,9 @@ struct Release: AsyncParsableCommand {
         return (zipFileURL, checksum)
     }
     
-    func updatePackage(from libraryDirectory: URL, checksum: String) async throws {
+    func updatePackage(with library: LibraryInfo, checksum: String) async throws {
         info("Copying sources")
-        let source = libraryDirectory.appending(component: "swift", directoryHint: .isDirectory)
+        let source = library.directory.appending(component: "swift", directoryHint: .isDirectory)
         let destination = packageDirectory.appending(component: "Sources/MatrixRustSDK", directoryHint: .isDirectory)
         try run(command: "rsync -a --delete '\(source.path())' '\(destination.path())'")
         
@@ -80,20 +86,15 @@ struct Release: AsyncParsableCommand {
         try updatedManifest.write(to: manifestURL, atomically: true, encoding: .utf8)
     }
     
-    mutating func commitAndPush() throws -> String {
-        let commitHash = try run(command: "git rev-parse HEAD", directory: buildDirectory)!.trimmingCharacters(in: .whitespacesAndNewlines)
-        let branch = try run(command: "git rev-parse --abbrev-ref HEAD", directory: buildDirectory)!.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+    mutating func commitAndPush(with library: LibraryInfo) throws {
         info("Pushing changes")
         try run(command: "git add Package.swift")
         try run(command: "git add Sources")
-        try run(command: "git commit -m 'Bump to version \(version) (matrix-rust-sdk/\(branch) \(commitHash))'")
+        try run(command: "git commit -m 'Bump to version \(version) (matrix-rust-sdk/\(library.branch) \(library.commitHash))'")
         try run(command: "git push")
-        
-        return commitHash
     }
     
-    func makeRelease(at commitHash: String, uploading zipFileURL: URL) async throws {
+    func makeRelease(with library: LibraryInfo, uploading zipFileURL: URL) async throws {
         info("Making release")
         let url = URL(string: "https://api.github.com/repos")!
             .appending(path: packageRepo)
@@ -108,7 +109,7 @@ struct Release: AsyncParsableCommand {
         let body = GitHubReleaseRequest(tagName: version,
                                         targetCommitish: "main",
                                         name: version,
-                                        body: "https://github.com/matrix-org/matrix-rust-sdk/tree/\(commitHash)",
+                                        body: "https://github.com/matrix-org/matrix-rust-sdk/tree/\(library.commitHash)",
                                         draft: false,
                                         prerelease: false,
                                         generateReleaseNotes: false,
@@ -190,6 +191,12 @@ struct Release: AsyncParsableCommand {
         let digest = hasher.finalize()
         return digest.map { String(format: "%02hhx", $0) }.joined()
     }
+}
+
+struct LibraryInfo {
+    let commitHash: String
+    let branch: String
+    let directory: URL
 }
 
 enum ReleaseError: Error {
