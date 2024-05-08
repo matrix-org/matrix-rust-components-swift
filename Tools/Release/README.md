@@ -5,10 +5,10 @@ Creates a Github release from a matrix-rust-sdk repository.
 
 Usage:
 ```
-python3 release.py --version v1.0.18-alpha
+swift run release --version v1.0.18-alpha
 ```
 
-For help: `release.py -h`
+For help: `swift run release --help`
 
 ## Requirements
 
