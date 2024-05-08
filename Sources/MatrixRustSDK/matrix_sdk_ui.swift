@@ -20,6 +20,10 @@ fileprivate extension RustBuffer {
         self.init(capacity: rbuf.capacity, len: rbuf.len, data: rbuf.data)
     }
 
+    static func empty() -> RustBuffer {
+        RustBuffer(capacity: 0, len:0, data: nil)
+    }
+
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
         try! rustCall { ffi_matrix_sdk_ui_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
@@ -365,6 +369,12 @@ fileprivate class UniffiHandleMap<T> {
             return obj
         }
     }
+
+    var count: Int {
+        get {
+            map.count
+        }
+    }
 }
 
 
@@ -478,6 +488,7 @@ public func FfiConverterTypeEventItemOrigin_lower(_ value: EventItemOrigin) -> R
 }
 
 
+
 extension EventItemOrigin: Equatable, Hashable {}
 
 
@@ -550,6 +561,7 @@ public func FfiConverterTypePaginationStatus_lift(_ buf: RustBuffer) throws -> P
 public func FfiConverterTypePaginationStatus_lower(_ value: PaginationStatus) -> RustBuffer {
     return FfiConverterTypePaginationStatus.lower(value)
 }
+
 
 
 extension PaginationStatus: Equatable, Hashable {}

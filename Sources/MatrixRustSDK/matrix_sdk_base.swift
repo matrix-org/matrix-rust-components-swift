@@ -20,6 +20,10 @@ fileprivate extension RustBuffer {
         self.init(capacity: rbuf.capacity, len: rbuf.len, data: rbuf.data)
     }
 
+    static func empty() -> RustBuffer {
+        RustBuffer(capacity: 0, len:0, data: nil)
+    }
+
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
         try! rustCall { ffi_matrix_sdk_base_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
@@ -363,6 +367,12 @@ fileprivate class UniffiHandleMap<T> {
                 throw UniffiInternalError.unexpectedStaleHandle
             }
             return obj
+        }
+    }
+
+    var count: Int {
+        get {
+            map.count
         }
     }
 }

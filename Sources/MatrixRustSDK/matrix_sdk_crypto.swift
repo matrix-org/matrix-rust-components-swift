@@ -20,6 +20,10 @@ fileprivate extension RustBuffer {
         self.init(capacity: rbuf.capacity, len: rbuf.len, data: rbuf.data)
     }
 
+    static func empty() -> RustBuffer {
+        RustBuffer(capacity: 0, len:0, data: nil)
+    }
+
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
         try! rustCall { ffi_matrix_sdk_crypto_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
@@ -365,6 +369,12 @@ fileprivate class UniffiHandleMap<T> {
             return obj
         }
     }
+
+    var count: Int {
+        get {
+            map.count
+        }
+    }
 }
 
 
@@ -408,95 +418,6 @@ fileprivate struct FfiConverterString: FfiConverter {
         writeBytes(&buf, value.utf8)
     }
 }
-
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
-
-public enum CryptoQrCodeDecodeError {
-    
-    case notEnoughData
-    case notUtf8
-    case urlParse
-    case invalidMode
-    case invalidVersion
-    case base64
-    case invalidPrefix
-}
-
-
-public struct FfiConverterTypeCryptoQrCodeDecodeError: FfiConverterRustBuffer {
-    typealias SwiftType = CryptoQrCodeDecodeError
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CryptoQrCodeDecodeError {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-        
-        case 1: return .notEnoughData
-        
-        case 2: return .notUtf8
-        
-        case 3: return .urlParse
-        
-        case 4: return .invalidMode
-        
-        case 5: return .invalidVersion
-        
-        case 6: return .base64
-        
-        case 7: return .invalidPrefix
-        
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: CryptoQrCodeDecodeError, into buf: inout [UInt8]) {
-        switch value {
-        
-        
-        case .notEnoughData:
-            writeInt(&buf, Int32(1))
-        
-        
-        case .notUtf8:
-            writeInt(&buf, Int32(2))
-        
-        
-        case .urlParse:
-            writeInt(&buf, Int32(3))
-        
-        
-        case .invalidMode:
-            writeInt(&buf, Int32(4))
-        
-        
-        case .invalidVersion:
-            writeInt(&buf, Int32(5))
-        
-        
-        case .base64:
-            writeInt(&buf, Int32(6))
-        
-        
-        case .invalidPrefix:
-            writeInt(&buf, Int32(7))
-        
-        }
-    }
-}
-
-
-public func FfiConverterTypeCryptoQrCodeDecodeError_lift(_ buf: RustBuffer) throws -> CryptoQrCodeDecodeError {
-    return try FfiConverterTypeCryptoQrCodeDecodeError.lift(buf)
-}
-
-public func FfiConverterTypeCryptoQrCodeDecodeError_lower(_ value: CryptoQrCodeDecodeError) -> RustBuffer {
-    return FfiConverterTypeCryptoQrCodeDecodeError.lower(value)
-}
-
-
-extension CryptoQrCodeDecodeError: Equatable, Hashable {}
-
-
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -575,6 +496,7 @@ public func FfiConverterTypeLocalTrust_lift(_ buf: RustBuffer) throws -> LocalTr
 public func FfiConverterTypeLocalTrust_lower(_ value: LocalTrust) -> RustBuffer {
     return FfiConverterTypeLocalTrust.lower(value)
 }
+
 
 
 extension LocalTrust: Equatable, Hashable {}
@@ -662,6 +584,7 @@ public func FfiConverterTypeSignatureState_lower(_ value: SignatureState) -> Rus
 }
 
 
+
 extension SignatureState: Equatable, Hashable {}
 
 
@@ -725,6 +648,7 @@ public func FfiConverterTypeUtdCause_lift(_ buf: RustBuffer) throws -> UtdCause 
 public func FfiConverterTypeUtdCause_lower(_ value: UtdCause) -> RustBuffer {
     return FfiConverterTypeUtdCause.lower(value)
 }
+
 
 
 extension UtdCause: Equatable, Hashable {}

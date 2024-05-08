@@ -20,6 +20,10 @@ fileprivate extension RustBuffer {
         self.init(capacity: rbuf.capacity, len: rbuf.len, data: rbuf.data)
     }
 
+    static func empty() -> RustBuffer {
+        RustBuffer(capacity: 0, len:0, data: nil)
+    }
+
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
         try! rustCall { ffi_matrix_sdk_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
@@ -365,6 +369,12 @@ fileprivate class UniffiHandleMap<T> {
             return obj
         }
     }
+
+    var count: Int {
+        get {
+            map.count
+        }
+    }
 }
 
 
@@ -515,6 +525,7 @@ public struct RoomPowerLevelChanges {
         self.roomTopic = roomTopic
     }
 }
+
 
 
 extension RoomPowerLevelChanges: Equatable, Hashable {
@@ -688,6 +699,7 @@ public func FfiConverterTypeBackupDownloadStrategy_lower(_ value: BackupDownload
 }
 
 
+
 extension BackupDownloadStrategy: Equatable, Hashable {}
 
 
@@ -759,6 +771,7 @@ public func FfiConverterTypeRoomMemberRole_lift(_ buf: RustBuffer) throws -> Roo
 public func FfiConverterTypeRoomMemberRole_lower(_ value: RoomMemberRole) -> RustBuffer {
     return FfiConverterTypeRoomMemberRole.lower(value)
 }
+
 
 
 extension RoomMemberRole: Equatable, Hashable {}
