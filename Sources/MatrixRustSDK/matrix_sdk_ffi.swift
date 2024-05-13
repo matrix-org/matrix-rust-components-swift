@@ -867,7 +867,24 @@ public protocol ClientProtocol : AnyObject {
     
     func ignoredUsers() async throws  -> [String]
     
+    /**
+     * Join a room by its ID.
+     *
+     * Use this method when the homeserver already knows of the given room ID.
+     * Otherwise use `join_room_by_id_or_alias` so you can pass a list of
+     * server names for the homeserver to find the room.
+     */
     func joinRoomById(roomId: String) async throws  -> Room
+    
+    /**
+     * Join a room by its ID or alias.
+     *
+     * When supplying the room's ID, you can also supply a list of server names
+     * for the homeserver to find the room. Typically these server names
+     * come from a permalink's `via` parameters, or from resolving a room's
+     * alias into an ID.
+     */
+    func joinRoomByIdOrAlias(roomIdOrAlias: String, serverNames: [String]) async throws  -> Room
     
     /**
      * Login using a username and password.
@@ -886,9 +903,10 @@ public protocol ClientProtocol : AnyObject {
     func removeAvatar() async throws 
     
     /**
-     * Resolves the given room alias to a room id, if possible.
+     * Resolves the given room alias to a room ID (and a list of servers), if
+     * possible.
      */
-    func resolveRoomAlias(roomAlias: String) async throws  -> String
+    func resolveRoomAlias(roomAlias: String) async throws  -> ResolvedRoomAlias
     
     /**
      * Restores the client from a `Session`.
@@ -1296,6 +1314,13 @@ open func ignoredUsers()async throws  -> [String] {
         )
 }
     
+    /**
+     * Join a room by its ID.
+     *
+     * Use this method when the homeserver already knows of the given room ID.
+     * Otherwise use `join_room_by_id_or_alias` so you can pass a list of
+     * server names for the homeserver to find the room.
+     */
 open func joinRoomById(roomId: String)async throws  -> Room {
     return
         try  await uniffiRustCallAsync(
@@ -1303,6 +1328,31 @@ open func joinRoomById(roomId: String)async throws  -> Room {
                 uniffi_matrix_sdk_ffi_fn_method_client_join_room_by_id(
                     self.uniffiClonePointer(),
                     FfiConverterString.lower(roomId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
+            liftFunc: FfiConverterTypeRoom.lift,
+            errorHandler: FfiConverterTypeClientError.lift
+        )
+}
+    
+    /**
+     * Join a room by its ID or alias.
+     *
+     * When supplying the room's ID, you can also supply a list of server names
+     * for the homeserver to find the room. Typically these server names
+     * come from a permalink's `via` parameters, or from resolving a room's
+     * alias into an ID.
+     */
+open func joinRoomByIdOrAlias(roomIdOrAlias: String, serverNames: [String])async throws  -> Room {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_join_room_by_id_or_alias(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(roomIdOrAlias),FfiConverterSequenceString.lower(serverNames)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
@@ -1390,9 +1440,10 @@ open func removeAvatar()async throws  {
 }
     
     /**
-     * Resolves the given room alias to a room id, if possible.
+     * Resolves the given room alias to a room ID (and a list of servers), if
+     * possible.
      */
-open func resolveRoomAlias(roomAlias: String)async throws  -> String {
+open func resolveRoomAlias(roomAlias: String)async throws  -> ResolvedRoomAlias {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1404,7 +1455,7 @@ open func resolveRoomAlias(roomAlias: String)async throws  -> String {
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
+            liftFunc: FfiConverterTypeResolvedRoomAlias.lift,
             errorHandler: FfiConverterTypeClientError.lift
         )
 }
@@ -6100,8 +6151,6 @@ public protocol RoomListServiceProtocol : AnyObject {
     
     func applyInput(input: RoomListInput) async throws 
     
-    func invites() async throws  -> RoomList
-    
     func room(roomId: String) async throws  -> RoomListItem
     
     func state(listener: RoomListServiceStateListener)  -> TaskHandle
@@ -6181,23 +6230,6 @@ open func applyInput(input: RoomListInput)async throws  {
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeRoomListError.lift
-        )
-}
-    
-open func invites()async throws  -> RoomList {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_roomlistservice_invites(
-                    self.uniffiClonePointer()
-                    
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_pointer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_pointer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_pointer,
-            liftFunc: FfiConverterTypeRoomList.lift,
             errorHandler: FfiConverterTypeRoomListError.lift
         )
 }
@@ -7267,8 +7299,6 @@ public protocol SyncServiceBuilderProtocol : AnyObject {
     
     func withCrossProcessLock(appIdentifier: String?)  -> SyncServiceBuilder
     
-    func withUnifiedInvitesInRoomList(withUnifiedInvites: Bool)  -> SyncServiceBuilder
-    
     func withUtdHook(delegate: UnableToDecryptDelegate)  -> SyncServiceBuilder
     
 }
@@ -7335,14 +7365,6 @@ open func withCrossProcessLock(appIdentifier: String?) -> SyncServiceBuilder {
     return try!  FfiConverterTypeSyncServiceBuilder.lift(try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_cross_process_lock(self.uniffiClonePointer(),
         FfiConverterOptionString.lower(appIdentifier),$0
-    )
-})
-}
-    
-open func withUnifiedInvitesInRoomList(withUnifiedInvites: Bool) -> SyncServiceBuilder {
-    return try!  FfiConverterTypeSyncServiceBuilder.lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_unified_invites_in_room_list(self.uniffiClonePointer(),
-        FfiConverterBool.lower(withUnifiedInvites),$0
     )
 })
 }
@@ -11132,6 +11154,78 @@ public func FfiConverterTypeRequiredState_lift(_ buf: RustBuffer) throws -> Requ
 
 public func FfiConverterTypeRequiredState_lower(_ value: RequiredState) -> RustBuffer {
     return FfiConverterTypeRequiredState.lower(value)
+}
+
+
+/**
+ * Information about a room, that was resolved from a room alias.
+ */
+public struct ResolvedRoomAlias {
+    /**
+     * The room ID that the alias resolved to.
+     */
+    public var roomId: String
+    /**
+     * A list of servers that can be used to find the room by its room ID.
+     */
+    public var servers: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The room ID that the alias resolved to.
+         */roomId: String, 
+        /**
+         * A list of servers that can be used to find the room by its room ID.
+         */servers: [String]) {
+        self.roomId = roomId
+        self.servers = servers
+    }
+}
+
+
+
+extension ResolvedRoomAlias: Equatable, Hashable {
+    public static func ==(lhs: ResolvedRoomAlias, rhs: ResolvedRoomAlias) -> Bool {
+        if lhs.roomId != rhs.roomId {
+            return false
+        }
+        if lhs.servers != rhs.servers {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(roomId)
+        hasher.combine(servers)
+    }
+}
+
+
+public struct FfiConverterTypeResolvedRoomAlias: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ResolvedRoomAlias {
+        return
+            try ResolvedRoomAlias(
+                roomId: FfiConverterString.read(from: &buf), 
+                servers: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ResolvedRoomAlias, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.roomId, into: &buf)
+        FfiConverterSequenceString.write(value.servers, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeResolvedRoomAlias_lift(_ buf: RustBuffer) throws -> ResolvedRoomAlias {
+    return try FfiConverterTypeResolvedRoomAlias.lift(buf)
+}
+
+public func FfiConverterTypeResolvedRoomAlias_lower(_ value: ResolvedRoomAlias) -> RustBuffer {
+    return FfiConverterTypeResolvedRoomAlias.lower(value)
 }
 
 
@@ -17439,6 +17533,7 @@ public enum RoomListEntriesDynamicFilterKind {
     case any(filters: [RoomListEntriesDynamicFilterKind]
     )
     case nonLeft
+    case joined
     case unread
     case favourite
     case invite
@@ -17467,21 +17562,23 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
         
         case 3: return .nonLeft
         
-        case 4: return .unread
+        case 4: return .joined
         
-        case 5: return .favourite
+        case 5: return .unread
         
-        case 6: return .invite
+        case 6: return .favourite
         
-        case 7: return .category(expect: try FfiConverterTypeRoomListFilterCategory.read(from: &buf)
+        case 7: return .invite
+        
+        case 8: return .category(expect: try FfiConverterTypeRoomListFilterCategory.read(from: &buf)
         )
         
-        case 8: return .none
+        case 9: return .none
         
-        case 9: return .normalizedMatchRoomName(pattern: try FfiConverterString.read(from: &buf)
+        case 10: return .normalizedMatchRoomName(pattern: try FfiConverterString.read(from: &buf)
         )
         
-        case 10: return .fuzzyMatchRoomName(pattern: try FfiConverterString.read(from: &buf)
+        case 11: return .fuzzyMatchRoomName(pattern: try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -17506,34 +17603,38 @@ public struct FfiConverterTypeRoomListEntriesDynamicFilterKind: FfiConverterRust
             writeInt(&buf, Int32(3))
         
         
-        case .unread:
+        case .joined:
             writeInt(&buf, Int32(4))
         
         
-        case .favourite:
+        case .unread:
             writeInt(&buf, Int32(5))
         
         
-        case .invite:
+        case .favourite:
             writeInt(&buf, Int32(6))
         
         
-        case let .category(expect):
+        case .invite:
             writeInt(&buf, Int32(7))
+        
+        
+        case let .category(expect):
+            writeInt(&buf, Int32(8))
             FfiConverterTypeRoomListFilterCategory.write(expect, into: &buf)
             
         
         case .none:
-            writeInt(&buf, Int32(8))
+            writeInt(&buf, Int32(9))
         
         
         case let .normalizedMatchRoomName(pattern):
-            writeInt(&buf, Int32(9))
+            writeInt(&buf, Int32(10))
             FfiConverterString.write(pattern, into: &buf)
             
         
         case let .fuzzyMatchRoomName(pattern):
-            writeInt(&buf, Int32(10))
+            writeInt(&buf, Int32(11))
             FfiConverterString.write(pattern, into: &buf)
             
         }
@@ -23756,7 +23857,10 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_ignored_users() != 49620) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id() != 51221) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id() != 64032) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id_or_alias() != 18521) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 33276) {
@@ -23771,7 +23875,7 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_remove_avatar() != 29033) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_resolve_room_alias() != 27709) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_resolve_room_alias() != 14306) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 40455) {
@@ -24344,9 +24448,6 @@ private var initializationResult: InitializationResult {
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_apply_input() != 31607) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_invites() != 18531) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_room() != 11566) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -24420,9 +24521,6 @@ private var initializationResult: InitializationResult {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 31599) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_unified_invites_in_room_list() != 19788) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_utd_hook() != 61858) {
