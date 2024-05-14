@@ -506,6 +506,122 @@ extension LocalTrust: Equatable, Hashable {}
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Error type for the decoding of the [`QrCodeData`].
+ */
+
+public enum LoginQrCodeDecodeError {
+    
+    /**
+     * The QR code data is no long enough, it's missing some fields.
+     */
+    case notEnoughData
+    /**
+     * One of the URLs in the QR code data is not a valid UTF-8 encoded string.
+     */
+    case notUtf8
+    /**
+     * One of the URLs in the QR code data could not be parsed.
+     */
+    case urlParse
+    /**
+     * The QR code data contains an invalid mode, we expect the login (0x03)
+     * mode or the reciprocate mode (0x04).
+     */
+    case invalidMode
+    /**
+     * The QR code data contains an unsupported version.
+     */
+    case invalidVersion
+    /**
+     * The base64 encoded variant of the QR code data is not a valid base64
+     * string.
+     */
+    case base64
+    /**
+     * The QR code data doesn't contain the expected `MATRIX` prefix.
+     */
+    case invalidPrefix
+}
+
+
+public struct FfiConverterTypeLoginQrCodeDecodeError: FfiConverterRustBuffer {
+    typealias SwiftType = LoginQrCodeDecodeError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LoginQrCodeDecodeError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .notEnoughData
+        
+        case 2: return .notUtf8
+        
+        case 3: return .urlParse
+        
+        case 4: return .invalidMode
+        
+        case 5: return .invalidVersion
+        
+        case 6: return .base64
+        
+        case 7: return .invalidPrefix
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: LoginQrCodeDecodeError, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .notEnoughData:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .notUtf8:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .urlParse:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .invalidMode:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .invalidVersion:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .base64:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .invalidPrefix:
+            writeInt(&buf, Int32(7))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeLoginQrCodeDecodeError_lift(_ buf: RustBuffer) throws -> LoginQrCodeDecodeError {
+    return try FfiConverterTypeLoginQrCodeDecodeError.lift(buf)
+}
+
+public func FfiConverterTypeLoginQrCodeDecodeError_lower(_ value: LoginQrCodeDecodeError) -> RustBuffer {
+    return FfiConverterTypeLoginQrCodeDecodeError.lower(value)
+}
+
+
+
+extension LoginQrCodeDecodeError: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * The result of a signature check.
  */
 
