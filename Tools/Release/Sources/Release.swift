@@ -7,6 +7,9 @@ struct Release: AsyncParsableCommand {
     @Option(help: "The version of the package that is being released.")
     var version: String
     
+    @Flag(help: "Prevents the run from pushing anything to GitHub.")
+    var localOnly = false
+    
     var apiToken = (try? NetrcParser.parse(file: FileManager.default.homeDirectoryForCurrentUser.appending(component: ".netrc")))!
         .authorization(for: URL(string: "https://api.github.com")!)!
         .password
@@ -24,7 +27,7 @@ struct Release: AsyncParsableCommand {
         .appending(component: "matrix-rust-sdk")
     
     mutating func run() async throws {
-        let package = Package(repository: packageRepo, directory: packageDirectory, apiToken: apiToken)
+        let package = Package(repository: packageRepo, directory: packageDirectory, apiToken: apiToken, urlSession: localOnly ? .releaseMock : .shared)
         Zsh.defaultDirectory = package.directory
         
         Log.info("Build directory: \(buildDirectory.path())")
@@ -68,6 +71,12 @@ struct Release: AsyncParsableCommand {
         try Zsh.run(command: "git add Package.swift")
         try Zsh.run(command: "git add Sources")
         try Zsh.run(command: "git commit -m 'Bump to version \(version) (\(product.sourceRepo.name)/\(product.branch) \(product.commitHash))'")
+        
+        guard !localOnly else {
+            Log.info("Skipping push for --local-only")
+            return
+        }
+        
         try Zsh.run(command: "git push")
     }
 }

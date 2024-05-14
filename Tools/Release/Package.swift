@@ -9,7 +9,8 @@ let package = Package(
     products: [.executable(name: "release", targets: ["Release"])],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
-        .package(url: "https://github.com/element-hq/swift-command-line-tools.git", revision: "f9695015fff3c619172e5337266c46cfe5c327d7")
+        .package(url: "https://github.com/element-hq/swift-command-line-tools.git", revision: "c8e3448595363a3948f6260053fc78d3accb2ebc")
+        // .package(path: "../../../swift-command-line-tools")
     ],
     targets: [
         .executableTarget(name: "Release", 
