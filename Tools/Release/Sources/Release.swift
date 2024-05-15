@@ -36,13 +36,14 @@ struct Release: AsyncParsableCommand {
         let (zipFileURL, checksum) = try package.zipBinary(with: product)
         
         try await updatePackage(package, with: product, checksum: checksum)
-        try commitAndPush(with: product)
+        try commitAndPush(package, with: product)
         try await package.makeRelease(with: product, uploading: zipFileURL)
     }
     
     mutating func build() throws -> BuildProduct {
-        let commitHash = try Zsh.run(command: "git rev-parse HEAD", directory: buildDirectory)!.trimmingCharacters(in: .whitespacesAndNewlines)
-        let branch = try Zsh.run(command: "git rev-parse --abbrev-ref HEAD", directory: buildDirectory)!.trimmingCharacters(in: .whitespacesAndNewlines)
+        let git = Git(directory: buildDirectory)
+        let commitHash = try git.commitHash
+        let branch = try git.branchName
         
         Log.info("Building \(branch) at \(commitHash)")
         
@@ -66,17 +67,18 @@ struct Release: AsyncParsableCommand {
         try await package.updateManifest(with: product, checksum: checksum)
     }
     
-    func commitAndPush(with product: BuildProduct) throws {
+    func commitAndPush(_ package: Package, with product: BuildProduct) throws {
         Log.info("Pushing changes")
-        try Zsh.run(command: "git add Package.swift")
-        try Zsh.run(command: "git add Sources")
-        try Zsh.run(command: "git commit -m 'Bump to version \(version) (\(product.sourceRepo.name)/\(product.branch) \(product.commitHash))'")
+        
+        let git = Git(directory: package.directory)
+        try git.add(files: "Package.swift", "Sources")
+        try git.commit(message: "Bump to version \(version) (\(product.sourceRepo.name)/\(product.branch) \(product.commitHash))")
         
         guard !localOnly else {
             Log.info("Skipping push for --local-only")
             return
         }
         
-        try Zsh.run(command: "git push")
+        try git.push()
     }
 }
