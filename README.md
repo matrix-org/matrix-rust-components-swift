@@ -9,7 +9,7 @@ For more information about using the package, please read the [Getting Started](
 ## Releasing
 
 Whenever a new release of the underlying components is available, we need to tag a new release in this repo to make them available to Swift components. 
-This is done with the [release script](Tools/Scripts/README.md) found in the Tools directory. 
+This is done with the [release script](Tools/Release/README.md) found in the Tools directory. 
 
 ## Testing locally
 
