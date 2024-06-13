@@ -707,6 +707,229 @@ extension BackupDownloadStrategy: Equatable, Hashable {}
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Current state of a [`Paginator`].
+ */
+
+public enum PaginatorState {
+    
+    /**
+     * The initial state of the paginator.
+     */
+    case initial
+    /**
+     * The paginator is fetching the target initial event.
+     */
+    case fetchingTargetEvent
+    /**
+     * The target initial event could be found, zero or more paginations have
+     * happened since then, and the paginator is at rest now.
+     */
+    case idle
+    /**
+     * The paginator is… paginating one direction or another.
+     */
+    case paginating
+}
+
+
+public struct FfiConverterTypePaginatorState: FfiConverterRustBuffer {
+    typealias SwiftType = PaginatorState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PaginatorState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .initial
+        
+        case 2: return .fetchingTargetEvent
+        
+        case 3: return .idle
+        
+        case 4: return .paginating
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: PaginatorState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .initial:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .fetchingTargetEvent:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .idle:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .paginating:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypePaginatorState_lift(_ buf: RustBuffer) throws -> PaginatorState {
+    return try FfiConverterTypePaginatorState.lift(buf)
+}
+
+public func FfiConverterTypePaginatorState_lower(_ value: PaginatorState) -> RustBuffer {
+    return FfiConverterTypePaginatorState.lower(value)
+}
+
+
+
+extension PaginatorState: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * The error type for failures while trying to log in a new device using a QR
+ * code.
+ */
+
+public enum QrCodeLoginError {
+    
+    /**
+     * An error happened while we were communicating with the OIDC provider.
+     */
+    case oidc
+    /**
+     * The other device has signaled to us that the login has failed.
+     */
+    case loginFailure
+    /**
+     * An unexpected message was received from the other device.
+     */
+    case unexpectedMessage
+    /**
+     * An error happened while exchanging messages with the other device.
+     */
+    case secureChannel
+    /**
+     * The cross-process refresh lock failed to be initialized.
+     */
+    case crossProcessRefreshLock
+    /**
+     * An error happened while we were trying to discover our user and device
+     * ID, after we have acquired an access token from the OIDC provider.
+     */
+    case userIdDiscovery
+    /**
+     * We failed to set the session tokens after we figured out our device and
+     * user IDs.
+     */
+    case sessionTokens
+    /**
+     * The device keys failed to be uploaded after we successfully logged in.
+     */
+    case deviceKeyUpload
+    /**
+     * The secrets bundle we received from the existing device failed to be
+     * imported.
+     */
+    case secretImport
+}
+
+
+public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
+    typealias SwiftType = QrCodeLoginError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> QrCodeLoginError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .oidc
+        
+        case 2: return .loginFailure
+        
+        case 3: return .unexpectedMessage
+        
+        case 4: return .secureChannel
+        
+        case 5: return .crossProcessRefreshLock
+        
+        case 6: return .userIdDiscovery
+        
+        case 7: return .sessionTokens
+        
+        case 8: return .deviceKeyUpload
+        
+        case 9: return .secretImport
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: QrCodeLoginError, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .oidc:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .loginFailure:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .unexpectedMessage:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .secureChannel:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .crossProcessRefreshLock:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .userIdDiscovery:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .sessionTokens:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .deviceKeyUpload:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .secretImport:
+            writeInt(&buf, Int32(9))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeQRCodeLoginError_lift(_ buf: RustBuffer) throws -> QrCodeLoginError {
+    return try FfiConverterTypeQRCodeLoginError.lift(buf)
+}
+
+public func FfiConverterTypeQRCodeLoginError_lower(_ value: QrCodeLoginError) -> RustBuffer {
+    return FfiConverterTypeQRCodeLoginError.lower(value)
+}
+
+
+
+extension QrCodeLoginError: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * The role of a member in a room.
  */
 
