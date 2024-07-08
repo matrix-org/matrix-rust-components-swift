@@ -433,6 +433,120 @@ fileprivate struct FfiConverterString: FfiConverter {
 }
 
 
+
+
+/**
+ * The data needed to perform authorization using OpenID Connect.
+ */
+public protocol OidcAuthorizationDataProtocol : AnyObject {
+    
+    /**
+     * The login URL to use for authorization.
+     */
+    func loginUrl()  -> String
+    
+}
+
+/**
+ * The data needed to perform authorization using OpenID Connect.
+ */
+open class OidcAuthorizationData:
+    OidcAuthorizationDataProtocol {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    /// This constructor can be used to instantiate a fake object.
+    /// - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    ///
+    /// - Warning:
+    ///     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_matrix_sdk_fn_clone_oidcauthorizationdata(self.pointer, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_matrix_sdk_fn_free_oidcauthorizationdata(pointer, $0) }
+    }
+
+    
+
+    
+    /**
+     * The login URL to use for authorization.
+     */
+open func loginUrl() -> String {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_matrix_sdk_fn_method_oidcauthorizationdata_login_url(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+
+}
+
+public struct FfiConverterTypeOidcAuthorizationData: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = OidcAuthorizationData
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> OidcAuthorizationData {
+        return OidcAuthorizationData(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: OidcAuthorizationData) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OidcAuthorizationData {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: OidcAuthorizationData, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+
+
+public func FfiConverterTypeOidcAuthorizationData_lift(_ pointer: UnsafeMutableRawPointer) throws -> OidcAuthorizationData {
+    return try FfiConverterTypeOidcAuthorizationData.lift(pointer)
+}
+
+public func FfiConverterTypeOidcAuthorizationData_lower(_ value: OidcAuthorizationData) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeOidcAuthorizationData.lower(value)
+}
+
+
 /**
  * A set of common power levels required for various operations within a room,
  * that can be applied as a single operation. When updating these
@@ -1036,6 +1150,9 @@ private var initializationResult: InitializationResult {
     let scaffolding_contract_version = ffi_matrix_sdk_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_matrix_sdk_checksum_method_oidcauthorizationdata_login_url() != 59213) {
+        return InitializationResult.apiChecksumMismatch
     }
 
     return InitializationResult.ok
