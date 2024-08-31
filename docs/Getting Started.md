@@ -16,16 +16,18 @@ First we need to authenticate the user.
 ```swift
 import MatrixRustSDK
 
-// Create an authentication service to streamline the login process.
-let service = AuthenticationService(basePath: URL.applicationSupportDirectory.path(), passphrase: nil)
-
-// Configure the service for a particular homeserver.
+// Create a client for a particular homeserver.
 // Note that we can pass a server name (the second part of a Matrix user ID) instead of the direct URL.
-// This allows the SDK to discover the homeserver's well-known configuration for OIDC and Sliding Sync support.
-try service.configureHomeserver(serverName: "matrix.org")
+// This allows the SDK to discover the homeserver's well-known configuration for Sliding Sync support.
+let client = try await ClientBuilder()
+    .serverNameOrHomeserverUrl(serverNameOrUrl: "matrix.org")
+    .sessionPaths(dataPath: URL.applicationSupportDirectory.path(percentEncoded: false),
+                  cachePath: URL.cachesDirectory.path(percentEncoded: false))
+    .slidingSyncVersionBuilder(versionBuilder: .discoverProxy)
+    .build()
 
-// Login through the service which creates a client.
-let client = try service.login(username: "alice", password: "secret", initialDeviceName: nil, deviceId: nil)
+// Login using password authentication.
+try await client.login(username: "alice", password: "secret", initialDeviceName: nil, deviceId: nil)
 
 let session = try client.session()
 // Store the session in the keychain.
@@ -38,43 +40,46 @@ Or, if the user has previously authenticated we can restore their session instea
 let session = …
 
 // Build a client for the homeserver.
-let client = try ClientBuilder()
-    .basePath(path: URL.applicationSupportDirectory.path())
+let client = try await ClientBuilder()
+    .sessionPaths(dataPath: URL.applicationSupportDirectory.path(percentEncoded: false),
+                  cachePath: URL.cachesDirectory.path(percentEncoded: false))
     .homeserverUrl(url: session.homeserverUrl)
     .build()
 
 // Restore the client using the session.
-try client.restoreSession(session: session)
+try await client.restoreSession(session: session)
 ```
 
-Next we need to start the client and listen for updates. The following code does so using syncv2.
+Next we need to start the sync loop and listen for room updates.
 
 ```swift
-class ClientListener: ClientDelegate {
+class AllRoomsListener: RoomListEntriesListener {
     /// The user's list of rooms.
-    var rooms = [Room]()
+    var rooms: [RoomListItem] = []
     
-    func didReceiveSyncUpdate() {
-        // Update the user's room list on each sync response.
-        self.rooms = client.rooms()
-    }
-    
-    func didReceiveAuthError(isSoftLogout: Bool) {
-        // Ask the user to reauthenticate.
-    }
-    
-    func didUpdateRestoreToken() {
-        let session = try? client.session()
-        // Update the session in the keychain.
+    func onUpdate(roomEntriesUpdate: [MatrixRustSDK.RoomListEntriesUpdate]) {
+        // Update the user's room list on each update.
+        for update in roomEntriesUpdate {
+            switch update {
+            case .reset(values: let values):
+                rooms = values
+            default:
+                break // Handle all the other cases accordingly.
+            }
+        }
     }
 }
 
-// Listen to updates from the client.
-let listener = ClientListener()
-client.setDelegate(delegate: listener)
+// Create a sync service which controls the sync loop.
+let syncService = try await client.syncService().finish()
 
-// Start the client using syncv2.
-client.startSync(timelineLimit: 20)
+// Listen to room list updates.
+let listener = AllRoomsListener()
+let roomListService = syncService.roomListService()
+let handle = try await roomListService.allRooms().entries(listener: listener)
+
+// Start the sync loop.
+await syncService.start()
 ```
 
 Finally we can send messages into a room (with built in support for markdown).
@@ -84,6 +89,6 @@ Finally we can send messages into a room (with built in support for markdown).
 let message = messageEventContentFromMarkdown(md: "Hello, World!")
 
 // Send the message content to the first room in the list.
-try listener.rooms.first?.send(msg: message, txnId: UUID().uuidString)
+_ = try await listener.rooms.first?.fullRoom().timeline().send(msg: message)
 ```
 
