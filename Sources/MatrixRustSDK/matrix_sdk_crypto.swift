@@ -153,7 +153,7 @@ fileprivate func writeDouble(_ writer: inout [UInt8], _ value: Double) {
 }
 
 // Protocol for types that transfer other types across the FFI. This is
-// analogous go the Rust trait of the same name.
+// analogous to the Rust trait of the same name.
 fileprivate protocol FfiConverter {
     associatedtype FfiType
     associatedtype SwiftType
@@ -253,18 +253,19 @@ fileprivate extension RustCallStatus {
 }
 
 private func rustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
-    try makeRustCall(callback, errorHandler: nil)
+    let neverThrow: ((RustBuffer) throws -> Never)? = nil
+    return try makeRustCall(callback, errorHandler: neverThrow)
 }
 
-private func rustCallWithError<T>(
-    _ errorHandler: @escaping (RustBuffer) throws -> Error,
+private func rustCallWithError<T, E: Swift.Error>(
+    _ errorHandler: @escaping (RustBuffer) throws -> E,
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
     try makeRustCall(callback, errorHandler: errorHandler)
 }
 
-private func makeRustCall<T>(
+private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
-    errorHandler: ((RustBuffer) throws -> Error)?
+    errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
     uniffiEnsureInitialized()
     var callStatus = RustCallStatus.init()
@@ -273,9 +274,9 @@ private func makeRustCall<T>(
     return returnedVal
 }
 
-private func uniffiCheckCallStatus(
+private func uniffiCheckCallStatus<E: Swift.Error>(
     callStatus: RustCallStatus,
-    errorHandler: ((RustBuffer) throws -> Error)?
+    errorHandler: ((RustBuffer) throws -> E)?
 ) throws {
     switch callStatus.code {
         case CALL_SUCCESS:
@@ -381,6 +382,27 @@ fileprivate class UniffiHandleMap<T> {
 // Public interface members begin here.
 
 
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -418,6 +440,100 @@ fileprivate struct FfiConverterString: FfiConverter {
         writeBytes(&buf, value.utf8)
     }
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Strategy to collect the devices that should receive room keys for the
+ * current discussion.
+ */
+
+public enum CollectStrategy {
+    
+    /**
+     * Device based sharing strategy.
+     */
+    case deviceBasedStrategy(
+        /**
+         * If `true`, devices that are not trusted will be excluded from the
+         * conversation. A device is trusted if any of the following is true:
+         * - It was manually marked as trusted.
+         * - It was marked as verified via interactive verification.
+         * - It is signed by its owner identity, and this identity has been
+         * trusted via interactive verification.
+         * - It is the current own device of the user.
+         */onlyAllowTrustedDevices: Bool, 
+        /**
+         * If `true`, and a verified user has an unsigned device, key sharing
+         * will fail with a
+         * [`SessionRecipientCollectionError::VerifiedUserHasUnsignedDevice`].
+         *
+         * If `true`, and a verified user has replaced their identity, key
+         * sharing will fail with a
+         * [`SessionRecipientCollectionError::VerifiedUserChangedIdentity`].
+         *
+         * Otherwise, keys are shared with unsigned devices as normal.
+         *
+         * Once the problematic devices are blacklisted or whitelisted the
+         * caller can retry to share a second time.
+         */errorOnVerifiedUserProblem: Bool
+    )
+    /**
+     * Share based on identity. Only distribute to devices signed by their
+     * owner. If a user has no published identity he will not receive
+     * any room keys.
+     */
+    case identityBasedStrategy
+}
+
+
+public struct FfiConverterTypeCollectStrategy: FfiConverterRustBuffer {
+    typealias SwiftType = CollectStrategy
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CollectStrategy {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .deviceBasedStrategy(onlyAllowTrustedDevices: try FfiConverterBool.read(from: &buf), errorOnVerifiedUserProblem: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 2: return .identityBasedStrategy
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: CollectStrategy, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .deviceBasedStrategy(onlyAllowTrustedDevices,errorOnVerifiedUserProblem):
+            writeInt(&buf, Int32(1))
+            FfiConverterBool.write(onlyAllowTrustedDevices, into: &buf)
+            FfiConverterBool.write(errorOnVerifiedUserProblem, into: &buf)
+            
+        
+        case .identityBasedStrategy:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeCollectStrategy_lift(_ buf: RustBuffer) throws -> CollectStrategy {
+    return try FfiConverterTypeCollectStrategy.lift(buf)
+}
+
+public func FfiConverterTypeCollectStrategy_lower(_ value: CollectStrategy) -> RustBuffer {
+    return FfiConverterTypeCollectStrategy.lower(value)
+}
+
+
+
+extension CollectStrategy: Equatable, Hashable {}
+
+
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -503,44 +619,51 @@ extension LocalTrust: Equatable, Hashable {}
 
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Error type for the decoding of the [`QrCodeData`].
  */
-
 public enum LoginQrCodeDecodeError {
+
+    
     
     /**
      * The QR code data is no long enough, it's missing some fields.
      */
-    case notEnoughData
+    case NotEnoughData(message: String)
+    
     /**
      * One of the URLs in the QR code data is not a valid UTF-8 encoded string.
      */
-    case notUtf8
+    case NotUtf8(message: String)
+    
     /**
      * One of the URLs in the QR code data could not be parsed.
      */
-    case urlParse
+    case UrlParse(message: String)
+    
     /**
      * The QR code data contains an invalid mode, we expect the login (0x03)
      * mode or the reciprocate mode (0x04).
      */
-    case invalidMode
+    case InvalidMode(message: String)
+    
     /**
      * The QR code data contains an unsupported version.
      */
-    case invalidVersion
+    case InvalidVersion(message: String)
+    
     /**
      * The base64 encoded variant of the QR code data is not a valid base64
      * string.
      */
-    case base64
+    case Base64(message: String)
+    
     /**
      * The QR code data doesn't contain the expected `MATRIX` prefix.
      */
-    case invalidPrefix
+    case InvalidPrefix(message: String)
+    
 }
 
 
@@ -550,74 +673,77 @@ public struct FfiConverterTypeLoginQrCodeDecodeError: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LoginQrCodeDecodeError {
         let variant: Int32 = try readInt(&buf)
         switch variant {
+
         
-        case 1: return .notEnoughData
+
         
-        case 2: return .notUtf8
+        case 1: return .NotEnoughData(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 3: return .urlParse
+        case 2: return .NotUtf8(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 4: return .invalidMode
+        case 3: return .UrlParse(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 5: return .invalidVersion
+        case 4: return .InvalidMode(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 6: return .base64
+        case 5: return .InvalidVersion(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 7: return .invalidPrefix
+        case 6: return .Base64(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
+        case 7: return .InvalidPrefix(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
     public static func write(_ value: LoginQrCodeDecodeError, into buf: inout [UInt8]) {
         switch value {
+
         
+
         
-        case .notEnoughData:
+        case .NotEnoughData(_ /* message is ignored*/):
             writeInt(&buf, Int32(1))
-        
-        
-        case .notUtf8:
+        case .NotUtf8(_ /* message is ignored*/):
             writeInt(&buf, Int32(2))
-        
-        
-        case .urlParse:
+        case .UrlParse(_ /* message is ignored*/):
             writeInt(&buf, Int32(3))
-        
-        
-        case .invalidMode:
+        case .InvalidMode(_ /* message is ignored*/):
             writeInt(&buf, Int32(4))
-        
-        
-        case .invalidVersion:
+        case .InvalidVersion(_ /* message is ignored*/):
             writeInt(&buf, Int32(5))
-        
-        
-        case .base64:
+        case .Base64(_ /* message is ignored*/):
             writeInt(&buf, Int32(6))
-        
-        
-        case .invalidPrefix:
+        case .InvalidPrefix(_ /* message is ignored*/):
             writeInt(&buf, Int32(7))
+
         
         }
     }
 }
 
 
-public func FfiConverterTypeLoginQrCodeDecodeError_lift(_ buf: RustBuffer) throws -> LoginQrCodeDecodeError {
-    return try FfiConverterTypeLoginQrCodeDecodeError.lift(buf)
-}
-
-public func FfiConverterTypeLoginQrCodeDecodeError_lower(_ value: LoginQrCodeDecodeError) -> RustBuffer {
-    return FfiConverterTypeLoginQrCodeDecodeError.lower(value)
-}
-
-
-
 extension LoginQrCodeDecodeError: Equatable, Hashable {}
 
-
+extension LoginQrCodeDecodeError: Foundation.LocalizedError {
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -776,9 +902,9 @@ private enum InitializationResult {
     case contractVersionMismatch
     case apiChecksumMismatch
 }
-// Use a global variables to perform the versioning checks. Swift ensures that
+// Use a global variable to perform the versioning checks. Swift ensures that
 // the code inside is only computed once.
-private var initializationResult: InitializationResult {
+private var initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
     let bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
@@ -788,7 +914,7 @@ private var initializationResult: InitializationResult {
     }
 
     return InitializationResult.ok
-}
+}()
 
 private func uniffiEnsureInitialized() {
     switch initializationResult {

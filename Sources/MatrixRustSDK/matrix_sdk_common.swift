@@ -7,8 +7,8 @@ import Foundation
 // Depending on the consumer's build setup, the low-level FFI code
 // might be in a separate module, or it might be compiled inline into
 // this module. This is a bit of light hackery to work with both.
-#if canImport(matrix_sdk_baseFFI)
-import matrix_sdk_baseFFI
+#if canImport(matrix_sdk_commonFFI)
+import matrix_sdk_commonFFI
 #endif
 
 fileprivate extension RustBuffer {
@@ -25,13 +25,13 @@ fileprivate extension RustBuffer {
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
-        try! rustCall { ffi_matrix_sdk_base_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
+        try! rustCall { ffi_matrix_sdk_common_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
     // Frees the buffer in place.
     // The buffer must not be used after this is called.
     func deallocate() {
-        try! rustCall { ffi_matrix_sdk_base_rustbuffer_free(self, $0) }
+        try! rustCall { ffi_matrix_sdk_common_rustbuffer_free(self, $0) }
     }
 }
 
@@ -420,6 +420,110 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * A machine-readable representation of the authenticity for a `ShieldState`.
+ */
+
+public enum ShieldStateCode {
+    
+    /**
+     * Not enough information available to check the authenticity.
+     */
+    case authenticityNotGuaranteed
+    /**
+     * The sending device isn't yet known by the Client.
+     */
+    case unknownDevice
+    /**
+     * The sending device hasn't been verified by the sender.
+     */
+    case unsignedDevice
+    /**
+     * The sender hasn't been verified by the Client's user.
+     */
+    case unverifiedIdentity
+    /**
+     * An unencrypted event in an encrypted room.
+     */
+    case sentInClear
+    /**
+     * The sender was previously verified but changed their identity.
+     */
+    case previouslyVerified
+}
+
+
+public struct FfiConverterTypeShieldStateCode: FfiConverterRustBuffer {
+    typealias SwiftType = ShieldStateCode
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ShieldStateCode {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .authenticityNotGuaranteed
+        
+        case 2: return .unknownDevice
+        
+        case 3: return .unsignedDevice
+        
+        case 4: return .unverifiedIdentity
+        
+        case 5: return .sentInClear
+        
+        case 6: return .previouslyVerified
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ShieldStateCode, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .authenticityNotGuaranteed:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .unknownDevice:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .unsignedDevice:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .unverifiedIdentity:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .sentInClear:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .previouslyVerified:
+            writeInt(&buf, Int32(6))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeShieldStateCode_lift(_ buf: RustBuffer) throws -> ShieldStateCode {
+    return try FfiConverterTypeShieldStateCode.lift(buf)
+}
+
+public func FfiConverterTypeShieldStateCode_lower(_ value: ShieldStateCode) -> RustBuffer {
+    return FfiConverterTypeShieldStateCode.lower(value)
+}
+
+
+
+extension ShieldStateCode: Equatable, Hashable {}
+
+
+
 private enum InitializationResult {
     case ok
     case contractVersionMismatch
@@ -431,7 +535,7 @@ private var initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
     let bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
-    let scaffolding_contract_version = ffi_matrix_sdk_base_uniffi_contract_version()
+    let scaffolding_contract_version = ffi_matrix_sdk_common_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }

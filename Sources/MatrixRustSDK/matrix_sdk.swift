@@ -153,7 +153,7 @@ fileprivate func writeDouble(_ writer: inout [UInt8], _ value: Double) {
 }
 
 // Protocol for types that transfer other types across the FFI. This is
-// analogous go the Rust trait of the same name.
+// analogous to the Rust trait of the same name.
 fileprivate protocol FfiConverter {
     associatedtype FfiType
     associatedtype SwiftType
@@ -253,18 +253,19 @@ fileprivate extension RustCallStatus {
 }
 
 private func rustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
-    try makeRustCall(callback, errorHandler: nil)
+    let neverThrow: ((RustBuffer) throws -> Never)? = nil
+    return try makeRustCall(callback, errorHandler: neverThrow)
 }
 
-private func rustCallWithError<T>(
-    _ errorHandler: @escaping (RustBuffer) throws -> Error,
+private func rustCallWithError<T, E: Swift.Error>(
+    _ errorHandler: @escaping (RustBuffer) throws -> E,
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
     try makeRustCall(callback, errorHandler: errorHandler)
 }
 
-private func makeRustCall<T>(
+private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
-    errorHandler: ((RustBuffer) throws -> Error)?
+    errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
     uniffiEnsureInitialized()
     var callStatus = RustCallStatus.init()
@@ -273,9 +274,9 @@ private func makeRustCall<T>(
     return returnedVal
 }
 
-private func uniffiCheckCallStatus(
+private func uniffiCheckCallStatus<E: Swift.Error>(
     callStatus: RustCallStatus,
-    errorHandler: ((RustBuffer) throws -> Error)?
+    errorHandler: ((RustBuffer) throws -> E)?
 ) throws {
     switch callStatus.code {
         case CALL_SUCCESS:
@@ -903,54 +904,63 @@ extension PaginatorState: Equatable, Hashable {}
 
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The error type for failures while trying to log in a new device using a QR
  * code.
  */
-
 public enum QrCodeLoginError {
+
+    
     
     /**
      * An error happened while we were communicating with the OIDC provider.
      */
-    case oidc
+    case Oidc(message: String)
+    
     /**
      * The other device has signaled to us that the login has failed.
      */
-    case loginFailure
+    case LoginFailure(message: String)
+    
     /**
      * An unexpected message was received from the other device.
      */
-    case unexpectedMessage
+    case UnexpectedMessage(message: String)
+    
     /**
      * An error happened while exchanging messages with the other device.
      */
-    case secureChannel
+    case SecureChannel(message: String)
+    
     /**
      * The cross-process refresh lock failed to be initialized.
      */
-    case crossProcessRefreshLock
+    case CrossProcessRefreshLock(message: String)
+    
     /**
      * An error happened while we were trying to discover our user and device
      * ID, after we have acquired an access token from the OIDC provider.
      */
-    case userIdDiscovery
+    case UserIdDiscovery(message: String)
+    
     /**
      * We failed to set the session tokens after we figured out our device and
      * user IDs.
      */
-    case sessionTokens
+    case SessionTokens(message: String)
+    
     /**
      * The device keys failed to be uploaded after we successfully logged in.
      */
-    case deviceKeyUpload
+    case DeviceKeyUpload(message: String)
+    
     /**
      * The secrets bundle we received from the existing device failed to be
      * imported.
      */
-    case secretImport
+    case SecretImport(message: String)
+    
 }
 
 
@@ -960,86 +970,89 @@ public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> QrCodeLoginError {
         let variant: Int32 = try readInt(&buf)
         switch variant {
+
         
-        case 1: return .oidc
+
         
-        case 2: return .loginFailure
+        case 1: return .Oidc(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 3: return .unexpectedMessage
+        case 2: return .LoginFailure(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 4: return .secureChannel
+        case 3: return .UnexpectedMessage(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 5: return .crossProcessRefreshLock
+        case 4: return .SecureChannel(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 6: return .userIdDiscovery
+        case 5: return .CrossProcessRefreshLock(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 7: return .sessionTokens
+        case 6: return .UserIdDiscovery(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 8: return .deviceKeyUpload
+        case 7: return .SessionTokens(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
-        case 9: return .secretImport
+        case 8: return .DeviceKeyUpload(
+            message: try FfiConverterString.read(from: &buf)
+        )
         
+        case 9: return .SecretImport(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
     public static func write(_ value: QrCodeLoginError, into buf: inout [UInt8]) {
         switch value {
+
         
+
         
-        case .oidc:
+        case .Oidc(_ /* message is ignored*/):
             writeInt(&buf, Int32(1))
-        
-        
-        case .loginFailure:
+        case .LoginFailure(_ /* message is ignored*/):
             writeInt(&buf, Int32(2))
-        
-        
-        case .unexpectedMessage:
+        case .UnexpectedMessage(_ /* message is ignored*/):
             writeInt(&buf, Int32(3))
-        
-        
-        case .secureChannel:
+        case .SecureChannel(_ /* message is ignored*/):
             writeInt(&buf, Int32(4))
-        
-        
-        case .crossProcessRefreshLock:
+        case .CrossProcessRefreshLock(_ /* message is ignored*/):
             writeInt(&buf, Int32(5))
-        
-        
-        case .userIdDiscovery:
+        case .UserIdDiscovery(_ /* message is ignored*/):
             writeInt(&buf, Int32(6))
-        
-        
-        case .sessionTokens:
+        case .SessionTokens(_ /* message is ignored*/):
             writeInt(&buf, Int32(7))
-        
-        
-        case .deviceKeyUpload:
+        case .DeviceKeyUpload(_ /* message is ignored*/):
             writeInt(&buf, Int32(8))
-        
-        
-        case .secretImport:
+        case .SecretImport(_ /* message is ignored*/):
             writeInt(&buf, Int32(9))
+
         
         }
     }
 }
 
 
-public func FfiConverterTypeQRCodeLoginError_lift(_ buf: RustBuffer) throws -> QrCodeLoginError {
-    return try FfiConverterTypeQRCodeLoginError.lift(buf)
-}
-
-public func FfiConverterTypeQRCodeLoginError_lower(_ value: QrCodeLoginError) -> RustBuffer {
-    return FfiConverterTypeQRCodeLoginError.lower(value)
-}
-
-
-
 extension QrCodeLoginError: Equatable, Hashable {}
 
-
+extension QrCodeLoginError: Foundation.LocalizedError {
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+}
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -1141,9 +1154,9 @@ private enum InitializationResult {
     case contractVersionMismatch
     case apiChecksumMismatch
 }
-// Use a global variables to perform the versioning checks. Swift ensures that
+// Use a global variable to perform the versioning checks. Swift ensures that
 // the code inside is only computed once.
-private var initializationResult: InitializationResult {
+private var initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
     let bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
@@ -1156,7 +1169,7 @@ private var initializationResult: InitializationResult {
     }
 
     return InitializationResult.ok
-}
+}()
 
 private func uniffiEnsureInitialized() {
     switch initializationResult {
