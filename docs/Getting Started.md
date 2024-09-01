@@ -82,13 +82,52 @@ let handle = try await roomListService.allRooms().entries(listener: listener)
 await syncService.start()
 ```
 
-Finally we can send messages into a room (with built in support for markdown).
+When we're ready to display the events from a room we use the timeline API.
+
+```swift
+class TimelineItemListener: TimelineListener {
+    /// The loaded items for this room's timeline
+    var timelineItems: [TimelineItem] = []
+    
+    func onUpdate(diff: [TimelineDiff]) {
+        // Update the timeline items on each update.
+        for update in diff {
+            switch update.change() {
+            case .reset:
+                timelineItems = update.reset()!
+            default:
+                break // Handle all the other cases accordingly.
+            }
+        }
+    }
+}
+
+// Fetch the room from the listener and initialise it's timeline.
+let room = listener.rooms.first!
+if !room.isTimelineInitialized() {
+    try await room.initTimeline(eventTypeFilter: nil, internalIdPrefix: nil)
+}
+let timeline = try await room.fullRoom().timeline()
+
+// Listen to timeline item updates.
+let timelineItemsListener = TimelineItemListener()
+let timelineHandle = await timeline.addListener(listener: timelineItemsListener)
+
+// Wait for the items array to be updated…
+
+// Get the event contents from an item.
+let timelineItem = timelineItemsListener.timelineItems.last!
+if let messageEvent = timelineItem.asEvent()?.content().asMessage() {
+    print(messageEvent)
+}
+```
+
+Finally we can send messages into the room (with built in support for markdown).
 
 ```swift
 // Create the message content from a markdown string.
 let message = messageEventContentFromMarkdown(md: "Hello, World!")
 
-// Send the message content to the first room in the list.
-_ = try await listener.rooms.first?.fullRoom().timeline().send(msg: message)
+// Send the message content via the room's timeline (so that we show a local echo).
+_ = try await timeline.send(msg: message)
 ```
-
