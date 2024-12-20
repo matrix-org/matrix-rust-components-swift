@@ -451,7 +451,7 @@ public enum ShieldStateCode {
     /**
      * The sender was previously verified but changed their identity.
      */
-    case previouslyVerified
+    case verificationViolation
 }
 
 
@@ -472,7 +472,7 @@ public struct FfiConverterTypeShieldStateCode: FfiConverterRustBuffer {
         
         case 5: return .sentInClear
         
-        case 6: return .previouslyVerified
+        case 6: return .verificationViolation
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -502,7 +502,7 @@ public struct FfiConverterTypeShieldStateCode: FfiConverterRustBuffer {
             writeInt(&buf, Int32(5))
         
         
-        case .previouslyVerified:
+        case .verificationViolation:
             writeInt(&buf, Int32(6))
         
         }

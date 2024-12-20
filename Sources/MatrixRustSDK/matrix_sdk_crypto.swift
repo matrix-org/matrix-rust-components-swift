@@ -441,6 +441,68 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+
+/**
+ * Settings for decrypting messages
+ */
+public struct DecryptionSettings {
+    /**
+     * The trust level in the sender's device that is required to decrypt the
+     * event. If the sender's device is not sufficiently trusted,
+     * [`MegolmError::SenderIdentityNotTrusted`] will be returned.
+     */
+    public var senderDeviceTrustRequirement: TrustRequirement
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The trust level in the sender's device that is required to decrypt the
+         * event. If the sender's device is not sufficiently trusted,
+         * [`MegolmError::SenderIdentityNotTrusted`] will be returned.
+         */senderDeviceTrustRequirement: TrustRequirement) {
+        self.senderDeviceTrustRequirement = senderDeviceTrustRequirement
+    }
+}
+
+
+
+extension DecryptionSettings: Equatable, Hashable {
+    public static func ==(lhs: DecryptionSettings, rhs: DecryptionSettings) -> Bool {
+        if lhs.senderDeviceTrustRequirement != rhs.senderDeviceTrustRequirement {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(senderDeviceTrustRequirement)
+    }
+}
+
+
+public struct FfiConverterTypeDecryptionSettings: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DecryptionSettings {
+        return
+            try DecryptionSettings(
+                senderDeviceTrustRequirement: FfiConverterTypeTrustRequirement.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DecryptionSettings, into buf: inout [UInt8]) {
+        FfiConverterTypeTrustRequirement.write(value.senderDeviceTrustRequirement, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeDecryptionSettings_lift(_ buf: RustBuffer) throws -> DecryptionSettings {
+    return try FfiConverterTypeDecryptionSettings.lift(buf)
+}
+
+public func FfiConverterTypeDecryptionSettings_lower(_ value: DecryptionSettings) -> RustBuffer {
+    return FfiConverterTypeDecryptionSettings.lower(value)
+}
+
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
@@ -532,6 +594,99 @@ public func FfiConverterTypeCollectStrategy_lower(_ value: CollectStrategy) -> R
 
 
 extension CollectStrategy: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * The state of an identity - verified, pinned etc.
+ */
+
+public enum IdentityState {
+    
+    /**
+     * The user is verified with us
+     */
+    case verified
+    /**
+     * Either this is the first identity we have seen for this user, or the
+     * user has acknowledged a change of identity explicitly e.g. by
+     * clicking OK on a notification.
+     */
+    case pinned
+    /**
+     * The user's identity has changed since it was pinned. The user should be
+     * notified about this and given the opportunity to acknowledge the
+     * change, which will make the new identity pinned.
+     * When the user acknowledges the change, the app should call
+     * [`crate::OtherUserIdentity::pin_current_master_key`].
+     */
+    case pinViolation
+    /**
+     * The user's identity has changed, and before that it was verified. This
+     * is a serious problem. The user can either verify again to make this
+     * identity verified, or withdraw verification
+     * [`UserIdentity::withdraw_verification`] to make it pinned.
+     */
+    case verificationViolation
+}
+
+
+public struct FfiConverterTypeIdentityState: FfiConverterRustBuffer {
+    typealias SwiftType = IdentityState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> IdentityState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .verified
+        
+        case 2: return .pinned
+        
+        case 3: return .pinViolation
+        
+        case 4: return .verificationViolation
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: IdentityState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .verified:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .pinned:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .pinViolation:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .verificationViolation:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeIdentityState_lift(_ buf: RustBuffer) throws -> IdentityState {
+    return try FfiConverterTypeIdentityState.lift(buf)
+}
+
+public func FfiConverterTypeIdentityState_lower(_ value: IdentityState) -> RustBuffer {
+    return FfiConverterTypeIdentityState.lower(value)
+}
+
+
+
+extension IdentityState: Equatable, Hashable {}
 
 
 
@@ -834,6 +989,82 @@ extension SignatureState: Equatable, Hashable {}
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * The trust level in the sender's device that is required to decrypt an
+ * event.
+ */
+
+public enum TrustRequirement {
+    
+    /**
+     * Decrypt events from everyone regardless of trust.
+     */
+    case untrusted
+    /**
+     * Only decrypt events from cross-signed devices or legacy sessions (Megolm
+     * sessions created before we started collecting trust information).
+     */
+    case crossSignedOrLegacy
+    /**
+     * Only decrypt events from cross-signed devices.
+     */
+    case crossSigned
+}
+
+
+public struct FfiConverterTypeTrustRequirement: FfiConverterRustBuffer {
+    typealias SwiftType = TrustRequirement
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TrustRequirement {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .untrusted
+        
+        case 2: return .crossSignedOrLegacy
+        
+        case 3: return .crossSigned
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: TrustRequirement, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .untrusted:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .crossSignedOrLegacy:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .crossSigned:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeTrustRequirement_lift(_ buf: RustBuffer) throws -> TrustRequirement {
+    return try FfiConverterTypeTrustRequirement.lift(buf)
+}
+
+public func FfiConverterTypeTrustRequirement_lower(_ value: TrustRequirement) -> RustBuffer {
+    return FfiConverterTypeTrustRequirement.lower(value)
+}
+
+
+
+extension TrustRequirement: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Our best guess at the reason why an event can't be decrypted.
  */
 
@@ -842,13 +1073,85 @@ public enum UtdCause {
     /**
      * We don't have an explanation for why this UTD happened - it is probably
      * a bug, or a network split between the two homeservers.
+     *
+     * For example:
+     *
+     * - the keys for this event are missing, but a key storage backup exists
+     * and is working, so we should be able to find the keys in the backup.
+     *
+     * - the keys for this event are missing, and a key storage backup exists
+     * on the server, but that backup is not working on this client even
+     * though this device is verified.
      */
     case unknown
     /**
-     * This event was sent when we were not a member of the room (or invited),
-     * so it is impossible to decrypt (without MSC3061).
+     * We are missing the keys for this event, and the event was sent when we
+     * were not a member of the room (or invited).
      */
-    case membership
+    case sentBeforeWeJoined
+    /**
+     * The message was sent by a user identity we have not verified, but the
+     * user was previously verified.
+     */
+    case verificationViolation
+    /**
+     * The [`crate::TrustRequirement`] requires that the sending device be
+     * signed by its owner, and it was not.
+     */
+    case unsignedDevice
+    /**
+     * The [`crate::TrustRequirement`] requires that the sending device be
+     * signed by its owner, and we were unable to securely find the device.
+     *
+     * This could be because the device has since been deleted, because we
+     * haven't yet downloaded it from the server, or because the session
+     * data was obtained from an insecure source (imported from a file,
+     * obtained from a legacy (asymmetric) backup, unsafe key forward, etc.)
+     */
+    case unknownDevice
+    /**
+     * We are missing the keys for this event, but it is a "device-historical"
+     * message and there is no key storage backup on the server, presumably
+     * because the user has turned it off.
+     *
+     * Device-historical means that the message was sent before the current
+     * device existed (but the current user was probably a member of the room
+     * at the time the message was sent). Not to
+     * be confused with pre-join or pre-invite messages (see
+     * [`UtdCause::SentBeforeWeJoined`] for that).
+     *
+     * Expected message to user: "History is not available on this device".
+     */
+    case historicalMessageAndBackupIsDisabled
+    /**
+     * The keys for this event are intentionally withheld.
+     *
+     * The sender has refused to share the key because our device does not meet
+     * the sender's security requirements.
+     */
+    case withheldForUnverifiedOrInsecureDevice
+    /**
+     * The keys for this event are missing, likely because the sender was
+     * unable to share them (e.g., failure to establish an Olm 1:1
+     * channel). Alternatively, the sender may have deliberately excluded
+     * this device by cherry-picking and blocking it, in which case, no action
+     * can be taken on our side.
+     */
+    case withheldBySender
+    /**
+     * We are missing the keys for this event, but it is a "device-historical"
+     * message, and even though a key storage backup does exist, we can't use
+     * it because our device is unverified.
+     *
+     * Device-historical means that the message was sent before the current
+     * device existed (but the current user was probably a member of the room
+     * at the time the message was sent). Not to
+     * be confused with pre-join or pre-invite messages (see
+     * [`UtdCause::SentBeforeWeJoined`] for that).
+     *
+     * Expected message to user: "You need to verify this device".
+     */
+    case historicalMessageAndDeviceIsUnverified
 }
 
 
@@ -861,7 +1164,21 @@ public struct FfiConverterTypeUtdCause: FfiConverterRustBuffer {
         
         case 1: return .unknown
         
-        case 2: return .membership
+        case 2: return .sentBeforeWeJoined
+        
+        case 3: return .verificationViolation
+        
+        case 4: return .unsignedDevice
+        
+        case 5: return .unknownDevice
+        
+        case 6: return .historicalMessageAndBackupIsDisabled
+        
+        case 7: return .withheldForUnverifiedOrInsecureDevice
+        
+        case 8: return .withheldBySender
+        
+        case 9: return .historicalMessageAndDeviceIsUnverified
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -875,8 +1192,36 @@ public struct FfiConverterTypeUtdCause: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case .membership:
+        case .sentBeforeWeJoined:
             writeInt(&buf, Int32(2))
+        
+        
+        case .verificationViolation:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .unsignedDevice:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .unknownDevice:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .historicalMessageAndBackupIsDisabled:
+            writeInt(&buf, Int32(6))
+        
+        
+        case .withheldForUnverifiedOrInsecureDevice:
+            writeInt(&buf, Int32(7))
+        
+        
+        case .withheldBySender:
+            writeInt(&buf, Int32(8))
+        
+        
+        case .historicalMessageAndDeviceIsUnverified:
+            writeInt(&buf, Int32(9))
         
         }
     }
