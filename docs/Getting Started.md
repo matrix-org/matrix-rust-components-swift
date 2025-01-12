@@ -76,7 +76,7 @@ let syncService = try await client.syncService().finish()
 // Listen to room list updates.
 let listener = AllRoomsListener()
 let roomListService = syncService.roomListService()
-let handle = try await roomListService.allRooms().entries(listener: listener)
+let handle = try await roomListService.allRooms().entriesWithDynamicAdapters(pageSize: 100, listener: listener)
 
 // Start the sync loop.
 await syncService.start()
