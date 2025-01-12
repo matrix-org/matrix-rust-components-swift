@@ -23,7 +23,7 @@ let client = try await ClientBuilder()
     .serverNameOrHomeserverUrl(serverNameOrUrl: "matrix.org")
     .sessionPaths(dataPath: URL.applicationSupportDirectory.path(percentEncoded: false),
                   cachePath: URL.cachesDirectory.path(percentEncoded: false))
-    .slidingSyncVersionBuilder(versionBuilder: .discoverProxy)
+    .slidingSyncVersionBuilder(versionBuilder: .discoverNative)
     .build()
 
 // Login using password authentication.
