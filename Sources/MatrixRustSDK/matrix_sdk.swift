@@ -914,9 +914,10 @@ public enum QrCodeLoginError {
     
     
     /**
-     * An error happened while we were communicating with the OIDC provider.
+     * An error happened while we were communicating with the OAuth 2.0
+     * authorization server.
      */
-    case Oidc(message: String)
+    case Oauth(message: String)
     
     /**
      * The other device has signaled to us that the login has failed.
@@ -940,7 +941,8 @@ public enum QrCodeLoginError {
     
     /**
      * An error happened while we were trying to discover our user and device
-     * ID, after we have acquired an access token from the OIDC provider.
+     * ID, after we have acquired an access token from the OAuth 2.0
+     * authorization server.
      */
     case UserIdDiscovery(message: String)
     
@@ -974,7 +976,7 @@ public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
         
 
         
-        case 1: return .Oidc(
+        case 1: return .Oauth(
             message: try FfiConverterString.read(from: &buf)
         )
         
@@ -1021,7 +1023,7 @@ public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
         
 
         
-        case .Oidc(_ /* message is ignored*/):
+        case .Oauth(_ /* message is ignored*/):
             writeInt(&buf, Int32(1))
         case .LoginFailure(_ /* message is ignored*/):
             writeInt(&buf, Int32(2))
