@@ -395,6 +395,27 @@ fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
     }
 }
 
+fileprivate struct FfiConverterBool : FfiConverter {
+    typealias FfiType = Int8
+    typealias SwiftType = Bool
+
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
+    }
+
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -437,9 +458,9 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 
 /**
- * The data needed to perform authorization using OpenID Connect.
+ * The data needed to perform authorization using OAuth 2.0.
  */
-public protocol OidcAuthorizationDataProtocol : AnyObject {
+public protocol OAuthAuthorizationDataProtocol : AnyObject {
     
     /**
      * The login URL to use for authorization.
@@ -449,10 +470,10 @@ public protocol OidcAuthorizationDataProtocol : AnyObject {
 }
 
 /**
- * The data needed to perform authorization using OpenID Connect.
+ * The data needed to perform authorization using OAuth 2.0.
  */
-open class OidcAuthorizationData:
-    OidcAuthorizationDataProtocol {
+open class OAuthAuthorizationData:
+    OAuthAuthorizationDataProtocol {
     fileprivate let pointer: UnsafeMutableRawPointer!
 
     /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
@@ -477,7 +498,7 @@ open class OidcAuthorizationData:
     }
 
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_matrix_sdk_fn_clone_oidcauthorizationdata(self.pointer, $0) }
+        return try! rustCall { uniffi_matrix_sdk_fn_clone_oauthauthorizationdata(self.pointer, $0) }
     }
     // No primary constructor declared for this class.
 
@@ -486,7 +507,7 @@ open class OidcAuthorizationData:
             return
         }
 
-        try! rustCall { uniffi_matrix_sdk_fn_free_oidcauthorizationdata(pointer, $0) }
+        try! rustCall { uniffi_matrix_sdk_fn_free_oauthauthorizationdata(pointer, $0) }
     }
 
     
@@ -497,7 +518,7 @@ open class OidcAuthorizationData:
      */
 open func loginUrl() -> String {
     return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_matrix_sdk_fn_method_oidcauthorizationdata_login_url(self.uniffiClonePointer(),$0
+    uniffi_matrix_sdk_fn_method_oauthauthorizationdata_login_url(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -505,20 +526,20 @@ open func loginUrl() -> String {
 
 }
 
-public struct FfiConverterTypeOidcAuthorizationData: FfiConverter {
+public struct FfiConverterTypeOAuthAuthorizationData: FfiConverter {
 
     typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = OidcAuthorizationData
+    typealias SwiftType = OAuthAuthorizationData
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> OidcAuthorizationData {
-        return OidcAuthorizationData(unsafeFromRawPointer: pointer)
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> OAuthAuthorizationData {
+        return OAuthAuthorizationData(unsafeFromRawPointer: pointer)
     }
 
-    public static func lower(_ value: OidcAuthorizationData) -> UnsafeMutableRawPointer {
+    public static func lower(_ value: OAuthAuthorizationData) -> UnsafeMutableRawPointer {
         return value.uniffiClonePointer()
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OidcAuthorizationData {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OAuthAuthorizationData {
         let v: UInt64 = try readInt(&buf)
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -529,7 +550,7 @@ public struct FfiConverterTypeOidcAuthorizationData: FfiConverter {
         return try lift(ptr!)
     }
 
-    public static func write(_ value: OidcAuthorizationData, into buf: inout [UInt8]) {
+    public static func write(_ value: OAuthAuthorizationData, into buf: inout [UInt8]) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
@@ -539,12 +560,12 @@ public struct FfiConverterTypeOidcAuthorizationData: FfiConverter {
 
 
 
-public func FfiConverterTypeOidcAuthorizationData_lift(_ pointer: UnsafeMutableRawPointer) throws -> OidcAuthorizationData {
-    return try FfiConverterTypeOidcAuthorizationData.lift(pointer)
+public func FfiConverterTypeOAuthAuthorizationData_lift(_ pointer: UnsafeMutableRawPointer) throws -> OAuthAuthorizationData {
+    return try FfiConverterTypeOAuthAuthorizationData.lift(pointer)
 }
 
-public func FfiConverterTypeOidcAuthorizationData_lower(_ value: OidcAuthorizationData) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeOidcAuthorizationData.lower(value)
+public func FfiConverterTypeOAuthAuthorizationData_lower(_ value: OAuthAuthorizationData) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeOAuthAuthorizationData.lower(value)
 }
 
 
@@ -917,7 +938,7 @@ public enum QrCodeLoginError {
      * An error happened while we were communicating with the OAuth 2.0
      * authorization server.
      */
-    case Oauth(message: String)
+    case OAuth(message: String)
     
     /**
      * The other device has signaled to us that the login has failed.
@@ -976,7 +997,7 @@ public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
         
 
         
-        case 1: return .Oauth(
+        case 1: return .OAuth(
             message: try FfiConverterString.read(from: &buf)
         )
         
@@ -1023,7 +1044,7 @@ public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
         
 
         
-        case .Oauth(_ /* message is ignored*/):
+        case .OAuth(_ /* message is ignored*/):
             writeInt(&buf, Int32(1))
         case .LoginFailure(_ /* message is ignored*/):
             writeInt(&buf, Int32(2))
@@ -1130,6 +1151,77 @@ extension RoomMemberRole: Equatable, Hashable {}
 
 
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Status for the back-pagination on a room event cache.
+ */
+
+public enum RoomPaginationStatus {
+    
+    /**
+     * No back-pagination is happening right now.
+     */
+    case idle(
+        /**
+         * Have we hit the start of the timeline, i.e. back-paginating wouldn't
+         * have any effect?
+         */hitTimelineStart: Bool
+    )
+    /**
+     * Back-pagination is already running in the background.
+     */
+    case paginating
+}
+
+
+public struct FfiConverterTypeRoomPaginationStatus: FfiConverterRustBuffer {
+    typealias SwiftType = RoomPaginationStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomPaginationStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .idle(hitTimelineStart: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 2: return .paginating
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RoomPaginationStatus, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .idle(hitTimelineStart):
+            writeInt(&buf, Int32(1))
+            FfiConverterBool.write(hitTimelineStart, into: &buf)
+            
+        
+        case .paginating:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeRoomPaginationStatus_lift(_ buf: RustBuffer) throws -> RoomPaginationStatus {
+    return try FfiConverterTypeRoomPaginationStatus.lift(buf)
+}
+
+public func FfiConverterTypeRoomPaginationStatus_lower(_ value: RoomPaginationStatus) -> RustBuffer {
+    return FfiConverterTypeRoomPaginationStatus.lower(value)
+}
+
+
+
+extension RoomPaginationStatus: Equatable, Hashable {}
+
+
+
 fileprivate struct FfiConverterOptionInt64: FfiConverterRustBuffer {
     typealias SwiftType = Int64?
 
@@ -1166,7 +1258,7 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_matrix_sdk_checksum_method_oidcauthorizationdata_login_url() != 59213) {
+    if (uniffi_matrix_sdk_checksum_method_oauthauthorizationdata_login_url() != 25566) {
         return InitializationResult.apiChecksumMismatch
     }
 
