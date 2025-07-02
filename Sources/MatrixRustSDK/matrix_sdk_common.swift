@@ -452,6 +452,11 @@ public enum ShieldStateCode {
      * The sender was previously verified but changed their identity.
      */
     case verificationViolation
+    /**
+     * The `sender` field on the event does not match the owner of the device
+     * that established the Megolm session.
+     */
+    case mismatchedSender
 }
 
 
@@ -473,6 +478,8 @@ public struct FfiConverterTypeShieldStateCode: FfiConverterRustBuffer {
         case 5: return .sentInClear
         
         case 6: return .verificationViolation
+        
+        case 7: return .mismatchedSender
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -504,6 +511,10 @@ public struct FfiConverterTypeShieldStateCode: FfiConverterRustBuffer {
         
         case .verificationViolation:
             writeInt(&buf, Int32(6))
+        
+        
+        case .mismatchedSender:
+            writeInt(&buf, Int32(7))
         
         }
     }
