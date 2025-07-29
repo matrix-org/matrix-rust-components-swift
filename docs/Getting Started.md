@@ -55,7 +55,7 @@ Next we need to start the sync loop and listen for room updates.
 ```swift
 class AllRoomsListener: RoomListEntriesListener {
     /// The user's list of rooms.
-    var rooms: [RoomListItem] = []
+    var rooms: [Room] = []
     
     func onUpdate(roomEntriesUpdate: [MatrixRustSDK.RoomListEntriesUpdate]) {
         // Update the user's room list on each update.
@@ -104,10 +104,7 @@ class TimelineItemListener: TimelineListener {
 
 // Fetch the room from the listener and initialise it's timeline.
 let room = listener.rooms.first!
-if !room.isTimelineInitialized() {
-    try await room.initTimeline(eventTypeFilter: nil, internalIdPrefix: nil)
-}
-let timeline = try await room.fullRoom().timeline()
+let timeline = try await room.timeline()
 
 // Listen to timeline item updates.
 let timelineItemsListener = TimelineItemListener()
@@ -117,8 +114,9 @@ let timelineHandle = await timeline.addListener(listener: timelineItemsListener)
 
 // Get the event contents from an item.
 let timelineItem = timelineItemsListener.timelineItems.last!
-if let messageEvent = timelineItem.asEvent()?.content().asMessage() {
-    print(messageEvent)
+if case let .msgLike(content: messageEvent) = timelineItem.asEvent()?.content,
+   case let .message(content: messageContent) = messageEvent.kind {
+    print(messageContent.body)
 }
 ```
 
