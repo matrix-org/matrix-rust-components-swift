@@ -4,7 +4,9 @@ This repository is a Swift Package for distributing releases of the [Matrix Rust
 
 ## Usage
 
-For more information about using the package, please read the [Getting Started](docs/Getting%20Started.md) guide.
+A brief walkthrough of the SDK is available in the [Examples](Examples/) directory. You can find more information about the API by browsing the [FFI crate](https://github.com/matrix-org/matrix-rust-sdk/tree/main/bindings/matrix-sdk-ffi/src) in the SDK's repository.
+
+Please note: The Swift components for the Rust SDK are unstable meaning that the API could change at any point.
 
 ## Releasing
 
