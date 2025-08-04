@@ -891,6 +891,11 @@ public struct VirtualElementCallWidgetOptions {
      * client. (used on ios & android)
      */
     public var controlledMediaDevices: Bool
+    /**
+     * Whether and what type of notification Element Call should send, when
+     * starting a call.
+     */
+    public var sendNotificationType: NotificationType?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -993,7 +998,11 @@ public struct VirtualElementCallWidgetOptions {
         /**
          * - `false`: the webview shows a a list of devices injected by the
          * client. (used on ios & android)
-         */controlledMediaDevices: Bool) {
+         */controlledMediaDevices: Bool, 
+        /**
+         * Whether and what type of notification Element Call should send, when
+         * starting a call.
+         */sendNotificationType: NotificationType?) {
         self.elementCallUrl = elementCallUrl
         self.widgetId = widgetId
         self.parentUrl = parentUrl
@@ -1014,6 +1023,7 @@ public struct VirtualElementCallWidgetOptions {
         self.sentryDsn = sentryDsn
         self.sentryEnvironment = sentryEnvironment
         self.controlledMediaDevices = controlledMediaDevices
+        self.sendNotificationType = sendNotificationType
     }
 }
 
@@ -1081,6 +1091,9 @@ extension VirtualElementCallWidgetOptions: Equatable, Hashable {
         if lhs.controlledMediaDevices != rhs.controlledMediaDevices {
             return false
         }
+        if lhs.sendNotificationType != rhs.sendNotificationType {
+            return false
+        }
         return true
     }
 
@@ -1105,6 +1118,7 @@ extension VirtualElementCallWidgetOptions: Equatable, Hashable {
         hasher.combine(sentryDsn)
         hasher.combine(sentryEnvironment)
         hasher.combine(controlledMediaDevices)
+        hasher.combine(sendNotificationType)
     }
 }
 
@@ -1132,7 +1146,8 @@ public struct FfiConverterTypeVirtualElementCallWidgetOptions: FfiConverterRustB
                 rageshakeSubmitUrl: FfiConverterOptionString.read(from: &buf), 
                 sentryDsn: FfiConverterOptionString.read(from: &buf), 
                 sentryEnvironment: FfiConverterOptionString.read(from: &buf), 
-                controlledMediaDevices: FfiConverterBool.read(from: &buf)
+                controlledMediaDevices: FfiConverterBool.read(from: &buf), 
+                sendNotificationType: FfiConverterOptionTypeNotificationType.read(from: &buf)
         )
     }
 
@@ -1157,6 +1172,7 @@ public struct FfiConverterTypeVirtualElementCallWidgetOptions: FfiConverterRustB
         FfiConverterOptionString.write(value.sentryDsn, into: &buf)
         FfiConverterOptionString.write(value.sentryEnvironment, into: &buf)
         FfiConverterBool.write(value.controlledMediaDevices, into: &buf)
+        FfiConverterOptionTypeNotificationType.write(value.sendNotificationType, into: &buf)
     }
 }
 
@@ -1483,6 +1499,70 @@ extension Intent: Equatable, Hashable {}
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * Types of call notifications.
+ */
+
+public enum NotificationType {
+    
+    /**
+     * The receiving client should display a visual notification.
+     */
+    case notification
+    /**
+     * The receiving client should ring with an audible sound.
+     */
+    case ring
+}
+
+
+public struct FfiConverterTypeNotificationType: FfiConverterRustBuffer {
+    typealias SwiftType = NotificationType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .notification
+        
+        case 2: return .ring
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: NotificationType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .notification:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .ring:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+public func FfiConverterTypeNotificationType_lift(_ buf: RustBuffer) throws -> NotificationType {
+    return try FfiConverterTypeNotificationType.lift(buf)
+}
+
+public func FfiConverterTypeNotificationType_lower(_ value: NotificationType) -> RustBuffer {
+    return FfiConverterTypeNotificationType.lower(value)
+}
+
+
+
+extension NotificationType: Equatable, Hashable {}
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * Current state of a [`Paginator`].
  */
 
@@ -1726,6 +1806,19 @@ extension QrCodeLoginError: Foundation.LocalizedError {
 public enum RoomMemberRole {
     
     /**
+     * The member is a creator.
+     *
+     * A creator has an infinite power level and cannot be demoted, so this
+     * role is immutable. A room can have several creators.
+     *
+     * It is available in room versions where
+     * `explicitly_privilege_room_creators` in [`AuthorizationRules`] is set to
+     * `true`.
+     *
+     * [`AuthorizationRules`]: ruma::room_version_rules::AuthorizationRules
+     */
+    case creator
+    /**
      * The member is an administrator.
      */
     case administrator
@@ -1747,11 +1840,13 @@ public struct FfiConverterTypeRoomMemberRole: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .administrator
+        case 1: return .creator
         
-        case 2: return .moderator
+        case 2: return .administrator
         
-        case 3: return .user
+        case 3: return .moderator
+        
+        case 4: return .user
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1761,16 +1856,20 @@ public struct FfiConverterTypeRoomMemberRole: FfiConverterRustBuffer {
         switch value {
         
         
-        case .administrator:
+        case .creator:
             writeInt(&buf, Int32(1))
         
         
-        case .moderator:
+        case .administrator:
             writeInt(&buf, Int32(2))
         
         
-        case .user:
+        case .moderator:
             writeInt(&buf, Int32(3))
+        
+        
+        case .user:
+            writeInt(&buf, Int32(4))
         
         }
     }
@@ -1983,6 +2082,27 @@ fileprivate struct FfiConverterOptionTypeIntent: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeIntent.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+fileprivate struct FfiConverterOptionTypeNotificationType: FfiConverterRustBuffer {
+    typealias SwiftType = NotificationType?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeNotificationType.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeNotificationType.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
