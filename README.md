@@ -1,6 +1,6 @@
 # Swift package for Matrix Rust components
 
-This repository is a Swift Package for distributing releases of the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk). It provides the Swift source code packaged in a format understood by the Swift package manager, and depends on a pre-compiled binary release of the underlying Rust code published from [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk).
+This repository is a Swift Package for distributing releases of the [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk). It provides the Swift source code packaged in a format understood by the Swift package manager, and depends on a pre-compiled binary release of the underlying Rust code published from [Matrix Rust SDK](https://github.com/matrix-org/matrix-rust-sdk). The currently supported platforms can be found in the package's [manifest](https://github.com/matrix-org/matrix-rust-components-swift/blob/main/Package.swift#L9-L12).
 
 ## Usage
 
