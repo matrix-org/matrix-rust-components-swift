@@ -769,6 +769,78 @@ public func FfiConverterTypeRoomPowerLevelChanges_lower(_ value: RoomPowerLevelC
 
 
 /**
+ * Information about the server vendor obtained from the federation API.
+ */
+public struct ServerVendorInfo {
+    /**
+     * The server name.
+     */
+    public var serverName: String
+    /**
+     * The server version.
+     */
+    public var version: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The server name.
+         */serverName: String, 
+        /**
+         * The server version.
+         */version: String) {
+        self.serverName = serverName
+        self.version = version
+    }
+}
+
+
+
+extension ServerVendorInfo: Equatable, Hashable {
+    public static func ==(lhs: ServerVendorInfo, rhs: ServerVendorInfo) -> Bool {
+        if lhs.serverName != rhs.serverName {
+            return false
+        }
+        if lhs.version != rhs.version {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(serverName)
+        hasher.combine(version)
+    }
+}
+
+
+public struct FfiConverterTypeServerVendorInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ServerVendorInfo {
+        return
+            try ServerVendorInfo(
+                serverName: FfiConverterString.read(from: &buf), 
+                version: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ServerVendorInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.serverName, into: &buf)
+        FfiConverterString.write(value.version, into: &buf)
+    }
+}
+
+
+public func FfiConverterTypeServerVendorInfo_lift(_ buf: RustBuffer) throws -> ServerVendorInfo {
+    return try FfiConverterTypeServerVendorInfo.lift(buf)
+}
+
+public func FfiConverterTypeServerVendorInfo_lower(_ value: ServerVendorInfo) -> RustBuffer {
+    return FfiConverterTypeServerVendorInfo.lower(value)
+}
+
+
+/**
  * Properties to create a new virtual Element Call widget.
  */
 public struct VirtualElementCallWidgetOptions {
