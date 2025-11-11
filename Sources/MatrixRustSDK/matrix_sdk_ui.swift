@@ -50,9 +50,11 @@ fileprivate extension ForeignBytes {
 
 fileprivate extension Data {
     init(rustBuffer: RustBuffer) {
-        // TODO: This copies the buffer. Can we read directly from a
-        // Rust buffer?
-        self.init(bytes: rustBuffer.data!, count: Int(rustBuffer.len))
+        self.init(
+            bytesNoCopy: rustBuffer.data!,
+            count: Int(rustBuffer.len),
+            deallocator: .none
+        )
     }
 }
 
@@ -168,10 +170,16 @@ fileprivate protocol FfiConverter {
 fileprivate protocol FfiConverterPrimitive: FfiConverter where FfiType == SwiftType { }
 
 extension FfiConverterPrimitive {
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lift(_ value: FfiType) throws -> SwiftType {
         return value
     }
 
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lower(_ value: SwiftType) -> FfiType {
         return value
     }
@@ -182,6 +190,9 @@ extension FfiConverterPrimitive {
 fileprivate protocol FfiConverterRustBuffer: FfiConverter where FfiType == RustBuffer {}
 
 extension FfiConverterRustBuffer {
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lift(_ buf: RustBuffer) throws -> SwiftType {
         var reader = createReader(data: Data(rustBuffer: buf))
         let value = try read(from: &reader)
@@ -192,6 +203,9 @@ extension FfiConverterRustBuffer {
         return value
     }
 
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lower(_ value: SwiftType) -> RustBuffer {
           var writer = createWriter()
           write(value, into: &writer)
@@ -267,7 +281,7 @@ private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
     errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
-    uniffiEnsureInitialized()
+    uniffiEnsureMatrixSdkUiInitialized()
     var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
@@ -338,18 +352,29 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-fileprivate class UniffiHandleMap<T> {
-    private var map: [UInt64: T] = [:]
+// Initial value and increment amount for handles. 
+// These ensure that SWIFT handles always have the lowest bit set
+fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
+fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
+
+fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
+    // All mutation happens with this lock held, which is why we implement @unchecked Sendable.
     private let lock = NSLock()
-    private var currentHandle: UInt64 = 1
+    private var map: [UInt64: T] = [:]
+    private var currentHandle: UInt64 = UNIFFI_HANDLEMAP_INITIAL
 
     func insert(obj: T) -> UInt64 {
         lock.withLock {
-            let handle = currentHandle
-            currentHandle += 1
-            map[handle] = obj
-            return handle
+            return doInsert(obj)
         }
+    }
+
+    // Low-level insert function, this assumes `lock` is held.
+    private func doInsert(_ obj: T) -> UInt64 {
+        let handle = currentHandle
+        currentHandle += UNIFFI_HANDLEMAP_DELTA
+        map[handle] = obj
+        return handle
     }
 
      func get(handle: UInt64) throws -> T {
@@ -358,6 +383,15 @@ fileprivate class UniffiHandleMap<T> {
                 throw UniffiInternalError.unexpectedStaleHandle
             }
             return obj
+        }
+    }
+
+     func clone(handle: UInt64) throws -> UInt64 {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return doInsert(obj)
         }
     }
 
@@ -382,6 +416,9 @@ fileprivate class UniffiHandleMap<T> {
 // Public interface members begin here.
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
@@ -403,6 +440,9 @@ fileprivate struct FfiConverterBool : FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -447,7 +487,7 @@ fileprivate struct FfiConverterString: FfiConverter {
  * Where this event came.
  */
 
-public enum EventItemOrigin {
+public enum EventItemOrigin: Equatable, Hashable {
     
     /**
      * The event was created locally.
@@ -465,9 +505,18 @@ public enum EventItemOrigin {
      * The event came from a cache.
      */
     case cache
+
+
+
 }
 
+#if compiler(>=6)
+extension EventItemOrigin: Sendable {}
+#endif
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public struct FfiConverterTypeEventItemOrigin: FfiConverterRustBuffer {
     typealias SwiftType = EventItemOrigin
 
@@ -511,18 +560,19 @@ public struct FfiConverterTypeEventItemOrigin: FfiConverterRustBuffer {
 }
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeEventItemOrigin_lift(_ buf: RustBuffer) throws -> EventItemOrigin {
     return try FfiConverterTypeEventItemOrigin.lift(buf)
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeEventItemOrigin_lower(_ value: EventItemOrigin) -> RustBuffer {
     return FfiConverterTypeEventItemOrigin.lower(value)
 }
-
-
-
-extension EventItemOrigin: Equatable, Hashable {}
-
 
 
 // Note that we don't yet support `indirect` for enums.
@@ -531,7 +581,7 @@ extension EventItemOrigin: Equatable, Hashable {}
  * The type of change between the previous and current pinned events.
  */
 
-public enum RoomPinnedEventsChange {
+public enum RoomPinnedEventsChange: Equatable, Hashable {
     
     /**
      * Only new event ids were added.
@@ -545,9 +595,18 @@ public enum RoomPinnedEventsChange {
      * Some change other than only adding or only removing ids happened.
      */
     case changed
+
+
+
 }
 
+#if compiler(>=6)
+extension RoomPinnedEventsChange: Sendable {}
+#endif
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public struct FfiConverterTypeRoomPinnedEventsChange: FfiConverterRustBuffer {
     typealias SwiftType = RoomPinnedEventsChange
 
@@ -585,31 +644,41 @@ public struct FfiConverterTypeRoomPinnedEventsChange: FfiConverterRustBuffer {
 }
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeRoomPinnedEventsChange_lift(_ buf: RustBuffer) throws -> RoomPinnedEventsChange {
     return try FfiConverterTypeRoomPinnedEventsChange.lift(buf)
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeRoomPinnedEventsChange_lower(_ value: RoomPinnedEventsChange) -> RustBuffer {
     return FfiConverterTypeRoomPinnedEventsChange.lower(value)
 }
 
 
-
-extension RoomPinnedEventsChange: Equatable, Hashable {}
-
-
-
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
-public enum SpaceRoomListPaginationState {
+public enum SpaceRoomListPaginationState: Equatable, Hashable {
     
     case idle(endReached: Bool
     )
     case loading
+
+
+
 }
 
+#if compiler(>=6)
+extension SpaceRoomListPaginationState: Sendable {}
+#endif
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public struct FfiConverterTypeSpaceRoomListPaginationState: FfiConverterRustBuffer {
     typealias SwiftType = SpaceRoomListPaginationState
 
@@ -643,18 +712,19 @@ public struct FfiConverterTypeSpaceRoomListPaginationState: FfiConverterRustBuff
 }
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeSpaceRoomListPaginationState_lift(_ buf: RustBuffer) throws -> SpaceRoomListPaginationState {
     return try FfiConverterTypeSpaceRoomListPaginationState.lift(buf)
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeSpaceRoomListPaginationState_lower(_ value: SpaceRoomListPaginationState) -> RustBuffer {
     return FfiConverterTypeSpaceRoomListPaginationState.lower(value)
 }
-
-
-
-extension SpaceRoomListPaginationState: Equatable, Hashable {}
-
 
 
 private enum InitializationResult {
@@ -664,9 +734,9 @@ private enum InitializationResult {
 }
 // Use a global variable to perform the versioning checks. Swift ensures that
 // the code inside is only computed once.
-private var initializationResult: InitializationResult = {
+private let initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 26
+    let bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_matrix_sdk_ui_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
@@ -676,7 +746,9 @@ private var initializationResult: InitializationResult = {
     return InitializationResult.ok
 }()
 
-private func uniffiEnsureInitialized() {
+// Make the ensure init function public so that other modules which have external type references to
+// our types can call it.
+public func uniffiEnsureMatrixSdkUiInitialized() {
     switch initializationResult {
     case .ok:
         break

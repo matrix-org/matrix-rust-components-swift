@@ -50,9 +50,11 @@ fileprivate extension ForeignBytes {
 
 fileprivate extension Data {
     init(rustBuffer: RustBuffer) {
-        // TODO: This copies the buffer. Can we read directly from a
-        // Rust buffer?
-        self.init(bytes: rustBuffer.data!, count: Int(rustBuffer.len))
+        self.init(
+            bytesNoCopy: rustBuffer.data!,
+            count: Int(rustBuffer.len),
+            deallocator: .none
+        )
     }
 }
 
@@ -168,10 +170,16 @@ fileprivate protocol FfiConverter {
 fileprivate protocol FfiConverterPrimitive: FfiConverter where FfiType == SwiftType { }
 
 extension FfiConverterPrimitive {
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lift(_ value: FfiType) throws -> SwiftType {
         return value
     }
 
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lower(_ value: SwiftType) -> FfiType {
         return value
     }
@@ -182,6 +190,9 @@ extension FfiConverterPrimitive {
 fileprivate protocol FfiConverterRustBuffer: FfiConverter where FfiType == RustBuffer {}
 
 extension FfiConverterRustBuffer {
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lift(_ buf: RustBuffer) throws -> SwiftType {
         var reader = createReader(data: Data(rustBuffer: buf))
         let value = try read(from: &reader)
@@ -192,6 +203,9 @@ extension FfiConverterRustBuffer {
         return value
     }
 
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lower(_ value: SwiftType) -> RustBuffer {
           var writer = createWriter()
           write(value, into: &writer)
@@ -267,7 +281,7 @@ private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
     errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
-    uniffiEnsureInitialized()
+    uniffiEnsureMatrixSdkBaseInitialized()
     var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
@@ -338,18 +352,29 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-fileprivate class UniffiHandleMap<T> {
-    private var map: [UInt64: T] = [:]
+// Initial value and increment amount for handles. 
+// These ensure that SWIFT handles always have the lowest bit set
+fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
+fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
+
+fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
+    // All mutation happens with this lock held, which is why we implement @unchecked Sendable.
     private let lock = NSLock()
-    private var currentHandle: UInt64 = 1
+    private var map: [UInt64: T] = [:]
+    private var currentHandle: UInt64 = UNIFFI_HANDLEMAP_INITIAL
 
     func insert(obj: T) -> UInt64 {
         lock.withLock {
-            let handle = currentHandle
-            currentHandle += 1
-            map[handle] = obj
-            return handle
+            return doInsert(obj)
         }
+    }
+
+    // Low-level insert function, this assumes `lock` is held.
+    private func doInsert(_ obj: T) -> UInt64 {
+        let handle = currentHandle
+        currentHandle += UNIFFI_HANDLEMAP_DELTA
+        map[handle] = obj
+        return handle
     }
 
      func get(handle: UInt64) throws -> T {
@@ -358,6 +383,15 @@ fileprivate class UniffiHandleMap<T> {
                 throw UniffiInternalError.unexpectedStaleHandle
             }
             return obj
+        }
+    }
+
+     func clone(handle: UInt64) throws -> UInt64 {
+        try lock.withLock {
+            guard let obj = map[handle] else {
+                throw UniffiInternalError.unexpectedStaleHandle
+            }
+            return doInsert(obj)
         }
     }
 
@@ -382,6 +416,9 @@ fileprivate class UniffiHandleMap<T> {
 // Public interface members begin here.
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     typealias FfiType = UInt64
     typealias SwiftType = UInt64
@@ -395,6 +432,9 @@ fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
@@ -433,6 +473,9 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterDuration: FfiConverterRustBuffer {
     typealias SwiftType = TimeInterval
 
@@ -464,7 +507,7 @@ fileprivate struct FfiConverterDuration: FfiConverterRustBuffer {
  *
  * [`EventCacheStore`]: crate::event_cache::store::EventCacheStore
  */
-public struct MediaRetentionPolicy {
+public struct MediaRetentionPolicy: Equatable, Hashable {
     /**
      * The maximum authorized size of the overall media cache, in bytes.
      *
@@ -582,36 +625,17 @@ public struct MediaRetentionPolicy {
         self.lastAccessExpiry = lastAccessExpiry
         self.cleanupFrequency = cleanupFrequency
     }
+
+    
 }
 
+#if compiler(>=6)
+extension MediaRetentionPolicy: Sendable {}
+#endif
 
-
-extension MediaRetentionPolicy: Equatable, Hashable {
-    public static func ==(lhs: MediaRetentionPolicy, rhs: MediaRetentionPolicy) -> Bool {
-        if lhs.maxCacheSize != rhs.maxCacheSize {
-            return false
-        }
-        if lhs.maxFileSize != rhs.maxFileSize {
-            return false
-        }
-        if lhs.lastAccessExpiry != rhs.lastAccessExpiry {
-            return false
-        }
-        if lhs.cleanupFrequency != rhs.cleanupFrequency {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(maxCacheSize)
-        hasher.combine(maxFileSize)
-        hasher.combine(lastAccessExpiry)
-        hasher.combine(cleanupFrequency)
-    }
-}
-
-
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public struct FfiConverterTypeMediaRetentionPolicy: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaRetentionPolicy {
         return
@@ -632,10 +656,16 @@ public struct FfiConverterTypeMediaRetentionPolicy: FfiConverterRustBuffer {
 }
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeMediaRetentionPolicy_lift(_ buf: RustBuffer) throws -> MediaRetentionPolicy {
     return try FfiConverterTypeMediaRetentionPolicy.lift(buf)
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeMediaRetentionPolicy_lower(_ value: MediaRetentionPolicy) -> RustBuffer {
     return FfiConverterTypeMediaRetentionPolicy.lower(value)
 }
@@ -646,7 +676,7 @@ public func FfiConverterTypeMediaRetentionPolicy_lower(_ value: MediaRetentionPo
  * Represents the state of a room encryption.
  */
 
-public enum EncryptionState {
+public enum EncryptionState: Equatable, Hashable {
     
     /**
      * The room is encrypted.
@@ -661,9 +691,18 @@ public enum EncryptionState {
      * `/sync` did not provide all data needed to decide.
      */
     case unknown
+
+
+
 }
 
+#if compiler(>=6)
+extension EncryptionState: Sendable {}
+#endif
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public struct FfiConverterTypeEncryptionState: FfiConverterRustBuffer {
     typealias SwiftType = EncryptionState
 
@@ -701,20 +740,24 @@ public struct FfiConverterTypeEncryptionState: FfiConverterRustBuffer {
 }
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeEncryptionState_lift(_ buf: RustBuffer) throws -> EncryptionState {
     return try FfiConverterTypeEncryptionState.lift(buf)
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 public func FfiConverterTypeEncryptionState_lower(_ value: EncryptionState) -> RustBuffer {
     return FfiConverterTypeEncryptionState.lower(value)
 }
 
 
-
-extension EncryptionState: Equatable, Hashable {}
-
-
-
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
     typealias SwiftType = UInt64?
 
@@ -736,6 +779,9 @@ fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionDuration: FfiConverterRustBuffer {
     typealias SwiftType = TimeInterval?
 
@@ -764,9 +810,9 @@ private enum InitializationResult {
 }
 // Use a global variable to perform the versioning checks. Swift ensures that
 // the code inside is only computed once.
-private var initializationResult: InitializationResult = {
+private let initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
-    let bindings_contract_version = 26
+    let bindings_contract_version = 30
     // Get the scaffolding contract version by calling the into the dylib
     let scaffolding_contract_version = ffi_matrix_sdk_base_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
@@ -776,7 +822,9 @@ private var initializationResult: InitializationResult = {
     return InitializationResult.ok
 }()
 
-private func uniffiEnsureInitialized() {
+// Make the ensure init function public so that other modules which have external type references to
+// our types can call it.
+public func uniffiEnsureMatrixSdkBaseInitialized() {
     switch initializationResult {
     case .ok:
         break
