@@ -728,7 +728,11 @@ open class CheckCodeSender: CheckCodeSenderProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_checkcodesender(handle, $0) }
     }
 
@@ -828,12 +832,6 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func accountData(eventType: String) async throws  -> String?
     
     func accountUrl(action: AccountManagementAction?) async throws  -> String?
-    
-    /**
-     * Adds a recently used emoji to the list and uploads the updated
-     * `io.element.recent_emoji` content to the global account data.
-     */
-    func addRecentEmoji(emoji: String) async throws 
     
     /**
      * Find all sliding sync versions that are available.
@@ -989,12 +987,6 @@ public protocol ClientProtocol: AnyObject, Sendable {
     
     func getProfile(userId: String) async throws  -> UserProfile
     
-    /**
-     * Gets the list of recently used emojis from the
-     * `io.element.recent_emoji` global account data.
-     */
-    func getRecentEmojis() async throws  -> [RecentEmoji]
-    
     func getRecentlyVisitedRooms() async throws  -> [String]
     
     /**
@@ -1029,6 +1021,11 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func getSessionVerificationController() async throws  -> SessionVerificationController
     
     /**
+     * Returns the sizes of the existing stores, if known.
+     */
+    func getStoreSizes() async throws  -> StoreSizes
+    
+    /**
      * Allows generic GET requests to be made through the SDK's internal HTTP
      * client. This is useful when the caller's native HTTP client wouldn't
      * have the same configuration (such as certificates, proxies, etc.) This
@@ -1058,6 +1055,11 @@ public protocol ClientProtocol: AnyObject, Sendable {
      * Checks if the server supports the LiveKit RTC focus for placing calls.
      */
     func isLivekitRtcSupported() async throws  -> Bool
+    
+    /**
+     * Checks if the server supports login using a QR code.
+     */
+    func isLoginWithQrCodeSupported() async throws  -> Bool
     
     /**
      * Checks if the server supports the report room API.
@@ -1157,6 +1159,12 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func observeRoomAccountDataEvent(roomId: String, eventType: RoomAccountDataEventType, listener: RoomAccountDataListener) throws  -> TaskHandle
     
     /**
+     * Perform database optimizations if any are available, i.e. vacuuming in
+     * SQLite.
+     */
+    func optimizeStores() async throws 
+    
+    /**
      * Register a handler for notifications generated from sync responses.
      *
      * The handler will be called during sync for each event that triggers
@@ -1176,11 +1184,20 @@ public protocol ClientProtocol: AnyObject, Sendable {
     /**
      * Empty the server version and unstable features cache.
      *
-     * Since the SDK caches server info (versions, unstable features,
-     * well-known etc), it's possible to have a stale entry in the cache.
-     * This functions makes it possible to force reset it.
+     * Since the SDK caches the supported versions, it's possible to have a
+     * stale entry in the cache. This functions makes it possible to force
+     * reset it.
      */
-    func resetServerInfo() async throws 
+    func resetSupportedVersions() async throws 
+    
+    /**
+     * Empty the well-known cache.
+     *
+     * Since the SDK caches the well-known, it's possible to have a stale
+     * entry in the cache. This functions makes it possible to force reset
+     * it.
+     */
+    func resetWellKnown() async throws 
     
     /**
      * Resolves the given room alias to a room ID (and a list of servers), if
@@ -1287,7 +1304,7 @@ public protocol ClientProtocol: AnyObject, Sendable {
      */
     func slidingSyncVersion()  -> SlidingSyncVersion
     
-    func spaceService()  -> SpaceService
+    func spaceService() async  -> SpaceService
     
     /**
      * Returns a handler to start the SSO login process.
@@ -1387,6 +1404,18 @@ public protocol ClientProtocol: AnyObject, Sendable {
      */
     func userIdServerName() throws  -> String
     
+    /**
+     * Adds a recently used emoji to the list and uploads the updated
+     * `io.element.recent_emoji` content to the global account data.
+     */
+    func addRecentEmoji(emoji: String) async throws 
+    
+    /**
+     * Gets the list of recently used emojis from the
+     * `io.element.recent_emoji` global account data.
+     */
+    func getRecentEmojis() async throws  -> [RecentEmoji]
+    
 }
 open class Client: ClientProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -1430,7 +1459,11 @@ open class Client: ClientProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_client(handle, $0) }
     }
 
@@ -1495,27 +1528,6 @@ open func accountUrl(action: AccountManagementAction?)async throws  -> String?  
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionString.lift,
-            errorHandler: FfiConverterTypeClientError_lift
-        )
-}
-    
-    /**
-     * Adds a recently used emoji to the list and uploads the updated
-     * `io.element.recent_emoji` content to the global account data.
-     */
-open func addRecentEmoji(emoji: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_client_add_recent_emoji(
-                    self.uniffiCloneHandle(),
-                    FfiConverterString.lower(emoji)
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
             errorHandler: FfiConverterTypeClientError_lift
         )
 }
@@ -2008,27 +2020,6 @@ open func getProfile(userId: String)async throws  -> UserProfile  {
         )
 }
     
-    /**
-     * Gets the list of recently used emojis from the
-     * `io.element.recent_emoji` global account data.
-     */
-open func getRecentEmojis()async throws  -> [RecentEmoji]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_client_get_recent_emojis(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeRecentEmoji.lift,
-            errorHandler: FfiConverterTypeClientError_lift
-        )
-}
-    
 open func getRecentlyVisitedRooms()async throws  -> [String]  {
     return
         try  await uniffiRustCallAsync(
@@ -2125,6 +2116,26 @@ open func getSessionVerificationController()async throws  -> SessionVerification
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_u64,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_u64,
             liftFunc: FfiConverterTypeSessionVerificationController_lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Returns the sizes of the existing stores, if known.
+     */
+open func getStoreSizes()async throws  -> StoreSizes  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_store_sizes(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeStoreSizes_lift,
             errorHandler: FfiConverterTypeClientError_lift
         )
 }
@@ -2230,6 +2241,26 @@ open func isLivekitRtcSupported()async throws  -> Bool  {
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_is_livekit_rtc_supported(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Checks if the server supports login using a QR code.
+     */
+open func isLoginWithQrCodeSupported()async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_is_login_with_qr_code_supported(
                     self.uniffiCloneHandle()
                     
                 )
@@ -2520,6 +2551,27 @@ open func observeRoomAccountDataEvent(roomId: String, eventType: RoomAccountData
 }
     
     /**
+     * Perform database optimizations if any are available, i.e. vacuuming in
+     * SQLite.
+     */
+open func optimizeStores()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_optimize_stores(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
      * Register a handler for notifications generated from sync responses.
      *
      * The handler will be called during sync for each event that triggers
@@ -2570,15 +2622,39 @@ open func removeAvatar()async throws   {
     /**
      * Empty the server version and unstable features cache.
      *
-     * Since the SDK caches server info (versions, unstable features,
-     * well-known etc), it's possible to have a stale entry in the cache.
-     * This functions makes it possible to force reset it.
+     * Since the SDK caches the supported versions, it's possible to have a
+     * stale entry in the cache. This functions makes it possible to force
+     * reset it.
      */
-open func resetServerInfo()async throws   {
+open func resetSupportedVersions()async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_client_reset_server_info(
+                uniffi_matrix_sdk_ffi_fn_method_client_reset_supported_versions(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Empty the well-known cache.
+     *
+     * Since the SDK caches the well-known, it's possible to have a stale
+     * entry in the cache. This functions makes it possible to force reset
+     * it.
+     */
+open func resetWellKnown()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_reset_well_known(
                     self.uniffiCloneHandle()
                     
                 )
@@ -2928,12 +3004,22 @@ open func slidingSyncVersion() -> SlidingSyncVersion  {
 })
 }
     
-open func spaceService() -> SpaceService  {
-    return try!  FfiConverterTypeSpaceService_lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_method_client_space_service(
-            self.uniffiCloneHandle(),$0
-    )
-})
+open func spaceService()async  -> SpaceService  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_space_service(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_u64,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_u64,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeSpaceService_lift,
+            errorHandler: nil
+            
+        )
 }
     
     /**
@@ -3201,6 +3287,48 @@ open func userIdServerName()throws  -> String  {
 })
 }
     
+    /**
+     * Adds a recently used emoji to the list and uploads the updated
+     * `io.element.recent_emoji` content to the global account data.
+     */
+open func addRecentEmoji(emoji: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_add_recent_emoji(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(emoji)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Gets the list of recently used emojis from the
+     * `io.element.recent_emoji` global account data.
+     */
+open func getRecentEmojis()async throws  -> [RecentEmoji]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_recent_emojis(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeRecentEmoji.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
 
     
 }
@@ -3414,7 +3542,11 @@ public convenience init() {
 }
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_clientbuilder(handle, $0) }
     }
 
@@ -3845,11 +3977,13 @@ public protocol EncryptionProtocol: AnyObject, Sendable {
      * This method always tries to fetch the identity from the store, which we
      * only have if the user is tracked, meaning that we are both members
      * of the same encrypted room. If no user is found locally, a request will
-     * be made to the homeserver.
+     * be made to the homeserver unless `fallback_to_server` is set to `false`.
      *
      * # Arguments
      *
      * * `user_id` - The ID of the user that the identity belongs to.
+     * * `fallback_to_server` - Should we request the user identity from the
+     * homeserver if one isn't found locally.
      *
      * Returns a `UserIdentity` if one is found. Returns an error if there
      * was an issue with the crypto store or with the request to the
@@ -3857,7 +3991,7 @@ public protocol EncryptionProtocol: AnyObject, Sendable {
      *
      * This will always return `None` if the client hasn't been logged in.
      */
-    func userIdentity(userId: String) async throws  -> UserIdentity?
+    func userIdentity(userId: String, fallbackToServer: Bool) async throws  -> UserIdentity?
     
     func verificationState()  -> VerificationState
     
@@ -3914,7 +4048,11 @@ open class Encryption: EncryptionProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_encryption(handle, $0) }
     }
 
@@ -4197,11 +4335,13 @@ open func resetRecoveryKey()async throws  -> String  {
      * This method always tries to fetch the identity from the store, which we
      * only have if the user is tracked, meaning that we are both members
      * of the same encrypted room. If no user is found locally, a request will
-     * be made to the homeserver.
+     * be made to the homeserver unless `fallback_to_server` is set to `false`.
      *
      * # Arguments
      *
      * * `user_id` - The ID of the user that the identity belongs to.
+     * * `fallback_to_server` - Should we request the user identity from the
+     * homeserver if one isn't found locally.
      *
      * Returns a `UserIdentity` if one is found. Returns an error if there
      * was an issue with the crypto store or with the request to the
@@ -4209,13 +4349,13 @@ open func resetRecoveryKey()async throws  -> String  {
      *
      * This will always return `None` if the client hasn't been logged in.
      */
-open func userIdentity(userId: String)async throws  -> UserIdentity?  {
+open func userIdentity(userId: String, fallbackToServer: Bool)async throws  -> UserIdentity?  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_user_identity(
                     self.uniffiCloneHandle(),
-                    FfiConverterString.lower(userId)
+                    FfiConverterString.lower(userId),FfiConverterBool.lower(fallbackToServer)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
@@ -4427,7 +4567,11 @@ open class GrantLoginWithQrCodeHandler: GrantLoginWithQrCodeHandlerProtocol, @un
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_grantloginwithqrcodehandler(handle, $0) }
     }
 
@@ -4634,7 +4778,11 @@ open class HomeserverLoginDetails: HomeserverLoginDetailsProtocol, @unchecked Se
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_homeserverlogindetails(handle, $0) }
     }
 
@@ -4822,7 +4970,11 @@ open class IdentityResetHandle: IdentityResetHandleProtocol, @unchecked Sendable
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_identityresethandle(handle, $0) }
     }
 
@@ -4984,7 +5136,11 @@ open class InReplyToDetails: InReplyToDetailsProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_inreplytodetails(handle, $0) }
     }
 
@@ -5133,7 +5289,11 @@ open class KnockRequestActions: KnockRequestActionsProtocol, @unchecked Sendable
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_knockrequestactions(handle, $0) }
     }
 
@@ -5344,7 +5504,11 @@ open class LazyTimelineItemProvider: LazyTimelineItemProviderProtocol, @unchecke
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_lazytimelineitemprovider(handle, $0) }
     }
 
@@ -5516,7 +5680,11 @@ open class LeaveSpaceHandle: LeaveSpaceHandleProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_leavespacehandle(handle, $0) }
     }
 
@@ -5704,7 +5872,11 @@ open class LoginWithQrCodeHandler: LoginWithQrCodeHandlerProtocol, @unchecked Se
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_loginwithqrcodehandler(handle, $0) }
     }
 
@@ -5899,7 +6071,11 @@ open class MediaFileHandle: MediaFileHandleProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_mediafilehandle(handle, $0) }
     }
 
@@ -6025,7 +6201,11 @@ open class MediaSource: MediaSourceProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_mediasource(handle, $0) }
     }
 
@@ -6190,7 +6370,11 @@ open class NotificationClient: NotificationClientProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationclient(handle, $0) }
     }
 
@@ -6501,7 +6685,11 @@ open class NotificationSettings: NotificationSettingsProtocol, @unchecked Sendab
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_notificationsettings(handle, $0) }
     }
 
@@ -7042,6 +7230,12 @@ public protocol QrCodeDataProtocol: AnyObject, Sendable {
      */
     func serverName()  -> String?
     
+    /**
+     * Serialize the [`QrCodeData`] into a byte vector for encoding as a QR
+     * code.
+     */
+    func toBytes()  -> Data
+    
 }
 /**
  * Data for the QR code login mechanism.
@@ -7091,7 +7285,11 @@ open class QrCodeData: QrCodeDataProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_qrcodedata(handle, $0) }
     }
 
@@ -7121,6 +7319,18 @@ public static func fromBytes(bytes: Data)throws  -> QrCodeData  {
 open func serverName() -> String?  {
     return try!  FfiConverterOptionString.lift(try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_method_qrcodedata_server_name(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Serialize the [`QrCodeData`] into a byte vector for encoding as a QR
+     * code.
+     */
+open func toBytes() -> Data  {
+    return try!  FfiConverterData.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_qrcodedata_to_bytes(
             self.uniffiCloneHandle(),$0
     )
 })
@@ -7375,7 +7585,7 @@ public protocol RoomProtocol: AnyObject, Sendable {
     
     func latestEncryptionState() async throws  -> EncryptionState
     
-    func latestEvent() async  -> EventTimelineItem?
+    func latestEvent() async  -> LatestEventValue
     
     /**
      * Leave this room.
@@ -7446,8 +7656,6 @@ public protocol RoomProtocol: AnyObject, Sendable {
      * The room's current membership state.
      */
     func membership()  -> Membership
-    
-    func newLatestEvent() async  -> LatestEventValue
     
     func ownUserId()  -> String
     
@@ -7791,7 +7999,11 @@ open class Room: RoomProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_room(handle, $0) }
     }
 
@@ -8408,7 +8620,7 @@ open func latestEncryptionState()async throws  -> EncryptionState  {
         )
 }
     
-open func latestEvent()async  -> EventTimelineItem?  {
+open func latestEvent()async  -> LatestEventValue  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -8420,7 +8632,7 @@ open func latestEvent()async  -> EventTimelineItem?  {
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeEventTimelineItem.lift,
+            liftFunc: FfiConverterTypeLatestEventValue_lift,
             errorHandler: nil
             
         )
@@ -8695,24 +8907,6 @@ open func membership() -> Membership  {
             self.uniffiCloneHandle(),$0
     )
 })
-}
-    
-open func newLatestEvent()async  -> LatestEventValue  {
-    return
-        try!  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_room_new_latest_event(
-                    self.uniffiCloneHandle()
-                    
-                )
-            },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeLatestEventValue_lift,
-            errorHandler: nil
-            
-        )
 }
     
 open func ownUserId() -> String  {
@@ -9759,7 +9953,11 @@ open class RoomDirectorySearch: RoomDirectorySearchProtocol, @unchecked Sendable
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomdirectorysearch(handle, $0) }
     }
 
@@ -9980,7 +10178,11 @@ open class RoomList: RoomListProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlist(handle, $0) }
     }
 
@@ -10127,7 +10329,11 @@ open class RoomListDynamicEntriesController: RoomListDynamicEntriesControllerPro
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistdynamicentriescontroller(handle, $0) }
     }
 
@@ -10256,7 +10462,11 @@ open class RoomListEntriesWithDynamicAdaptersResult: RoomListEntriesWithDynamicA
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistentrieswithdynamicadaptersresult(handle, $0) }
     }
 
@@ -10384,7 +10594,11 @@ open class RoomListService: RoomListServiceProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roomlistservice(handle, $0) }
     }
 
@@ -10553,7 +10767,11 @@ open class RoomMembersIterator: RoomMembersIteratorProtocol, @unchecked Sendable
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommembersiterator(handle, $0) }
     }
 
@@ -10674,7 +10892,11 @@ open class RoomMessageEventContentWithoutRelation: RoomMessageEventContentWithou
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roommessageeventcontentwithoutrelation(handle, $0) }
     }
 
@@ -10865,6 +11087,8 @@ public protocol RoomPowerLevelsProtocol: AnyObject, Sendable {
      */
     func canUserTriggerRoomNotification(userId: String) throws  -> Bool
     
+    func events()  -> [TimelineEventType: Int64]
+    
     /**
      * Gets a map with the `UserId` of users with power levels other than `0`
      * and their power level.
@@ -10916,7 +11140,11 @@ open class RoomPowerLevels: RoomPowerLevelsProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roompowerlevels(handle, $0) }
     }
 
@@ -11167,6 +11395,14 @@ open func canUserTriggerRoomNotification(userId: String)throws  -> Bool  {
 })
 }
     
+open func events() -> [TimelineEventType: Int64]  {
+    return try!  FfiConverterDictionaryTypeTimelineEventTypeInt64.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_roompowerlevels_events(
+            self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
     /**
      * Gets a map with the `UserId` of users with power levels other than `0`
      * and their power level.
@@ -11321,7 +11557,11 @@ open class RoomPreview: RoomPreviewProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_roompreview(handle, $0) }
     }
 
@@ -11536,7 +11776,11 @@ open class SendAttachmentJoinHandle: SendAttachmentJoinHandleProtocol, @unchecke
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sendattachmentjoinhandle(handle, $0) }
     }
 
@@ -11686,7 +11930,11 @@ open class SendGalleryJoinHandle: SendGalleryJoinHandleProtocol, @unchecked Send
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sendgalleryjoinhandle(handle, $0) }
     }
 
@@ -11856,7 +12104,11 @@ open class SendHandle: SendHandleProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sendhandle(handle, $0) }
     }
 
@@ -12062,7 +12314,11 @@ open class SessionVerificationController: SessionVerificationControllerProtocol,
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sessionverificationcontroller(handle, $0) }
     }
 
@@ -12340,7 +12596,11 @@ open class SessionVerificationEmoji: SessionVerificationEmojiProtocol, @unchecke
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sessionverificationemoji(handle, $0) }
     }
 
@@ -12516,7 +12776,11 @@ open class SpaceRoomList: SpaceRoomListProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_spaceroomlist(handle, $0) }
     }
 
@@ -12672,12 +12936,27 @@ public func FfiConverterTypeSpaceRoomList_lower(_ value: SpaceRoomList) -> UInt6
  */
 public protocol SpaceServiceProtocol: AnyObject, Sendable {
     
+    func addChildToSpace(childId: String, spaceId: String) async throws 
+    
     /**
-     * Returns a list of all the top-level joined spaces. It will eagerly
-     * compute the latest version and also notify subscribers if there were
-     * any changes.
+     * Returns a flattened list containing all the spaces where the user has
+     * permission to send `m.space.child` state events.
+     *
+     * Note: Unlike [`Self::top_level_joined_spaces()`], this method does not
+     * recompute the space graph, nor does it notify subscribers about changes.
      */
-    func joinedSpaces() async  -> [SpaceRoom]
+    func editableSpaces() async  -> [SpaceRoom]
+    
+    /**
+     * Returns the corresponding `SpaceRoom` for the given room ID, or `None`
+     * if it isn't known.
+     */
+    func getSpaceRoom(roomId: String) async throws  -> SpaceRoom?
+    
+    /**
+     * Returns all known direct-parents of a given space room ID.
+     */
+    func joinedParentsOfChild(childId: String) async throws  -> [SpaceRoom]
     
     /**
      * Start a space leave process returning a [`LeaveSpaceHandle`] from which
@@ -12690,6 +12969,8 @@ public protocol SpaceServiceProtocol: AnyObject, Sendable {
      */
     func leaveSpace(spaceId: String) async throws  -> LeaveSpaceHandle
     
+    func removeChildFromSpace(childId: String, spaceId: String) async throws 
+    
     /**
      * Returns a `SpaceRoomList` for the given space ID.
      */
@@ -12699,7 +12980,14 @@ public protocol SpaceServiceProtocol: AnyObject, Sendable {
      * Subscribes to updates on the joined spaces list. If space rooms are
      * joined or left, the stream will yield diffs that reflect the changes.
      */
-    func subscribeToJoinedSpaces(listener: SpaceServiceJoinedSpacesListener) async  -> TaskHandle
+    func subscribeToTopLevelJoinedSpaces(listener: SpaceServiceJoinedSpacesListener) async  -> TaskHandle
+    
+    /**
+     * Returns a list of all the top-level joined spaces. It will eagerly
+     * compute the latest version and also notify subscribers if there were
+     * any changes.
+     */
+    func topLevelJoinedSpaces() async  -> [SpaceRoom]
     
 }
 /**
@@ -12751,23 +13039,46 @@ open class SpaceService: SpaceServiceProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_spaceservice(handle, $0) }
     }
 
     
 
     
+open func addChildToSpace(childId: String, spaceId: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_spaceservice_add_child_to_space(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(childId),FfiConverterString.lower(spaceId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
     /**
-     * Returns a list of all the top-level joined spaces. It will eagerly
-     * compute the latest version and also notify subscribers if there were
-     * any changes.
+     * Returns a flattened list containing all the spaces where the user has
+     * permission to send `m.space.child` state events.
+     *
+     * Note: Unlike [`Self::top_level_joined_spaces()`], this method does not
+     * recompute the space graph, nor does it notify subscribers about changes.
      */
-open func joinedSpaces()async  -> [SpaceRoom]  {
+open func editableSpaces()async  -> [SpaceRoom]  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_spaceservice_joined_spaces(
+                uniffi_matrix_sdk_ffi_fn_method_spaceservice_editable_spaces(
                     self.uniffiCloneHandle()
                     
                 )
@@ -12778,6 +13089,47 @@ open func joinedSpaces()async  -> [SpaceRoom]  {
             liftFunc: FfiConverterSequenceTypeSpaceRoom.lift,
             errorHandler: nil
             
+        )
+}
+    
+    /**
+     * Returns the corresponding `SpaceRoom` for the given room ID, or `None`
+     * if it isn't known.
+     */
+open func getSpaceRoom(roomId: String)async throws  -> SpaceRoom?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_spaceservice_get_space_room(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(roomId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeSpaceRoom.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Returns all known direct-parents of a given space room ID.
+     */
+open func joinedParentsOfChild(childId: String)async throws  -> [SpaceRoom]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_spaceservice_joined_parents_of_child(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(childId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeSpaceRoom.lift,
+            errorHandler: FfiConverterTypeClientError_lift
         )
 }
     
@@ -12807,6 +13159,23 @@ open func leaveSpace(spaceId: String)async throws  -> LeaveSpaceHandle  {
         )
 }
     
+open func removeChildFromSpace(childId: String, spaceId: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_spaceservice_remove_child_from_space(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(childId),FfiConverterString.lower(spaceId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
     /**
      * Returns a `SpaceRoomList` for the given space ID.
      */
@@ -12831,11 +13200,11 @@ open func spaceRoomList(spaceId: String)async throws  -> SpaceRoomList  {
      * Subscribes to updates on the joined spaces list. If space rooms are
      * joined or left, the stream will yield diffs that reflect the changes.
      */
-open func subscribeToJoinedSpaces(listener: SpaceServiceJoinedSpacesListener)async  -> TaskHandle  {
+open func subscribeToTopLevelJoinedSpaces(listener: SpaceServiceJoinedSpacesListener)async  -> TaskHandle  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_matrix_sdk_ffi_fn_method_spaceservice_subscribe_to_joined_spaces(
+                uniffi_matrix_sdk_ffi_fn_method_spaceservice_subscribe_to_top_level_joined_spaces(
                     self.uniffiCloneHandle(),
                     FfiConverterCallbackInterfaceSpaceServiceJoinedSpacesListener_lower(listener)
                 )
@@ -12844,6 +13213,29 @@ open func subscribeToJoinedSpaces(listener: SpaceServiceJoinedSpacesListener)asy
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_u64,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_u64,
             liftFunc: FfiConverterTypeTaskHandle_lift,
+            errorHandler: nil
+            
+        )
+}
+    
+    /**
+     * Returns a list of all the top-level joined spaces. It will eagerly
+     * compute the latest version and also notify subscribers if there were
+     * any changes.
+     */
+open func topLevelJoinedSpaces()async  -> [SpaceRoom]  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_spaceservice_top_level_joined_spaces(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeSpaceRoom.lift,
             errorHandler: nil
             
         )
@@ -12973,7 +13365,7 @@ open class Span: SpanProtocol, @unchecked Sendable {
      * unless you *want* the span to be attached to all further events created
      * on that thread.
      */
-public convenience init(file: String, line: UInt32?, level: LogLevel, target: String, name: String) {
+public convenience init(file: String, line: UInt32?, level: LogLevel, target: String, name: String, bridgeTraceId: String?) {
     let handle =
         try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_span_new(
@@ -12981,14 +13373,19 @@ public convenience init(file: String, line: UInt32?, level: LogLevel, target: St
         FfiConverterOptionUInt32.lower(line),
         FfiConverterTypeLogLevel_lower(level),
         FfiConverterString.lower(target),
-        FfiConverterString.lower(name),$0
+        FfiConverterString.lower(name),
+        FfiConverterOptionString.lower(bridgeTraceId),$0
     )
 }
     self.init(unsafeFromHandle: handle)
 }
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_span(handle, $0) }
     }
 
@@ -12996,6 +13393,21 @@ public convenience init(file: String, line: UInt32?, level: LogLevel, target: St
 public static func current() -> Span  {
     return try!  FfiConverterTypeSpan_lift(try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_constructor_span_current($0
+    )
+})
+}
+    
+    /**
+     * Creates a [`Span`] that acts as a bridge between the client spans and
+     * the SDK ones, allowing them to be joined in Sentry. This function
+     * will only return a valid span if the `sentry` feature is enabled,
+     * otherwise it will return a noop span.
+     */
+public static func newBridgeSpan(target: String, parentTraceId: String?) -> Span  {
+    return try!  FfiConverterTypeSpan_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_constructor_span_new_bridge_span(
+        FfiConverterString.lower(target),
+        FfiConverterOptionString.lower(parentTraceId),$0
     )
 })
 }
@@ -13194,7 +13606,11 @@ public convenience init(dataPath: String, cachePath: String) {
 }
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_sqlitestorebuilder(handle, $0) }
     }
 
@@ -13400,7 +13816,11 @@ open class SsoHandler: SsoHandlerProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_ssohandler(handle, $0) }
     }
 
@@ -13552,7 +13972,11 @@ open class SyncService: SyncServiceProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_syncservice(handle, $0) }
     }
 
@@ -13743,7 +14167,11 @@ open class SyncServiceBuilder: SyncServiceBuilderProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_syncservicebuilder(handle, $0) }
     }
 
@@ -13909,7 +14337,11 @@ open class TaskHandle: TaskHandleProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_taskhandle(handle, $0) }
     }
 
@@ -14033,7 +14465,11 @@ open class ThreadSummary: ThreadSummaryProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_threadsummary(handle, $0) }
     }
 
@@ -14145,7 +14581,7 @@ public protocol TimelineProtocol: AnyObject, Sendable {
     func getEventTimelineItemByEventId(eventId: String) async throws  -> EventTimelineItem
     
     /**
-     * Returns the [`EventId`] of the latest event in the timeline.
+     * Returns the latest [`EventId`] in the timeline.
      */
     func latestEventId() async  -> String?
     
@@ -14158,12 +14594,21 @@ public protocol TimelineProtocol: AnyObject, Sendable {
     func loadReplyDetails(eventIdStr: String) async throws  -> InReplyToDetails
     
     /**
-     * Mark the room as read by trying to attach an *unthreaded* read receipt
-     * to the latest room event.
+     * Mark the timeline as read by attempting to send a read receipt on the
+     * latest visible event.
      *
-     * This works even if the latest event belongs to a thread, as a threaded
-     * reply also belongs to the unthreaded timeline. No threaded receipt
-     * will be sent here (see also #3123).
+     * The latest visible event is determined from the timeline's focus kind
+     * and whether or not it hides threaded events. If no latest event can
+     * be determined and the timeline is live, the room's unread marker is
+     * unset instead.
+     *
+     * # Arguments
+     *
+     * * `receipt_type` - The type of receipt to send. When using
+     * [`ReceiptType::FullyRead`], an unthreaded receipt will be sent. This
+     * works even if the latest event belongs to a thread, as a threaded
+     * reply also belongs to the unthreaded timeline. Otherwise the receipt
+     * thread will be determined based on the timeline's focus kind.
      */
     func markAsRead(receiptType: ReceiptType) async throws 
     
@@ -14218,8 +14663,6 @@ public protocol TimelineProtocol: AnyObject, Sendable {
     
     func sendFile(params: UploadParameters, fileInfo: FileInfo) throws  -> SendAttachmentJoinHandle
     
-    func sendGallery(params: GalleryUploadParameters, itemInfos: [GalleryItemInfo]) throws  -> SendGalleryJoinHandle
-    
     func sendImage(params: UploadParameters, thumbnailSource: UploadSource?, imageInfo: ImageInfo) throws  -> SendAttachmentJoinHandle
     
     func sendLocation(body: String, geoUri: String, description: String?, zoomLevel: UInt8?, assetType: AssetType?, repliedToEventId: String?) async throws 
@@ -14269,6 +14712,8 @@ public protocol TimelineProtocol: AnyObject, Sendable {
      */
     func unpinEvent(eventId: String) async throws  -> Bool
     
+    func sendGallery(params: GalleryUploadParameters, itemInfos: [GalleryItemInfo]) throws  -> SendGalleryJoinHandle
+    
 }
 open class Timeline: TimelineProtocol, @unchecked Sendable {
     fileprivate let handle: UInt64
@@ -14312,7 +14757,11 @@ open class Timeline: TimelineProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timeline(handle, $0) }
     }
 
@@ -14470,7 +14919,7 @@ open func getEventTimelineItemByEventId(eventId: String)async throws  -> EventTi
 }
     
     /**
-     * Returns the [`EventId`] of the latest event in the timeline.
+     * Returns the latest [`EventId`] in the timeline.
      */
 open func latestEventId()async  -> String?  {
     return
@@ -14514,12 +14963,21 @@ open func loadReplyDetails(eventIdStr: String)async throws  -> InReplyToDetails 
 }
     
     /**
-     * Mark the room as read by trying to attach an *unthreaded* read receipt
-     * to the latest room event.
+     * Mark the timeline as read by attempting to send a read receipt on the
+     * latest visible event.
      *
-     * This works even if the latest event belongs to a thread, as a threaded
-     * reply also belongs to the unthreaded timeline. No threaded receipt
-     * will be sent here (see also #3123).
+     * The latest visible event is determined from the timeline's focus kind
+     * and whether or not it hides threaded events. If no latest event can
+     * be determined and the timeline is live, the room's unread marker is
+     * unset instead.
+     *
+     * # Arguments
+     *
+     * * `receipt_type` - The type of receipt to send. When using
+     * [`ReceiptType::FullyRead`], an unthreaded receipt will be sent. This
+     * works even if the latest event belongs to a thread, as a threaded
+     * reply also belongs to the unthreaded timeline. Otherwise the receipt
+     * thread will be determined based on the timeline's focus kind.
      */
 open func markAsRead(receiptType: ReceiptType)async throws   {
     return
@@ -14682,16 +15140,6 @@ open func sendFile(params: UploadParameters, fileInfo: FileInfo)throws  -> SendA
             self.uniffiCloneHandle(),
         FfiConverterTypeUploadParameters_lower(params),
         FfiConverterTypeFileInfo_lower(fileInfo),$0
-    )
-})
-}
-    
-open func sendGallery(params: GalleryUploadParameters, itemInfos: [GalleryItemInfo])throws  -> SendGalleryJoinHandle  {
-    return try  FfiConverterTypeSendGalleryJoinHandle_lift(try rustCallWithError(FfiConverterTypeRoomError_lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timeline_send_gallery(
-            self.uniffiCloneHandle(),
-        FfiConverterTypeGalleryUploadParameters_lower(params),
-        FfiConverterSequenceTypeGalleryItemInfo.lower(itemInfos),$0
     )
 })
 }
@@ -14877,6 +15325,16 @@ open func unpinEvent(eventId: String)async throws  -> Bool  {
         )
 }
     
+open func sendGallery(params: GalleryUploadParameters, itemInfos: [GalleryItemInfo])throws  -> SendGalleryJoinHandle  {
+    return try  FfiConverterTypeSendGalleryJoinHandle_lift(try rustCallWithError(FfiConverterTypeRoomError_lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timeline_send_gallery(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeGalleryUploadParameters_lower(params),
+        FfiConverterSequenceTypeGalleryItemInfo.lower(itemInfos),$0
+    )
+})
+}
+    
 
     
 }
@@ -14929,9 +15387,9 @@ public func FfiConverterTypeTimeline_lower(_ value: Timeline) -> UInt64 {
 
 public protocol TimelineEventProtocol: AnyObject, Sendable {
     
-    func eventId()  -> String
+    func content() throws  -> TimelineEventContent
     
-    func eventType() throws  -> TimelineEventType
+    func eventId()  -> String
     
     func senderId()  -> String
     
@@ -14986,24 +15444,28 @@ open class TimelineEvent: TimelineEventProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineevent(handle, $0) }
     }
 
     
 
     
-open func eventId() -> String  {
-    return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_method_timelineevent_event_id(
+open func content()throws  -> TimelineEventContent  {
+    return try  FfiConverterTypeTimelineEventContent_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_method_timelineevent_content(
             self.uniffiCloneHandle(),$0
     )
 })
 }
     
-open func eventType()throws  -> TimelineEventType  {
-    return try  FfiConverterTypeTimelineEventType_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_method_timelineevent_event_type(
+open func eventId() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_timelineevent_event_id(
             self.uniffiCloneHandle(),$0
     )
 })
@@ -15132,7 +15594,11 @@ open class TimelineEventTypeFilter: TimelineEventTypeFilterProtocol, @unchecked 
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineeventtypefilter(handle, $0) }
     }
 
@@ -15261,7 +15727,11 @@ open class TimelineItem: TimelineItemProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_timelineitem(handle, $0) }
     }
 
@@ -15404,7 +15874,11 @@ open class UnreadNotificationsCount: UnreadNotificationsCountProtocol, @unchecke
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_unreadnotificationscount(handle, $0) }
     }
 
@@ -15594,7 +16068,11 @@ open class UserIdentity: UserIdentityProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_useridentity(handle, $0) }
     }
 
@@ -15818,7 +16296,11 @@ open class WidgetDriver: WidgetDriverProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriver(handle, $0) }
     }
 
@@ -15961,7 +16443,11 @@ open class WidgetDriverHandle: WidgetDriverHandleProtocol, @unchecked Sendable {
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_ffi_fn_free_widgetdriverhandle(handle, $0) }
     }
 
@@ -16096,6 +16582,8 @@ public struct AbstractProgress: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -16148,6 +16636,8 @@ public struct AudioInfo: Equatable, Hashable {
         self.size = size
         self.mimetype = mimetype
     }
+
+    
 
     
 }
@@ -16218,6 +16708,8 @@ public struct AudioMessageContent {
         self.audio = audio
         self.voice = voice
     }
+
+    
 
     
 }
@@ -16292,6 +16784,8 @@ public struct AuthDataPasswordDetails: Equatable, Hashable {
         self.identifier = identifier
         self.password = password
     }
+
+    
 
     
 }
@@ -16370,6 +16864,8 @@ public struct ClientProperties: Equatable, Hashable {
         self.languageTag = languageTag
         self.theme = theme
     }
+
+    
 
     
 }
@@ -16457,6 +16953,8 @@ public struct ComposerDraft {
         self.draftType = draftType
         self.attachments = attachments
     }
+
+    
 
     
 }
@@ -16562,6 +17060,8 @@ public struct ConditionalPushRule: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -16640,6 +17140,8 @@ public struct CreateRoomParameters: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -16710,6 +17212,8 @@ public struct EmoteMessageContent: Equatable, Hashable {
         self.body = body
         self.formatted = formatted
     }
+
+    
 
     
 }
@@ -16794,6 +17298,8 @@ public struct EventTimelineItem {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -16872,6 +17378,8 @@ public struct EventTimelineItemDebugInfo: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -16928,6 +17436,8 @@ public struct FileInfo {
         self.thumbnailInfo = thumbnailInfo
         self.thumbnailSource = thumbnailSource
     }
+
+    
 
     
 }
@@ -16998,6 +17508,8 @@ public struct FileMessageContent {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -17056,6 +17568,8 @@ public struct FormattedBody: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -17108,6 +17622,8 @@ public struct GalleryMessageContent {
         self.formatted = formatted
         self.itemtypes = itemtypes
     }
+
+    
 
     
 }
@@ -17192,6 +17708,8 @@ public struct GalleryUploadParameters: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -17248,6 +17766,8 @@ public struct HttpPusherData: Equatable, Hashable {
         self.format = format
         self.defaultPayload = defaultPayload
     }
+
+    
 
     
 }
@@ -17316,6 +17836,8 @@ public struct IdentityStatusChange: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -17367,6 +17889,8 @@ public struct IgnoredUser: Equatable, Hashable {
     // declare one manually.
     public init() {
     }
+
+    
 
     
 }
@@ -17426,6 +17950,8 @@ public struct ImageInfo {
         self.blurhash = blurhash
         self.isAnimated = isAnimated
     }
+
+    
 
     
 }
@@ -17502,6 +18028,8 @@ public struct ImageMessageContent {
         self.source = source
         self.info = info
     }
+
+    
 
     
 }
@@ -17635,6 +18163,8 @@ public struct KnockRequest {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -17715,6 +18245,8 @@ public struct LastLocation: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -17783,6 +18315,8 @@ public struct LeaveSpaceRoom: Equatable, Hashable {
         self.spaceRoom = spaceRoom
         self.isLastAdmin = isLastAdmin
     }
+
+    
 
     
 }
@@ -17860,6 +18394,8 @@ public struct LiveLocationShare: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -17918,6 +18454,8 @@ public struct LocationContent: Equatable, Hashable {
         self.zoomLevel = zoomLevel
         self.asset = asset
     }
+
+    
 
     
 }
@@ -17980,6 +18518,8 @@ public struct MatrixEntity: Equatable, Hashable {
         self.id = id
         self.via = via
     }
+
+    
 
     
 }
@@ -18050,6 +18590,8 @@ public struct MediaPreviewConfig: Equatable, Hashable {
         self.mediaPreviews = mediaPreviews
         self.inviteAvatars = inviteAvatars
     }
+
+    
 
     
 }
@@ -18126,6 +18668,8 @@ public struct MediaUploadProgress: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -18176,6 +18720,8 @@ public struct Mentions: Equatable, Hashable {
         self.userIds = userIds
         self.room = room
     }
+
+    
 
     
 }
@@ -18232,6 +18778,8 @@ public struct MessageContent {
         self.isEdited = isEdited
         self.mentions = mentions
     }
+
+    
 
     
 }
@@ -18319,6 +18867,8 @@ public struct MsgLikeContent {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -18375,6 +18925,8 @@ public struct NoticeMessageContent: Equatable, Hashable {
         self.body = body
         self.formatted = formatted
     }
+
+    
 
     
 }
@@ -18455,6 +19007,8 @@ public struct NotificationItem {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -18520,6 +19074,8 @@ public struct NotificationItemsRequest: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -18570,6 +19126,8 @@ public struct NotificationPowerLevels: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -18617,10 +19175,11 @@ public struct NotificationRoomInfo: Equatable, Hashable {
     public var joinedMembersCount: UInt64
     public var isEncrypted: Bool?
     public var isDirect: Bool
+    public var isSpace: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(displayName: String, avatarUrl: String?, canonicalAlias: String?, topic: String?, joinRule: JoinRule?, joinedMembersCount: UInt64, isEncrypted: Bool?, isDirect: Bool) {
+    public init(displayName: String, avatarUrl: String?, canonicalAlias: String?, topic: String?, joinRule: JoinRule?, joinedMembersCount: UInt64, isEncrypted: Bool?, isDirect: Bool, isSpace: Bool) {
         self.displayName = displayName
         self.avatarUrl = avatarUrl
         self.canonicalAlias = canonicalAlias
@@ -18629,7 +19188,10 @@ public struct NotificationRoomInfo: Equatable, Hashable {
         self.joinedMembersCount = joinedMembersCount
         self.isEncrypted = isEncrypted
         self.isDirect = isDirect
+        self.isSpace = isSpace
     }
+
+    
 
     
 }
@@ -18652,7 +19214,8 @@ public struct FfiConverterTypeNotificationRoomInfo: FfiConverterRustBuffer {
                 joinRule: FfiConverterOptionTypeJoinRule.read(from: &buf), 
                 joinedMembersCount: FfiConverterUInt64.read(from: &buf), 
                 isEncrypted: FfiConverterOptionBool.read(from: &buf), 
-                isDirect: FfiConverterBool.read(from: &buf)
+                isDirect: FfiConverterBool.read(from: &buf), 
+                isSpace: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -18665,6 +19228,7 @@ public struct FfiConverterTypeNotificationRoomInfo: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.joinedMembersCount, into: &buf)
         FfiConverterOptionBool.write(value.isEncrypted, into: &buf)
         FfiConverterBool.write(value.isDirect, into: &buf)
+        FfiConverterBool.write(value.isSpace, into: &buf)
     }
 }
 
@@ -18696,6 +19260,8 @@ public struct NotificationSenderInfo: Equatable, Hashable {
         self.avatarUrl = avatarUrl
         self.isNameAmbiguous = isNameAmbiguous
     }
+
+    
 
     
 }
@@ -18817,6 +19383,8 @@ public struct OidcConfiguration: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -18881,6 +19449,8 @@ public struct OidcCrossSigningResetInfo: Equatable, Hashable {
          */approvalUrl: String) {
         self.approvalUrl = approvalUrl
     }
+
+    
 
     
 }
@@ -18970,6 +19540,8 @@ public struct PassPhrase: Equatable, Hashable {
         self.iterations = iterations
         self.bits = bits
     }
+
+    
 
     
 }
@@ -19069,6 +19641,8 @@ public struct PatternedPushRule: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -19127,6 +19701,8 @@ public struct PollAnswer: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -19181,6 +19757,8 @@ public struct PollData: Equatable, Hashable {
         self.maxSelections = maxSelections
         self.pollKind = pollKind
     }
+
+    
 
     
 }
@@ -19253,6 +19831,8 @@ public struct PowerLevels: Equatable, Hashable {
         self.users = users
         self.events = events
     }
+
+    
 
     
 }
@@ -19337,6 +19917,8 @@ public struct PredecessorRoom: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -19385,6 +19967,8 @@ public struct PusherIdentifiers: Equatable, Hashable {
         self.pushkey = pushkey
         self.appId = appId
     }
+
+    
 
     
 }
@@ -19439,6 +20023,8 @@ public struct Reaction: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -19491,6 +20077,8 @@ public struct ReactionSenderData: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -19539,6 +20127,8 @@ public struct Receipt: Equatable, Hashable {
     public init(timestamp: Timestamp?) {
         self.timestamp = timestamp
     }
+
+    
 
     
 }
@@ -19604,6 +20194,8 @@ public struct RecentEmoji: Equatable, Hashable {
         self.emoji = emoji
         self.count = count
     }
+
+    
 
     
 }
@@ -19689,6 +20281,8 @@ public struct RequestConfig: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -19760,6 +20354,8 @@ public struct ResolvedRoomAlias: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -19822,6 +20418,8 @@ public struct RoomDescription: Equatable, Hashable {
         self.isWorldReadable = isWorldReadable
         self.joinedMembers = joinedMembers
     }
+
+    
 
     
 }
@@ -19909,6 +20507,8 @@ public struct RoomHero: Equatable, Hashable {
         self.displayName = displayName
         self.avatarUrl = avatarUrl
     }
+
+    
 
     
 }
@@ -20149,6 +20749,8 @@ public struct RoomInfo {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -20267,6 +20869,8 @@ public struct RoomListLoadingStateResult {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -20331,6 +20935,8 @@ public struct RoomMember: Equatable, Hashable {
         self.suggestedRoleForPowerLevel = suggestedRoleForPowerLevel
         self.membershipChangeReason = membershipChangeReason
     }
+
+    
 
     
 }
@@ -20417,6 +21023,8 @@ public struct RoomMemberWithSenderInfo: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -20482,6 +21090,8 @@ public struct RoomNotificationSettings: Equatable, Hashable {
         self.mode = mode
         self.isDefault = isDefault
     }
+
+    
 
     
 }
@@ -20569,6 +21179,10 @@ public struct RoomPowerLevelsValues: Equatable, Hashable {
      * The level required to change the room's topic.
      */
     public var roomTopic: Int64
+    /**
+     * The level required to change the space's children.
+     */
+    public var spaceChild: Int64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -20602,7 +21216,10 @@ public struct RoomPowerLevelsValues: Equatable, Hashable {
          */roomAvatar: Int64, 
         /**
          * The level required to change the room's topic.
-         */roomTopic: Int64) {
+         */roomTopic: Int64, 
+        /**
+         * The level required to change the space's children.
+         */spaceChild: Int64) {
         self.ban = ban
         self.invite = invite
         self.kick = kick
@@ -20613,7 +21230,10 @@ public struct RoomPowerLevelsValues: Equatable, Hashable {
         self.roomName = roomName
         self.roomAvatar = roomAvatar
         self.roomTopic = roomTopic
+        self.spaceChild = spaceChild
     }
+
+    
 
     
 }
@@ -20638,7 +21258,8 @@ public struct FfiConverterTypeRoomPowerLevelsValues: FfiConverterRustBuffer {
                 usersDefault: FfiConverterInt64.read(from: &buf), 
                 roomName: FfiConverterInt64.read(from: &buf), 
                 roomAvatar: FfiConverterInt64.read(from: &buf), 
-                roomTopic: FfiConverterInt64.read(from: &buf)
+                roomTopic: FfiConverterInt64.read(from: &buf), 
+                spaceChild: FfiConverterInt64.read(from: &buf)
         )
     }
 
@@ -20653,6 +21274,7 @@ public struct FfiConverterTypeRoomPowerLevelsValues: FfiConverterRustBuffer {
         FfiConverterInt64.write(value.roomName, into: &buf)
         FfiConverterInt64.write(value.roomAvatar, into: &buf)
         FfiConverterInt64.write(value.roomTopic, into: &buf)
+        FfiConverterInt64.write(value.spaceChild, into: &buf)
     }
 }
 
@@ -20787,6 +21409,8 @@ public struct RoomPreviewInfo: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -20912,6 +21536,8 @@ public struct Ruleset: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -20968,6 +21594,8 @@ public struct SearchUsersResults: Equatable, Hashable {
         self.results = results
         self.limited = limited
     }
+
+    
 
     
 }
@@ -21035,6 +21663,8 @@ public struct SecretStorageV1AesHmacSha2Properties: Equatable, Hashable {
         self.iv = iv
         self.mac = mac
     }
+
+    
 
     
 }
@@ -21147,6 +21777,8 @@ public struct Session: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -21222,6 +21854,8 @@ public struct SessionVerificationRequestDetails: Equatable, Hashable {
         self.deviceDisplayName = deviceDisplayName
         self.firstSeenTimestamp = firstSeenTimestamp
     }
+
+    
 
     
 }
@@ -21319,6 +21953,8 @@ public struct SimplePushRule: Equatable, Hashable {
         self.enabled = enabled
         self.ruleId = ruleId
     }
+
+    
 
     
 }
@@ -21513,6 +22149,8 @@ public struct SpaceRoom: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -21582,6 +22220,96 @@ public func FfiConverterTypeSpaceRoom_lower(_ value: SpaceRoom) -> RustBuffer {
 
 
 /**
+ * Contains the disk size of the different stores, if known. It won't be
+ * available for in-memory stores.
+ */
+public struct StoreSizes: Equatable, Hashable {
+    /**
+     * The size of the CryptoStore.
+     */
+    public var cryptoStore: UInt64?
+    /**
+     * The size of the StateStore.
+     */
+    public var stateStore: UInt64?
+    /**
+     * The size of the EventCacheStore.
+     */
+    public var eventCacheStore: UInt64?
+    /**
+     * The size of the MediaStore.
+     */
+    public var mediaStore: UInt64?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The size of the CryptoStore.
+         */cryptoStore: UInt64?, 
+        /**
+         * The size of the StateStore.
+         */stateStore: UInt64?, 
+        /**
+         * The size of the EventCacheStore.
+         */eventCacheStore: UInt64?, 
+        /**
+         * The size of the MediaStore.
+         */mediaStore: UInt64?) {
+        self.cryptoStore = cryptoStore
+        self.stateStore = stateStore
+        self.eventCacheStore = eventCacheStore
+        self.mediaStore = mediaStore
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension StoreSizes: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeStoreSizes: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StoreSizes {
+        return
+            try StoreSizes(
+                cryptoStore: FfiConverterOptionUInt64.read(from: &buf), 
+                stateStore: FfiConverterOptionUInt64.read(from: &buf), 
+                eventCacheStore: FfiConverterOptionUInt64.read(from: &buf), 
+                mediaStore: FfiConverterOptionUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: StoreSizes, into buf: inout [UInt8]) {
+        FfiConverterOptionUInt64.write(value.cryptoStore, into: &buf)
+        FfiConverterOptionUInt64.write(value.stateStore, into: &buf)
+        FfiConverterOptionUInt64.write(value.eventCacheStore, into: &buf)
+        FfiConverterOptionUInt64.write(value.mediaStore, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStoreSizes_lift(_ buf: RustBuffer) throws -> StoreSizes {
+    return try FfiConverterTypeStoreSizes.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStoreSizes_lower(_ value: StoreSizes) -> RustBuffer {
+    return FfiConverterTypeStoreSizes.lower(value)
+}
+
+
+/**
  * When a room A is tombstoned, it is replaced by a room B. The room A is the
  * predecessor of B, and B is the successor of A. This type holds information
  * about the successor room. See [`Room::successor_room`].
@@ -21612,6 +22340,8 @@ public struct SuccessorRoom: Equatable, Hashable {
         self.roomId = roomId
         self.reason = reason
     }
+
+    
 
     
 }
@@ -21673,6 +22403,8 @@ public struct TagInfo: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -21721,6 +22453,8 @@ public struct TextMessageContent: Equatable, Hashable {
         self.body = body
         self.formatted = formatted
     }
+
+    
 
     
 }
@@ -21784,6 +22518,8 @@ public struct ThreadSubscription: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -21836,6 +22572,8 @@ public struct ThumbnailInfo: Equatable, Hashable {
         self.mimetype = mimetype
         self.size = size
     }
+
+    
 
     
 }
@@ -21906,12 +22644,12 @@ public struct TimelineConfiguration {
     public var dateDividerMode: DateDividerMode
     /**
      * Should the read receipts and read markers be tracked for the timeline
-     * items in this instance?
+     * items in this instance and on which event types?
      *
      * As this has a non negligible performance impact, make sure to enable it
      * only when you need it.
      */
-    public var trackReadReceipts: Bool
+    public var trackReadReceipts: TimelineReadReceiptTracking
     /**
      * Whether this timeline instance should report UTDs through the client's
      * delegate.
@@ -21937,11 +22675,11 @@ public struct TimelineConfiguration {
          */dateDividerMode: DateDividerMode, 
         /**
          * Should the read receipts and read markers be tracked for the timeline
-         * items in this instance?
+         * items in this instance and on which event types?
          *
          * As this has a non negligible performance impact, make sure to enable it
          * only when you need it.
-         */trackReadReceipts: Bool, 
+         */trackReadReceipts: TimelineReadReceiptTracking, 
         /**
          * Whether this timeline instance should report UTDs through the client's
          * delegate.
@@ -21953,6 +22691,8 @@ public struct TimelineConfiguration {
         self.trackReadReceipts = trackReadReceipts
         self.reportUtds = reportUtds
     }
+
+    
 
     
 }
@@ -21972,7 +22712,7 @@ public struct FfiConverterTypeTimelineConfiguration: FfiConverterRustBuffer {
                 filter: FfiConverterTypeTimelineFilter.read(from: &buf), 
                 internalIdPrefix: FfiConverterOptionString.read(from: &buf), 
                 dateDividerMode: FfiConverterTypeDateDividerMode.read(from: &buf), 
-                trackReadReceipts: FfiConverterBool.read(from: &buf), 
+                trackReadReceipts: FfiConverterTypeTimelineReadReceiptTracking.read(from: &buf), 
                 reportUtds: FfiConverterBool.read(from: &buf)
         )
     }
@@ -21982,7 +22722,7 @@ public struct FfiConverterTypeTimelineConfiguration: FfiConverterRustBuffer {
         FfiConverterTypeTimelineFilter.write(value.filter, into: &buf)
         FfiConverterOptionString.write(value.internalIdPrefix, into: &buf)
         FfiConverterTypeDateDividerMode.write(value.dateDividerMode, into: &buf)
-        FfiConverterBool.write(value.trackReadReceipts, into: &buf)
+        FfiConverterTypeTimelineReadReceiptTracking.write(value.trackReadReceipts, into: &buf)
         FfiConverterBool.write(value.reportUtds, into: &buf)
     }
 }
@@ -22011,6 +22751,8 @@ public struct TimelineUniqueId: Equatable, Hashable {
     public init(id: String) {
         self.id = id
     }
+
+    
 
     
 }
@@ -22115,6 +22857,8 @@ public struct TracingConfiguration: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -22212,6 +22956,8 @@ public struct TracingFileConfiguration: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -22266,6 +23012,8 @@ public struct TransmissionProgress: Equatable, Hashable {
         self.current = current
         self.total = total
     }
+
+    
 
     
 }
@@ -22392,6 +23140,8 @@ public struct UnableToDecryptInfo: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -22454,6 +23204,8 @@ public struct UnstableAudioDetailsContent: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -22500,6 +23252,8 @@ public struct UnstableVoiceContent: Equatable, Hashable {
     // declare one manually.
     public init() {
     }
+
+    
 
     
 }
@@ -22585,6 +23339,8 @@ public struct UploadParameters: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -22658,6 +23414,8 @@ public struct UserPowerLevelUpdate: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -22710,6 +23468,8 @@ public struct UserProfile: Equatable, Hashable {
         self.displayName = displayName
         self.avatarUrl = avatarUrl
     }
+
+    
 
     
 }
@@ -22765,6 +23525,8 @@ public struct UserTagName: Equatable, Hashable {
     public init(name: String) {
         self.name = name
     }
+
+    
 
     
 }
@@ -22827,6 +23589,8 @@ public struct VideoInfo {
         self.thumbnailSource = thumbnailSource
         self.blurhash = blurhash
     }
+
+    
 
     
 }
@@ -22903,6 +23667,8 @@ public struct VideoMessageContent {
         self.source = source
         self.info = info
     }
+
+    
 
     
 }
@@ -23010,6 +23776,8 @@ public struct WidgetCapabilities: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -23066,6 +23834,8 @@ public struct WidgetDriverAndHandle {
         self.driver = driver
         self.handle = handle
     }
+
+    
 
     
 }
@@ -23161,6 +23931,8 @@ public struct WidgetSettings: Equatable, Hashable {
         self.initAfterContentLoad = initAfterContentLoad
         self.rawUrl = rawUrl
     }
+
+    
 
     
 }
@@ -23273,6 +24045,8 @@ public enum AccountDataEvent: Equatable, Hashable {
          * The passphrase from which to generate the key.
          */passphrase: PassPhrase?
     )
+
+
 
 
 
@@ -23406,6 +24180,8 @@ public enum AccountDataEventType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -23500,6 +24276,8 @@ public enum AccountManagementAction: Equatable, Hashable {
     )
     case accountDeactivate
     case crossSigningReset
+
+
 
 
 
@@ -23606,6 +24384,8 @@ public enum Action: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -23686,6 +24466,8 @@ public enum AllowRule: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -23752,6 +24534,8 @@ public enum AssetType: Equatable, Hashable {
     
     case sender
     case pin
+
+
 
 
 
@@ -23823,6 +24607,8 @@ public enum AuthData: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -23886,6 +24672,8 @@ public enum BackupState: Equatable, Hashable {
     case enabled
     case downloading
     case disabling
+
+
 
 
 
@@ -23987,6 +24775,8 @@ public enum BackupUploadState: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -24078,6 +24868,8 @@ public enum BatchNotificationResult {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -24159,6 +24951,8 @@ public enum ClientBuildError: Swift.Error, Equatable, Hashable, Foundation.Local
     case EventCache(message: String)
     
     case Generic(message: String)
+    
+
     
 
     
@@ -24286,6 +25080,8 @@ public enum ClientError: Swift.Error, Equatable, Hashable, Foundation.LocalizedE
     
 
     
+
+    
     public var errorDescription: String? {
         String(reflecting: self)
     }
@@ -24388,6 +25184,8 @@ public enum ComparisonOperator: Equatable, Hashable {
      * Less or equal
      */
     case le
+
+
 
 
 
@@ -24495,6 +25293,8 @@ public enum ComposerDraftType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -24574,6 +25374,8 @@ public enum CrossSigningResetAuthType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -24642,6 +25444,8 @@ public enum DateDividerMode: Equatable, Hashable {
     
     case daily
     case monthly
+
+
 
 
 
@@ -24716,6 +25520,8 @@ public enum DraftAttachment {
     )
     case video(videoInfo: VideoInfo, source: UploadSource, thumbnailSource: UploadSource?
     )
+
+
 
 
 
@@ -24814,6 +25620,8 @@ public enum EditedContent {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -24894,6 +25702,8 @@ public enum EmbeddedEventDetails {
     )
     case error(message: String
     )
+
+
 
 
 
@@ -24985,6 +25795,8 @@ public enum EnableRecoveryProgress: Equatable, Hashable {
     case roomKeyUploadError
     case done(recoveryKey: String
     )
+
+
 
 
 
@@ -25092,6 +25904,8 @@ public enum EncryptedMessage: Equatable, Hashable {
          */cause: UtdCause
     )
     case unknown
+
+
 
 
 
@@ -25569,6 +26383,8 @@ public enum ErrorKind: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -25931,6 +26747,8 @@ public enum EventOrTransactionId: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -26031,6 +26849,8 @@ public enum EventSendState: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -26111,6 +26931,8 @@ public enum FilterTimelineEventType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -26181,6 +27003,8 @@ public enum FocusEventError: Swift.Error, Equatable, Hashable, Foundation.Locali
     )
     case Other(msg: String
     )
+
+    
 
     
 
@@ -26277,6 +27101,8 @@ public enum GalleryItemInfo {
     )
     case video(videoInfo: VideoInfo, source: UploadSource, caption: String?, formattedCaption: FormattedBody?, thumbnailSource: UploadSource?
     )
+
+
 
 
 
@@ -26384,6 +27210,8 @@ public enum GalleryItemType {
     )
     case other(itemtype: String, body: String
     )
+
+
 
 
 
@@ -26511,6 +27339,8 @@ public enum GeneratedQrLoginProgress {
      * The login has successfully finished.
      */
     case done
+
+
 
 
 
@@ -26642,6 +27472,8 @@ public enum GrantGeneratedQrLoginProgress {
      * The login has successfully finished.
      */
     case done
+
+
 
 
 
@@ -26777,6 +27609,8 @@ public enum GrantQrLoginProgress: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -26899,6 +27733,8 @@ public enum HistoryVisibility: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -27000,6 +27836,11 @@ public enum HumanQrGrantLoginError: Swift.Error, Equatable, Hashable, Foundation
     case MissingSecretsBackup(message: String)
     
     /**
+     * The rendezvous session was not found and might have expired.
+     */
+    case NotFound(message: String)
+    
+    /**
      * The device could not be created.
      */
     case UnableToCreateDevice(message: String)
@@ -27008,6 +27849,8 @@ public enum HumanQrGrantLoginError: Swift.Error, Equatable, Hashable, Foundation
      * An unknown error has happened.
      */
     case Unknown(message: String)
+    
+
     
 
     
@@ -27052,11 +27895,15 @@ public struct FfiConverterTypeHumanQrGrantLoginError: FfiConverterRustBuffer {
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 5: return .UnableToCreateDevice(
+        case 5: return .NotFound(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 6: return .Unknown(
+        case 6: return .UnableToCreateDevice(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 7: return .Unknown(
             message: try FfiConverterString.read(from: &buf)
         )
         
@@ -27079,10 +27926,12 @@ public struct FfiConverterTypeHumanQrGrantLoginError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         case .MissingSecretsBackup(_ /* message is ignored*/):
             writeInt(&buf, Int32(4))
-        case .UnableToCreateDevice(_ /* message is ignored*/):
+        case .NotFound(_ /* message is ignored*/):
             writeInt(&buf, Int32(5))
-        case .Unknown(_ /* message is ignored*/):
+        case .UnableToCreateDevice(_ /* message is ignored*/):
             writeInt(&buf, Int32(6))
+        case .Unknown(_ /* message is ignored*/):
+            writeInt(&buf, Int32(7))
 
         
         }
@@ -27120,6 +27969,9 @@ public enum HumanQrLoginError: Swift.Error, Equatable, Hashable, Foundation.Loca
     case OtherDeviceNotSignedIn
     case CheckCodeAlreadySent
     case CheckCodeCannotBeSent
+    case NotFound
+
+    
 
     
 
@@ -27158,6 +28010,7 @@ public struct FfiConverterTypeHumanQrLoginError: FfiConverterRustBuffer {
         case 9: return .OtherDeviceNotSignedIn
         case 10: return .CheckCodeAlreadySent
         case 11: return .CheckCodeCannotBeSent
+        case 12: return .NotFound
 
          default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -27213,6 +28066,10 @@ public struct FfiConverterTypeHumanQrLoginError: FfiConverterRustBuffer {
         case .CheckCodeCannotBeSent:
             writeInt(&buf, Int32(11))
         
+        
+        case .NotFound:
+            writeInt(&buf, Int32(12))
+        
         }
     }
 }
@@ -27248,6 +28105,8 @@ public enum InviteAvatars: Equatable, Hashable {
      * Never show avatars in invite requests.
      */
     case off
+
+
 
 
 
@@ -27355,6 +28214,8 @@ public enum JoinRule: Equatable, Hashable {
          * The string representation for this custom rule.
          */repr: String
     )
+
+
 
 
 
@@ -27476,6 +28337,8 @@ public enum JsonValue: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -27564,6 +28427,8 @@ public enum KeyDerivationAlgorithm: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -27624,8 +28489,10 @@ public enum LatestEventValue {
     case none
     case remote(timestamp: Timestamp, sender: String, isOwn: Bool, profile: ProfileDetails, content: TimelineItemContent
     )
-    case local(timestamp: Timestamp, content: TimelineItemContent, isSending: Bool
+    case local(timestamp: Timestamp, sender: String, profile: ProfileDetails, content: TimelineItemContent, state: LatestEventValueLocalState
     )
+
+
 
 
 
@@ -27650,7 +28517,7 @@ public struct FfiConverterTypeLatestEventValue: FfiConverterRustBuffer {
         case 2: return .remote(timestamp: try FfiConverterTypeTimestamp.read(from: &buf), sender: try FfiConverterString.read(from: &buf), isOwn: try FfiConverterBool.read(from: &buf), profile: try FfiConverterTypeProfileDetails.read(from: &buf), content: try FfiConverterTypeTimelineItemContent.read(from: &buf)
         )
         
-        case 3: return .local(timestamp: try FfiConverterTypeTimestamp.read(from: &buf), content: try FfiConverterTypeTimelineItemContent.read(from: &buf), isSending: try FfiConverterBool.read(from: &buf)
+        case 3: return .local(timestamp: try FfiConverterTypeTimestamp.read(from: &buf), sender: try FfiConverterString.read(from: &buf), profile: try FfiConverterTypeProfileDetails.read(from: &buf), content: try FfiConverterTypeTimelineItemContent.read(from: &buf), state: try FfiConverterTypeLatestEventValueLocalState.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -27674,11 +28541,13 @@ public struct FfiConverterTypeLatestEventValue: FfiConverterRustBuffer {
             FfiConverterTypeTimelineItemContent.write(content, into: &buf)
             
         
-        case let .local(timestamp,content,isSending):
+        case let .local(timestamp,sender,profile,content,state):
             writeInt(&buf, Int32(3))
             FfiConverterTypeTimestamp.write(timestamp, into: &buf)
+            FfiConverterString.write(sender, into: &buf)
+            FfiConverterTypeProfileDetails.write(profile, into: &buf)
             FfiConverterTypeTimelineItemContent.write(content, into: &buf)
-            FfiConverterBool.write(isSending, into: &buf)
+            FfiConverterTypeLatestEventValueLocalState.write(state, into: &buf)
             
         }
     }
@@ -27710,6 +28579,8 @@ public enum LogLevel: Equatable, Hashable {
     case info
     case debug
     case trace
+
+
 
 
 
@@ -27804,6 +28675,8 @@ public enum MatrixId: Equatable, Hashable {
     )
     case eventOnRoomAlias(alias: String, eventId: String
     )
+
+
 
 
 
@@ -27905,6 +28778,8 @@ public enum MediaInfoError: Swift.Error, Equatable, Hashable, Foundation.Localiz
     
 
     
+
+    
     public var errorDescription: String? {
         String(reflecting: self)
     }
@@ -27995,6 +28870,8 @@ public enum MediaPreviews: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -28066,6 +28943,8 @@ public enum Membership: Equatable, Hashable {
     case left
     case knocked
     case banned
+
+
 
 
 
@@ -28164,6 +29043,8 @@ public enum MembershipChange: Equatable, Hashable {
     case knockRetracted
     case knockDenied
     case notImplemented
+
+
 
 
 
@@ -28345,6 +29226,8 @@ public enum MembershipState: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -28437,6 +29320,8 @@ public enum MessageFormat: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -28525,6 +29410,8 @@ public enum MessageLikeEventContent {
     case roomRedaction(redactedEventId: String?, reason: String?
     )
     case sticker
+
+
 
 
 
@@ -28697,11 +29584,21 @@ public func FfiConverterTypeMessageLikeEventContent_lower(_ value: MessageLikeEv
 
 public enum MessageLikeEventType: Equatable, Hashable {
     
+    case audio
+    case beacon
     case callAnswer
     case callCandidates
     case callHangup
     case callInvite
-    case rtcNotification
+    case callNegotiate
+    case callNotify
+    case callReject
+    case callSdpStreamMetadataChanged
+    case callSelectAnswer
+    case emote
+    case encrypted
+    case file
+    case image
     case keyVerificationAccept
     case keyVerificationCancel
     case keyVerificationDone
@@ -28709,6 +29606,8 @@ public enum MessageLikeEventType: Equatable, Hashable {
     case keyVerificationMac
     case keyVerificationReady
     case keyVerificationStart
+    case location
+    case message
     case pollEnd
     case pollResponse
     case pollStart
@@ -28716,12 +29615,18 @@ public enum MessageLikeEventType: Equatable, Hashable {
     case roomEncrypted
     case roomMessage
     case roomRedaction
+    case rtcDecline
+    case rtcNotification
     case sticker
     case unstablePollEnd
     case unstablePollResponse
     case unstablePollStart
+    case video
+    case voice
     case other(String
     )
+
+
 
 
 
@@ -28741,53 +29646,85 @@ public struct FfiConverterTypeMessageLikeEventType: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .callAnswer
+        case 1: return .audio
         
-        case 2: return .callCandidates
+        case 2: return .beacon
         
-        case 3: return .callHangup
+        case 3: return .callAnswer
         
-        case 4: return .callInvite
+        case 4: return .callCandidates
         
-        case 5: return .rtcNotification
+        case 5: return .callHangup
         
-        case 6: return .keyVerificationAccept
+        case 6: return .callInvite
         
-        case 7: return .keyVerificationCancel
+        case 7: return .callNegotiate
         
-        case 8: return .keyVerificationDone
+        case 8: return .callNotify
         
-        case 9: return .keyVerificationKey
+        case 9: return .callReject
         
-        case 10: return .keyVerificationMac
+        case 10: return .callSdpStreamMetadataChanged
         
-        case 11: return .keyVerificationReady
+        case 11: return .callSelectAnswer
         
-        case 12: return .keyVerificationStart
+        case 12: return .emote
         
-        case 13: return .pollEnd
+        case 13: return .encrypted
         
-        case 14: return .pollResponse
+        case 14: return .file
         
-        case 15: return .pollStart
+        case 15: return .image
         
-        case 16: return .reaction
+        case 16: return .keyVerificationAccept
         
-        case 17: return .roomEncrypted
+        case 17: return .keyVerificationCancel
         
-        case 18: return .roomMessage
+        case 18: return .keyVerificationDone
         
-        case 19: return .roomRedaction
+        case 19: return .keyVerificationKey
         
-        case 20: return .sticker
+        case 20: return .keyVerificationMac
         
-        case 21: return .unstablePollEnd
+        case 21: return .keyVerificationReady
         
-        case 22: return .unstablePollResponse
+        case 22: return .keyVerificationStart
         
-        case 23: return .unstablePollStart
+        case 23: return .location
         
-        case 24: return .other(try FfiConverterString.read(from: &buf)
+        case 24: return .message
+        
+        case 25: return .pollEnd
+        
+        case 26: return .pollResponse
+        
+        case 27: return .pollStart
+        
+        case 28: return .reaction
+        
+        case 29: return .roomEncrypted
+        
+        case 30: return .roomMessage
+        
+        case 31: return .roomRedaction
+        
+        case 32: return .rtcDecline
+        
+        case 33: return .rtcNotification
+        
+        case 34: return .sticker
+        
+        case 35: return .unstablePollEnd
+        
+        case 36: return .unstablePollResponse
+        
+        case 37: return .unstablePollStart
+        
+        case 38: return .video
+        
+        case 39: return .voice
+        
+        case 40: return .other(try FfiConverterString.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -28798,100 +29735,164 @@ public struct FfiConverterTypeMessageLikeEventType: FfiConverterRustBuffer {
         switch value {
         
         
-        case .callAnswer:
+        case .audio:
             writeInt(&buf, Int32(1))
         
         
-        case .callCandidates:
+        case .beacon:
             writeInt(&buf, Int32(2))
         
         
-        case .callHangup:
+        case .callAnswer:
             writeInt(&buf, Int32(3))
         
         
-        case .callInvite:
+        case .callCandidates:
             writeInt(&buf, Int32(4))
         
         
-        case .rtcNotification:
+        case .callHangup:
             writeInt(&buf, Int32(5))
         
         
-        case .keyVerificationAccept:
+        case .callInvite:
             writeInt(&buf, Int32(6))
         
         
-        case .keyVerificationCancel:
+        case .callNegotiate:
             writeInt(&buf, Int32(7))
         
         
-        case .keyVerificationDone:
+        case .callNotify:
             writeInt(&buf, Int32(8))
         
         
-        case .keyVerificationKey:
+        case .callReject:
             writeInt(&buf, Int32(9))
         
         
-        case .keyVerificationMac:
+        case .callSdpStreamMetadataChanged:
             writeInt(&buf, Int32(10))
         
         
-        case .keyVerificationReady:
+        case .callSelectAnswer:
             writeInt(&buf, Int32(11))
         
         
-        case .keyVerificationStart:
+        case .emote:
             writeInt(&buf, Int32(12))
         
         
-        case .pollEnd:
+        case .encrypted:
             writeInt(&buf, Int32(13))
         
         
-        case .pollResponse:
+        case .file:
             writeInt(&buf, Int32(14))
         
         
-        case .pollStart:
+        case .image:
             writeInt(&buf, Int32(15))
         
         
-        case .reaction:
+        case .keyVerificationAccept:
             writeInt(&buf, Int32(16))
         
         
-        case .roomEncrypted:
+        case .keyVerificationCancel:
             writeInt(&buf, Int32(17))
         
         
-        case .roomMessage:
+        case .keyVerificationDone:
             writeInt(&buf, Int32(18))
         
         
-        case .roomRedaction:
+        case .keyVerificationKey:
             writeInt(&buf, Int32(19))
         
         
-        case .sticker:
+        case .keyVerificationMac:
             writeInt(&buf, Int32(20))
         
         
-        case .unstablePollEnd:
+        case .keyVerificationReady:
             writeInt(&buf, Int32(21))
         
         
-        case .unstablePollResponse:
+        case .keyVerificationStart:
             writeInt(&buf, Int32(22))
         
         
-        case .unstablePollStart:
+        case .location:
             writeInt(&buf, Int32(23))
         
         
-        case let .other(v1):
+        case .message:
             writeInt(&buf, Int32(24))
+        
+        
+        case .pollEnd:
+            writeInt(&buf, Int32(25))
+        
+        
+        case .pollResponse:
+            writeInt(&buf, Int32(26))
+        
+        
+        case .pollStart:
+            writeInt(&buf, Int32(27))
+        
+        
+        case .reaction:
+            writeInt(&buf, Int32(28))
+        
+        
+        case .roomEncrypted:
+            writeInt(&buf, Int32(29))
+        
+        
+        case .roomMessage:
+            writeInt(&buf, Int32(30))
+        
+        
+        case .roomRedaction:
+            writeInt(&buf, Int32(31))
+        
+        
+        case .rtcDecline:
+            writeInt(&buf, Int32(32))
+        
+        
+        case .rtcNotification:
+            writeInt(&buf, Int32(33))
+        
+        
+        case .sticker:
+            writeInt(&buf, Int32(34))
+        
+        
+        case .unstablePollEnd:
+            writeInt(&buf, Int32(35))
+        
+        
+        case .unstablePollResponse:
+            writeInt(&buf, Int32(36))
+        
+        
+        case .unstablePollStart:
+            writeInt(&buf, Int32(37))
+        
+        
+        case .video:
+            writeInt(&buf, Int32(38))
+        
+        
+        case .voice:
+            writeInt(&buf, Int32(39))
+        
+        
+        case let .other(v1):
+            writeInt(&buf, Int32(40))
             FfiConverterString.write(v1, into: &buf)
             
         }
@@ -28939,6 +29940,8 @@ public enum MessageType {
     )
     case other(msgtype: String, body: String
     )
+
+
 
 
 
@@ -29103,6 +30106,8 @@ public enum MsgLikeKind {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -29212,6 +30217,8 @@ public enum NotificationEvent {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -29279,6 +30286,8 @@ public enum NotificationProcessSetup {
     case multipleProcesses
     case singleProcess(syncService: SyncService
     )
+
+
 
 
 
@@ -29377,6 +30386,8 @@ public enum NotificationSettingsError: Swift.Error, Equatable, Hashable, Foundat
      * Unable to update push rule.
      */
     case UnableToUpdatePushRule
+
+    
 
     
 
@@ -29509,6 +30520,8 @@ public enum NotificationStatus {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -29586,6 +30599,8 @@ public enum OidcError: Swift.Error, Equatable, Hashable, Foundation.LocalizedErr
     case Cancelled(message: String)
     
     case Generic(message: String)
+    
+
     
 
     
@@ -29706,6 +30721,8 @@ public enum OidcPrompt: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -29793,7 +30810,8 @@ public enum OtherState: Equatable, Hashable {
     case roomGuestAccess
     case roomHistoryVisibility(historyVisibility: HistoryVisibility?
     )
-    case roomJoinRules
+    case roomJoinRules(joinRule: JoinRule?
+    )
     case roomName(name: String?
     )
     case roomPinnedEvents(change: RoomPinnedEventsChange
@@ -29810,6 +30828,8 @@ public enum OtherState: Equatable, Hashable {
     case spaceParent
     case custom(eventType: String
     )
+
+
 
 
 
@@ -29852,7 +30872,8 @@ public struct FfiConverterTypeOtherState: FfiConverterRustBuffer {
         case 10: return .roomHistoryVisibility(historyVisibility: try FfiConverterOptionTypeHistoryVisibility.read(from: &buf)
         )
         
-        case 11: return .roomJoinRules
+        case 11: return .roomJoinRules(joinRule: try FfiConverterOptionTypeJoinRule.read(from: &buf)
+        )
         
         case 12: return .roomName(name: try FfiConverterOptionString.read(from: &buf)
         )
@@ -29931,9 +30952,10 @@ public struct FfiConverterTypeOtherState: FfiConverterRustBuffer {
             FfiConverterOptionTypeHistoryVisibility.write(historyVisibility, into: &buf)
             
         
-        case .roomJoinRules:
+        case let .roomJoinRules(joinRule):
             writeInt(&buf, Int32(11))
-        
+            FfiConverterOptionTypeJoinRule.write(joinRule, into: &buf)
+            
         
         case let .roomName(name):
             writeInt(&buf, Int32(12))
@@ -30027,6 +31049,8 @@ public enum ParseError: Swift.Error, Equatable, Hashable, Foundation.LocalizedEr
     case Overflow(message: String)
     
     case Other(message: String)
+    
+
     
 
     
@@ -30163,6 +31187,8 @@ public enum PollKind: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -30237,6 +31263,8 @@ public enum PowerLevel: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -30305,6 +31333,8 @@ public enum ProfileDetails: Equatable, Hashable {
     )
     case error(message: String
     )
+
+
 
 
 
@@ -30391,6 +31421,8 @@ public enum PublicRoomJoinRule: Equatable, Hashable {
     case restricted
     case knockRestricted
     case invite
+
+
 
 
 
@@ -30541,6 +31573,8 @@ public enum PushCondition: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -30643,6 +31677,8 @@ public enum PushFormat: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -30700,6 +31736,8 @@ public enum PusherKind: Equatable, Hashable {
     case http(data: HttpPusherData
     )
     case email
+
+
 
 
 
@@ -30769,6 +31807,8 @@ public enum QrCodeDecodeError: Swift.Error, Equatable, Hashable, Foundation.Loca
     
     
     case Crypto(message: String)
+    
+
     
 
     
@@ -30876,6 +31916,8 @@ public enum QrLoginProgress: Equatable, Hashable {
      * The login has successfully finished.
      */
     case done
+
+
 
 
 
@@ -31012,6 +32054,8 @@ public enum QueueWedgeError: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -31113,6 +32157,8 @@ public enum ReceiptType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -31200,6 +32246,8 @@ public enum RecoveryError: Swift.Error, Equatable, Hashable, Foundation.Localize
      */
     case Import(errorMessage: String
     )
+
+    
 
     
 
@@ -31295,6 +32343,8 @@ public enum RecoveryState: Equatable, Hashable {
     case enabled
     case disabled
     case incomplete
+
+
 
 
 
@@ -31405,6 +32455,8 @@ public enum RoomAccountDataEvent: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -31507,6 +32559,8 @@ public enum RoomAccountDataEventType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -31598,6 +32652,8 @@ public enum RoomDirectorySearchEntryUpdate: Equatable, Hashable {
     )
     case reset(values: [RoomDescription]
     )
+
+
 
 
 
@@ -31751,6 +32807,8 @@ public enum RoomError: Swift.Error, Equatable, Hashable, Foundation.LocalizedErr
     
 
     
+
+    
     public var errorDescription: String? {
         String(reflecting: self)
     }
@@ -31889,6 +32947,8 @@ public enum RoomHistoryVisibility: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -31990,6 +33050,8 @@ public enum RoomListEntriesDynamicFilterKind: Equatable, Hashable {
     case fuzzyMatchRoomName(pattern: String
     )
     case deduplicateVersions
+
+
 
 
 
@@ -32169,6 +33231,8 @@ public enum RoomListEntriesUpdate {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -32318,6 +33382,8 @@ public enum RoomListError: Swift.Error, Equatable, Hashable, Foundation.Localize
     
 
     
+
+    
     public var errorDescription: String? {
         String(reflecting: self)
     }
@@ -32436,6 +33502,8 @@ public enum RoomListFilterCategory: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -32499,6 +33567,8 @@ public enum RoomListLoadingState: Equatable, Hashable {
     case notLoaded
     case loaded(maximumNumberOfRooms: UInt32?
     )
+
+
 
 
 
@@ -32570,6 +33640,8 @@ public enum RoomListServiceState: Equatable, Hashable {
     case running
     case error
     case terminated
+
+
 
 
 
@@ -32662,6 +33734,8 @@ public enum RoomListServiceSyncIndicator: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -32746,6 +33820,8 @@ public enum RoomLoadSettings: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -32820,6 +33896,8 @@ public enum RoomMessageEventMessageType: Equatable, Hashable {
     case video
     case verificationRequest
     case other
+
+
 
 
 
@@ -32961,6 +34039,8 @@ public enum RoomNotificationMode: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -33042,6 +34122,8 @@ public enum RoomPreset: Equatable, Hashable {
      * as the creator.
      */
     case trustedPrivateChat
+
+
 
 
 
@@ -33205,6 +34287,8 @@ public enum RoomSendQueueUpdate {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -33334,6 +34418,8 @@ public enum RoomType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -33418,6 +34504,8 @@ public enum RoomVisibility: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -33488,6 +34576,8 @@ public enum RtcNotificationType: Equatable, Hashable {
     
     case ring
     case notification
+
+
 
 
 
@@ -33573,6 +34663,8 @@ public enum RuleKind: Equatable, Hashable {
     case content
     case custom(value: String
     )
+
+
 
 
 
@@ -33676,6 +34768,8 @@ public enum SecretStorageEncryptionAlgorithm: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -33736,6 +34830,8 @@ public enum SessionVerificationData {
     )
     case decimals(values: [UInt16]
     )
+
+
 
 
 
@@ -33827,6 +34923,8 @@ public enum ShieldState: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -33904,6 +35002,8 @@ public enum SlidingSyncVersion: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -33967,6 +35067,8 @@ public enum SlidingSyncVersionBuilder: Equatable, Hashable {
     case none
     case native
     case discoverNative
+
+
 
 
 
@@ -34055,6 +35157,8 @@ public enum SpaceListUpdate: Equatable, Hashable {
     )
     case reset(values: [SpaceRoom]
     )
+
+
 
 
 
@@ -34200,6 +35304,8 @@ public enum SsoError: Swift.Error, Equatable, Hashable, Foundation.LocalizedErro
     
 
     
+
+    
     public var errorDescription: String? {
         String(reflecting: self)
     }
@@ -34301,6 +35407,8 @@ public enum StateEventContent: Equatable, Hashable {
     )
     case spaceChild
     case spaceParent
+
+
 
 
 
@@ -34483,7 +35591,9 @@ public func FfiConverterTypeStateEventContent_lower(_ value: StateEventContent) 
 
 public enum StateEventType: Equatable, Hashable {
     
+    case beaconInfo
     case callMember
+    case memberHints
     case policyRuleRoom
     case policyRuleServer
     case policyRuleUser
@@ -34494,8 +35604,10 @@ public enum StateEventType: Equatable, Hashable {
     case roomEncryption
     case roomGuestAccess
     case roomHistoryVisibility
+    case roomImagePack
     case roomJoinRules
     case roomMemberEvent
+    case roomLanguage
     case roomName
     case roomPinnedEvents
     case roomPowerLevels
@@ -34505,6 +35617,10 @@ public enum StateEventType: Equatable, Hashable {
     case roomTopic
     case spaceChild
     case spaceParent
+    case custom(value: String
+    )
+
+
 
 
 
@@ -34524,49 +35640,60 @@ public struct FfiConverterTypeStateEventType: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .callMember
+        case 1: return .beaconInfo
         
-        case 2: return .policyRuleRoom
+        case 2: return .callMember
         
-        case 3: return .policyRuleServer
+        case 3: return .memberHints
         
-        case 4: return .policyRuleUser
+        case 4: return .policyRuleRoom
         
-        case 5: return .roomAliases
+        case 5: return .policyRuleServer
         
-        case 6: return .roomAvatar
+        case 6: return .policyRuleUser
         
-        case 7: return .roomCanonicalAlias
+        case 7: return .roomAliases
         
-        case 8: return .roomCreate
+        case 8: return .roomAvatar
         
-        case 9: return .roomEncryption
+        case 9: return .roomCanonicalAlias
         
-        case 10: return .roomGuestAccess
+        case 10: return .roomCreate
         
-        case 11: return .roomHistoryVisibility
+        case 11: return .roomEncryption
         
-        case 12: return .roomJoinRules
+        case 12: return .roomGuestAccess
         
-        case 13: return .roomMemberEvent
+        case 13: return .roomHistoryVisibility
         
-        case 14: return .roomName
+        case 14: return .roomImagePack
         
-        case 15: return .roomPinnedEvents
+        case 15: return .roomJoinRules
         
-        case 16: return .roomPowerLevels
+        case 16: return .roomMemberEvent
         
-        case 17: return .roomServerAcl
+        case 17: return .roomLanguage
         
-        case 18: return .roomThirdPartyInvite
+        case 18: return .roomName
         
-        case 19: return .roomTombstone
+        case 19: return .roomPinnedEvents
         
-        case 20: return .roomTopic
+        case 20: return .roomPowerLevels
         
-        case 21: return .spaceChild
+        case 21: return .roomServerAcl
         
-        case 22: return .spaceParent
+        case 22: return .roomThirdPartyInvite
+        
+        case 23: return .roomTombstone
+        
+        case 24: return .roomTopic
+        
+        case 25: return .spaceChild
+        
+        case 26: return .spaceParent
+        
+        case 27: return .custom(value: try FfiConverterString.read(from: &buf)
+        )
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -34576,93 +35703,114 @@ public struct FfiConverterTypeStateEventType: FfiConverterRustBuffer {
         switch value {
         
         
-        case .callMember:
+        case .beaconInfo:
             writeInt(&buf, Int32(1))
         
         
-        case .policyRuleRoom:
+        case .callMember:
             writeInt(&buf, Int32(2))
         
         
-        case .policyRuleServer:
+        case .memberHints:
             writeInt(&buf, Int32(3))
         
         
-        case .policyRuleUser:
+        case .policyRuleRoom:
             writeInt(&buf, Int32(4))
         
         
-        case .roomAliases:
+        case .policyRuleServer:
             writeInt(&buf, Int32(5))
         
         
-        case .roomAvatar:
+        case .policyRuleUser:
             writeInt(&buf, Int32(6))
         
         
-        case .roomCanonicalAlias:
+        case .roomAliases:
             writeInt(&buf, Int32(7))
         
         
-        case .roomCreate:
+        case .roomAvatar:
             writeInt(&buf, Int32(8))
         
         
-        case .roomEncryption:
+        case .roomCanonicalAlias:
             writeInt(&buf, Int32(9))
         
         
-        case .roomGuestAccess:
+        case .roomCreate:
             writeInt(&buf, Int32(10))
         
         
-        case .roomHistoryVisibility:
+        case .roomEncryption:
             writeInt(&buf, Int32(11))
         
         
-        case .roomJoinRules:
+        case .roomGuestAccess:
             writeInt(&buf, Int32(12))
         
         
-        case .roomMemberEvent:
+        case .roomHistoryVisibility:
             writeInt(&buf, Int32(13))
         
         
-        case .roomName:
+        case .roomImagePack:
             writeInt(&buf, Int32(14))
         
         
-        case .roomPinnedEvents:
+        case .roomJoinRules:
             writeInt(&buf, Int32(15))
         
         
-        case .roomPowerLevels:
+        case .roomMemberEvent:
             writeInt(&buf, Int32(16))
         
         
-        case .roomServerAcl:
+        case .roomLanguage:
             writeInt(&buf, Int32(17))
         
         
-        case .roomThirdPartyInvite:
+        case .roomName:
             writeInt(&buf, Int32(18))
         
         
-        case .roomTombstone:
+        case .roomPinnedEvents:
             writeInt(&buf, Int32(19))
         
         
-        case .roomTopic:
+        case .roomPowerLevels:
             writeInt(&buf, Int32(20))
         
         
-        case .spaceChild:
+        case .roomServerAcl:
             writeInt(&buf, Int32(21))
         
         
-        case .spaceParent:
+        case .roomThirdPartyInvite:
             writeInt(&buf, Int32(22))
         
+        
+        case .roomTombstone:
+            writeInt(&buf, Int32(23))
+        
+        
+        case .roomTopic:
+            writeInt(&buf, Int32(24))
+        
+        
+        case .spaceChild:
+            writeInt(&buf, Int32(25))
+        
+        
+        case .spaceParent:
+            writeInt(&buf, Int32(26))
+        
+        
+        case let .custom(value):
+            writeInt(&buf, Int32(27))
+            FfiConverterString.write(value, into: &buf)
+            
         }
     }
 }
@@ -34693,6 +35841,8 @@ public enum SteadyStateError: Swift.Error, Equatable, Hashable, Foundation.Local
     case Connection(message: String)
     
     case Lagged(message: String)
+    
+
     
 
     
@@ -34781,6 +35931,8 @@ public enum SyncServiceState: Equatable, Hashable {
     case terminated
     case error
     case offline
+
+
 
 
 
@@ -34886,6 +36038,8 @@ public enum TagName: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -34979,6 +36133,8 @@ public enum TimelineDiff {
     )
     case reset(values: [TimelineItem]
     )
+
+
 
 
 
@@ -35112,12 +36268,97 @@ public func FfiConverterTypeTimelineDiff_lower(_ value: TimelineDiff) -> RustBuf
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
-public enum TimelineEventType {
+public enum TimelineEventContent {
     
     case messageLike(content: MessageLikeEventContent
     )
     case state(content: StateEventContent
     )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TimelineEventContent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTimelineEventContent: FfiConverterRustBuffer {
+    typealias SwiftType = TimelineEventContent
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineEventContent {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .messageLike(content: try FfiConverterTypeMessageLikeEventContent.read(from: &buf)
+        )
+        
+        case 2: return .state(content: try FfiConverterTypeStateEventContent.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: TimelineEventContent, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .messageLike(content):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeMessageLikeEventContent.write(content, into: &buf)
+            
+        
+        case let .state(content):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeStateEventContent.write(content, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTimelineEventContent_lift(_ buf: RustBuffer) throws -> TimelineEventContent {
+    return try FfiConverterTypeTimelineEventContent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTimelineEventContent_lower(_ value: TimelineEventContent) -> RustBuffer {
+    return FfiConverterTypeTimelineEventContent.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * The timeline event type.
+ */
+
+public enum TimelineEventType: Equatable, Hashable {
+    
+    /**
+     * The event is a message-like one and should be displayed as such.
+     */
+    case messageLike(value: MessageLikeEventType
+    )
+    /**
+     * The event is a state event, and may or may not be displayed in the
+     * timeline.
+     */
+    case state(value: StateEventType
+    )
+
+
 
 
 
@@ -35137,10 +36378,10 @@ public struct FfiConverterTypeTimelineEventType: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .messageLike(content: try FfiConverterTypeMessageLikeEventContent.read(from: &buf)
+        case 1: return .messageLike(value: try FfiConverterTypeMessageLikeEventType.read(from: &buf)
         )
         
-        case 2: return .state(content: try FfiConverterTypeStateEventContent.read(from: &buf)
+        case 2: return .state(value: try FfiConverterTypeStateEventType.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -35151,14 +36392,14 @@ public struct FfiConverterTypeTimelineEventType: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .messageLike(content):
+        case let .messageLike(value):
             writeInt(&buf, Int32(1))
-            FfiConverterTypeMessageLikeEventContent.write(content, into: &buf)
+            FfiConverterTypeMessageLikeEventType.write(value, into: &buf)
             
         
-        case let .state(content):
+        case let .state(value):
             writeInt(&buf, Int32(2))
-            FfiConverterTypeStateEventContent.write(content, into: &buf)
+            FfiConverterTypeStateEventType.write(value, into: &buf)
             
         }
     }
@@ -35203,6 +36444,8 @@ public enum TimelineFilter {
      */
     case eventTypeFilter(filter: TimelineEventTypeFilter
     )
+
+
 
 
 
@@ -35303,6 +36546,8 @@ public enum TimelineFocus: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -35400,6 +36645,8 @@ public enum TimelineItemContent {
     )
     case failedToParseState(eventType: String, stateKey: String, error: String
     )
+
+
 
 
 
@@ -35545,6 +36792,12 @@ public enum TraceLogPacks: Equatable, Hashable {
      * Enables all the logs relevant to sync profiling.
      */
     case syncProfiling
+    /**
+     * Enables all the logs relevant to the latest events.
+     */
+    case latestEvents
+
+
 
 
 
@@ -35574,6 +36827,8 @@ public struct FfiConverterTypeTraceLogPacks: FfiConverterRustBuffer {
         
         case 5: return .syncProfiling
         
+        case 6: return .latestEvents
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -35600,6 +36855,10 @@ public struct FfiConverterTypeTraceLogPacks: FfiConverterRustBuffer {
         
         case .syncProfiling:
             writeInt(&buf, Int32(5))
+        
+        
+        case .latestEvents:
+            writeInt(&buf, Int32(6))
         
         }
     }
@@ -35655,6 +36914,8 @@ public enum Tweak: Equatable, Hashable {
          * The value of the custom tweak as an encoded JSON string
          */value: String
     )
+
+
 
 
 
@@ -35756,6 +37017,8 @@ public enum UploadSource: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -35824,6 +37087,8 @@ public enum VerificationState: Equatable, Hashable {
     case unknown
     case verified
     case unverified
+
+
 
 
 
@@ -35914,6 +37179,8 @@ public enum VirtualTimelineItem: Equatable, Hashable {
      * The timeline start, that is, the *oldest* event in time for that room.
      */
     case timelineStart
+
+
 
 
 
@@ -36013,6 +37280,8 @@ public enum WidgetEventFilter: Equatable, Hashable {
      */
     case toDevice(eventType: String
     )
+
+
 
 
 
@@ -44623,6 +45892,32 @@ fileprivate struct FfiConverterDictionaryTypeTagNameTypeTagInfo: FfiConverterRus
     }
 }
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterDictionaryTypeTimelineEventTypeInt64: FfiConverterRustBuffer {
+    public static func write(_ value: [TimelineEventType: Int64], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterTypeTimelineEventType.write(key, into: &buf)
+            FfiConverterInt64.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TimelineEventType: Int64] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [TimelineEventType: Int64]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterTypeTimelineEventType.read(from: &buf)
+            let value = try FfiConverterInt64.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
 
 /**
  * Typealias from the type name used in the UDL file to the builtin type.  This
@@ -44714,6 +46009,125 @@ fileprivate func uniffiFutureContinuationCallback(handle: UInt64, pollResult: In
         print("uniffiFutureContinuationCallback invalid handle")
     }
 }
+public func sdkGitSha() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_sdk_git_sha($0
+    )
+})
+}
+public func genTransactionId() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_gen_transaction_id($0
+    )
+})
+}
+/**
+ * Set the global enablement level for the Sentry layer (after the logs have
+ * been set up).
+ */
+public func enableSentryLogging(enabled: Bool)  {try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_enable_sentry_logging(
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+}
+/**
+ * Sets up logs and the tokio runtime for the current application.
+ *
+ * If `use_lightweight_tokio_runtime` is set to true, this will set up a
+ * lightweight tokio runtime, for processes that have memory limitations (like
+ * the NSE process on iOS). Otherwise, this can remain false, in which case a
+ * multithreaded tokio runtime will be set up.
+ */
+public func initPlatform(config: TracingConfiguration, useLightweightTokioRuntime: Bool)throws   {try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_func_init_platform(
+        FfiConverterTypeTracingConfiguration_lower(config),
+        FfiConverterBool.lower(useLightweightTokioRuntime),$0
+    )
+}
+}
+/**
+ * Updates the tracing subscriber with a new file writer based on the provided
+ * configuration.
+ *
+ * This method will throw if `init_platform` hasn't been called, or if it was
+ * called with `write_to_files` set to `None`.
+ */
+public func reloadTracingFileWriter(configuration: TracingFileConfiguration)throws   {try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_func_reload_tracing_file_writer(
+        FfiConverterTypeTracingFileConfiguration_lower(configuration),$0
+    )
+}
+}
+/**
+ * Generates a `matrix.to` permalink to the given room alias.
+ */
+public func matrixToRoomAliasPermalink(roomAlias: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_func_matrix_to_room_alias_permalink(
+        FfiConverterString.lower(roomAlias),$0
+    )
+})
+}
+/**
+ * Verifies the passed `String` matches the expected room alias format:
+ *
+ * This means it's lowercase, with no whitespace chars, has a single leading
+ * `#` char and a single `:` separator between the local and domain parts, and
+ * the local part only contains characters that can't be percent encoded.
+ */
+public func isRoomAliasFormatValid(alias: String) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_is_room_alias_format_valid(
+        FfiConverterString.lower(alias),$0
+    )
+})
+}
+/**
+ * Transforms a Room's display name into a valid room alias name.
+ */
+public func roomAliasNameFromRoomDisplayName(roomName: String) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_room_alias_name_from_room_display_name(
+        FfiConverterString.lower(roomName),$0
+    )
+})
+}
+/**
+ * Generates a `matrix.to` permalink to the given userID.
+ */
+public func matrixToUserPermalink(userId: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_func_matrix_to_user_permalink(
+        FfiConverterString.lower(userId),$0
+    )
+})
+}
+/**
+ * Get the suggested power level for the given role.
+ *
+ * Returns an error if the value of the power level is unsupported.
+ */
+public func suggestedPowerLevelForRole(role: RoomMemberRole)throws  -> PowerLevel  {
+    return try  FfiConverterTypePowerLevel_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_func_suggested_power_level_for_role(
+        FfiConverterTypeRoomMemberRole_lower(role),$0
+    )
+})
+}
+/**
+ * Get the suggested role for the given power level.
+ *
+ * Returns an error if the value of the power level is out of range for numbers
+ * accepted in canonical JSON.
+ */
+public func suggestedRoleForPowerLevel(powerLevel: PowerLevel)throws  -> RoomMemberRole  {
+    return try  FfiConverterTypeRoomMemberRole_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_func_suggested_role_for_power_level(
+        FfiConverterTypePowerLevel_lower(powerLevel),$0
+    )
+})
+}
 /**
  * Creates a [`RoomMessageEventContentWithoutRelation`] given a
  * [`MessageContent`] value.
@@ -44722,6 +46136,54 @@ public func contentWithoutRelationFromMessage(message: MessageContent)throws  ->
     return try  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
     uniffi_matrix_sdk_ffi_fn_func_content_without_relation_from_message(
         FfiConverterTypeMessageContent_lower(message),$0
+    )
+})
+}
+public func messageEventContentFromHtml(body: String, htmlBody: String) -> RoomMessageEventContentWithoutRelation  {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_html(
+        FfiConverterString.lower(body),
+        FfiConverterString.lower(htmlBody),$0
+    )
+})
+}
+public func messageEventContentFromHtmlAsEmote(body: String, htmlBody: String) -> RoomMessageEventContentWithoutRelation  {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_html_as_emote(
+        FfiConverterString.lower(body),
+        FfiConverterString.lower(htmlBody),$0
+    )
+})
+}
+public func messageEventContentFromMarkdown(md: String) -> RoomMessageEventContentWithoutRelation  {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_markdown(
+        FfiConverterString.lower(md),$0
+    )
+})
+}
+public func messageEventContentFromMarkdownAsEmote(md: String) -> RoomMessageEventContentWithoutRelation  {
+    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_markdown_as_emote(
+        FfiConverterString.lower(md),$0
+    )
+})
+}
+public func messageEventContentNew(msgtype: MessageType)throws  -> RoomMessageEventContentWithoutRelation  {
+    return try  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
+    uniffi_matrix_sdk_ffi_fn_func_message_event_content_new(
+        FfiConverterTypeMessageType_lower(msgtype),$0
+    )
+})
+}
+/**
+ * Parse a matrix entity from a given URI, be it either
+ * a `matrix.to` link or a `matrix:` URI
+ */
+public func parseMatrixEntityFrom(uri: String) -> MatrixEntity?  {
+    return try!  FfiConverterOptionTypeMatrixEntity.lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_parse_matrix_entity_from(
+        FfiConverterString.lower(uri),$0
     )
 })
 }
@@ -44741,20 +46203,28 @@ public func createCaptionEdit(caption: String?, formattedCaption: FormattedBody?
 })
 }
 /**
- * Set the global enablement level for the Sentry layer (after the logs have
- * been set up).
+ * Log an event.
+ *
+ * The target should be something like a module path, and can be referenced in
+ * the filter string given to `init_platform`. `level` and `target` for a
+ * callsite are fixed at the first `log_event` call for that callsite and can
+ * not be changed afterwards, i.e. the level and target passed for second and
+ * following `log_event`s with the same callsite will be ignored.
+ *
+ * This function leaks a little bit of memory for each unique (file + line +
+ * level + target) it is called with. Please make sure that the number of
+ * different combinations of those parameters this can be called with is
+ * constant in the final executable.
  */
-public func enableSentryLogging(enabled: Bool)  {try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_enable_sentry_logging(
-        FfiConverterBool.lower(enabled),$0
+public func logEvent(file: String, line: UInt32?, level: LogLevel, target: String, message: String)  {try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_func_log_event(
+        FfiConverterString.lower(file),
+        FfiConverterOptionUInt32.lower(line),
+        FfiConverterTypeLogLevel_lower(level),
+        FfiConverterString.lower(target),
+        FfiConverterString.lower(message),$0
     )
 }
-}
-public func genTransactionId() -> String  {
-    return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_gen_transaction_id($0
-    )
-})
 }
 /**
  * Create the actual url that can be used to setup the WebView or IFrame
@@ -44802,120 +46272,10 @@ public func getElementCallRequiredPermissions(ownUserId: String, ownDeviceId: St
     )
 })
 }
-/**
- * Sets up logs and the tokio runtime for the current application.
- *
- * If `use_lightweight_tokio_runtime` is set to true, this will set up a
- * lightweight tokio runtime, for processes that have memory limitations (like
- * the NSE process on iOS). Otherwise, this can remain false, in which case a
- * multithreaded tokio runtime will be set up.
- */
-public func initPlatform(config: TracingConfiguration, useLightweightTokioRuntime: Bool)throws   {try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_func_init_platform(
-        FfiConverterTypeTracingConfiguration_lower(config),
-        FfiConverterBool.lower(useLightweightTokioRuntime),$0
-    )
-}
-}
-/**
- * Verifies the passed `String` matches the expected room alias format:
- *
- * This means it's lowercase, with no whitespace chars, has a single leading
- * `#` char and a single `:` separator between the local and domain parts, and
- * the local part only contains characters that can't be percent encoded.
- */
-public func isRoomAliasFormatValid(alias: String) -> Bool  {
-    return try!  FfiConverterBool.lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_is_room_alias_format_valid(
-        FfiConverterString.lower(alias),$0
-    )
-})
-}
-/**
- * Log an event.
- *
- * The target should be something like a module path, and can be referenced in
- * the filter string given to `init_platform`. `level` and `target` for a
- * callsite are fixed at the first `log_event` call for that callsite and can
- * not be changed afterwards, i.e. the level and target passed for second and
- * following `log_event`s with the same callsite will be ignored.
- *
- * This function leaks a little bit of memory for each unique (file + line +
- * level + target) it is called with. Please make sure that the number of
- * different combinations of those parameters this can be called with is
- * constant in the final executable.
- */
-public func logEvent(file: String, line: UInt32?, level: LogLevel, target: String, message: String)  {try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_log_event(
-        FfiConverterString.lower(file),
-        FfiConverterOptionUInt32.lower(line),
-        FfiConverterTypeLogLevel_lower(level),
-        FfiConverterString.lower(target),
-        FfiConverterString.lower(message),$0
-    )
-}
-}
 public func makeWidgetDriver(settings: WidgetSettings)throws  -> WidgetDriverAndHandle  {
     return try  FfiConverterTypeWidgetDriverAndHandle_lift(try rustCallWithError(FfiConverterTypeParseError_lift) {
     uniffi_matrix_sdk_ffi_fn_func_make_widget_driver(
         FfiConverterTypeWidgetSettings_lower(settings),$0
-    )
-})
-}
-/**
- * Generates a `matrix.to` permalink to the given room alias.
- */
-public func matrixToRoomAliasPermalink(roomAlias: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_func_matrix_to_room_alias_permalink(
-        FfiConverterString.lower(roomAlias),$0
-    )
-})
-}
-/**
- * Generates a `matrix.to` permalink to the given userID.
- */
-public func matrixToUserPermalink(userId: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_func_matrix_to_user_permalink(
-        FfiConverterString.lower(userId),$0
-    )
-})
-}
-public func messageEventContentFromHtml(body: String, htmlBody: String) -> RoomMessageEventContentWithoutRelation  {
-    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_html(
-        FfiConverterString.lower(body),
-        FfiConverterString.lower(htmlBody),$0
-    )
-})
-}
-public func messageEventContentFromHtmlAsEmote(body: String, htmlBody: String) -> RoomMessageEventContentWithoutRelation  {
-    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_html_as_emote(
-        FfiConverterString.lower(body),
-        FfiConverterString.lower(htmlBody),$0
-    )
-})
-}
-public func messageEventContentFromMarkdown(md: String) -> RoomMessageEventContentWithoutRelation  {
-    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_markdown(
-        FfiConverterString.lower(md),$0
-    )
-})
-}
-public func messageEventContentFromMarkdownAsEmote(md: String) -> RoomMessageEventContentWithoutRelation  {
-    return try!  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_message_event_content_from_markdown_as_emote(
-        FfiConverterString.lower(md),$0
-    )
-})
-}
-public func messageEventContentNew(msgtype: MessageType)throws  -> RoomMessageEventContentWithoutRelation  {
-    return try  FfiConverterTypeRoomMessageEventContentWithoutRelation_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_func_message_event_content_new(
-        FfiConverterTypeMessageType_lower(msgtype),$0
     )
 })
 }
@@ -44942,71 +46302,6 @@ public func newVirtualElementCallWidget(props: VirtualElementCallWidgetPropertie
     )
 })
 }
-/**
- * Parse a matrix entity from a given URI, be it either
- * a `matrix.to` link or a `matrix:` URI
- */
-public func parseMatrixEntityFrom(uri: String) -> MatrixEntity?  {
-    return try!  FfiConverterOptionTypeMatrixEntity.lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_parse_matrix_entity_from(
-        FfiConverterString.lower(uri),$0
-    )
-})
-}
-/**
- * Updates the tracing subscriber with a new file writer based on the provided
- * configuration.
- *
- * This method will throw if `init_platform` hasn't been called, or if it was
- * called with `write_to_files` set to `None`.
- */
-public func reloadTracingFileWriter(configuration: TracingFileConfiguration)throws   {try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_func_reload_tracing_file_writer(
-        FfiConverterTypeTracingFileConfiguration_lower(configuration),$0
-    )
-}
-}
-/**
- * Transforms a Room's display name into a valid room alias name.
- */
-public func roomAliasNameFromRoomDisplayName(roomName: String) -> String  {
-    return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_room_alias_name_from_room_display_name(
-        FfiConverterString.lower(roomName),$0
-    )
-})
-}
-public func sdkGitSha() -> String  {
-    return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_matrix_sdk_ffi_fn_func_sdk_git_sha($0
-    )
-})
-}
-/**
- * Get the suggested power level for the given role.
- *
- * Returns an error if the value of the power level is unsupported.
- */
-public func suggestedPowerLevelForRole(role: RoomMemberRole)throws  -> PowerLevel  {
-    return try  FfiConverterTypePowerLevel_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_func_suggested_power_level_for_role(
-        FfiConverterTypeRoomMemberRole_lower(role),$0
-    )
-})
-}
-/**
- * Get the suggested role for the given power level.
- *
- * Returns an error if the value of the power level is out of range for numbers
- * accepted in canonical JSON.
- */
-public func suggestedRoleForPowerLevel(powerLevel: PowerLevel)throws  -> RoomMemberRole  {
-    return try  FfiConverterTypeRoomMemberRole_lift(try rustCallWithError(FfiConverterTypeClientError_lift) {
-    uniffi_matrix_sdk_ffi_fn_func_suggested_role_for_power_level(
-        FfiConverterTypePowerLevel_lower(powerLevel),$0
-    )
-})
-}
 
 private enum InitializationResult {
     case ok
@@ -45023,1579 +46318,1612 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_content_without_relation_from_message() != 1366) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_create_caption_edit() != 33992) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_enable_sentry_logging() != 53125) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 15808) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_generate_webview_url() != 48529) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_get_element_call_required_permissions() != 30181) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_init_platform() != 11113) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_is_room_alias_format_valid() != 54845) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 55646) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 34206) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_room_alias_permalink() != 13776) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_user_permalink() != 46473) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html() != 37203) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html_as_emote() != 8938) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 58385) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown_as_emote() != 20152) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 57839) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_new_virtual_element_call_widget() != 7233) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_parse_matrix_entity_from() != 49710) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_reload_tracing_file_writer() != 1447) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_matrix_sdk_ffi_checksum_func_room_alias_name_from_room_display_name() != 65010) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_matrix_sdk_ffi_checksum_func_sdk_git_sha() != 4038) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_suggested_power_level_for_role() != 29703) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_gen_transaction_id() != 50486) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_func_suggested_role_for_power_level() != 13856) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_enable_sentry_logging() != 7613) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_checkcodesender_send() != 50179) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_init_platform() != 14462) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_abort_oidc_auth() != 53440) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_reload_tracing_file_writer() != 7613) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 50433) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_room_alias_permalink() != 4370) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 42373) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_is_room_alias_format_valid() != 32456) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_add_recent_emoji() != 29688) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_room_alias_name_from_room_display_name() != 64531) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_available_sliding_sync_versions() != 35296) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_matrix_to_user_permalink() != 8284) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 27867) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_suggested_power_level_for_role() != 52982) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_await_room_remote_echo() != 18126) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_suggested_role_for_power_level() != 1141) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_cached_avatar_url() != 50226) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_content_without_relation_from_message() != 11794) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_can_deactivate_account() != 39890) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html() != 47401) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_clear_caches() != 55711) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_html_as_emote() != 56994) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_create_room() != 52700) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown() != 53788) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_custom_login_with_jwt() != 19710) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_from_markdown_as_emote() != 33485) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_deactivate_account() != 20658) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_message_event_content_new() != 33472) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_delete_pusher() != 45990) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_parse_matrix_entity_from() != 43356) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_device_id() != 44340) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_create_caption_edit() != 57776) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_display_name() != 56259) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_log_event() != 28696) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_enable_all_send_queues() != 30834) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_generate_webview_url() != 42271) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_enable_send_queue_upload_progress() != 10688) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_get_element_call_required_permissions() != 40493) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_encryption() != 9657) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_make_widget_driver() != 16495) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_fetch_media_preview_config() != 15595) {
+    if (uniffi_matrix_sdk_ffi_checksum_func_new_virtual_element_call_widget() != 6216) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 5137) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommessageeventcontentwithoutrelation_with_mentions() != 23475) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_invite_avatars_display_policy() != 46953) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_sliding_sync_version() != 8075) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_max_media_upload_size() != 12661) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supported_oidc_prompts() != 39919) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 40308) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_oidc_login() != 22858) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 20094) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 1406) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_preview_display_policy() != 19264) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_sso_login() != 19696) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 52601) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 19766) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_settings() != 49769) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_ssohandler_finish() != 56350) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 60062) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_ssohandler_url() != 633) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_recent_emojis() != 43545) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_abort_oidc_auth() != 17052) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_recently_visited_rooms() != 22399) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_data() != 23790) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_room() != 30376) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_account_url() != 53991) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_room_preview_from_room_alias() != 7674) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_available_sliding_sync_versions() != 46726) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_room_preview_from_room_id() != 36348) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_avatar_url() != 26042) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 55934) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_await_room_remote_echo() != 5412) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_url() != 32541) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_cached_avatar_url() != 30527) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver() != 26427) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_can_deactivate_account() != 27747) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver_login_details() != 63487) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_clear_caches() != 61351) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 14588) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_create_room() != 12931) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignored_users() != 49620) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_custom_login_with_jwt() != 16219) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_livekit_rtc_supported() != 34863) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_deactivate_account() != 7894) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_report_room_api_supported() != 17934) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_delete_pusher() != 20472) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_room_alias_available() != 23322) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_device_id() != 63337) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id() != 64032) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_display_name() != 20054) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id_or_alias() != 18521) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_enable_all_send_queues() != 53800) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_knock() != 48652) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_enable_send_queue_upload_progress() != 30956) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 33276) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_encryption() != 13362) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_login_with_email() != 11789) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_fetch_media_preview_config() != 53942) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_login_with_oidc_callback() != 32591) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_dm_room() != 3705) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 42911) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_invite_avatars_display_policy() != 16387) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_new_grant_login_with_qr_code_handler() != 48299) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_max_media_upload_size() != 54634) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_new_login_with_qr_code_handler() != 4124) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_content() != 30321) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 37308) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_file() != 41198) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_observe_account_data_event() != 13906) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_preview_display_policy() != 62158) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_observe_room_account_data_event() != 15699) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_media_thumbnail() != 23704) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_register_notification_handler() != 47103) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_notification_settings() != 625) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_remove_avatar() != 29033) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_profile() != 3999) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_reset_server_info() != 16333) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_recently_visited_rooms() != 43351) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_resolve_room_alias() != 3551) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_room() != 63699) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 56125) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_room_preview_from_room_alias() != 48007) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session_with() != 20927) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_room_preview_from_room_id() != 58119) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_room_alias_exists() != 20359) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_session_verification_controller() != 64657) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_room_directory_search() != 39855) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_store_sizes() != 47046) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_rooms() != 29558) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_url() != 46254) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_search_users() != 42927) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver() != 26707) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_server() != 63276) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_homeserver_login_details() != 63281) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_server_vendor_info() != 51933) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignore_user() != 30519) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_session() != 8085) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_ignored_users() != 57288) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_account_data() != 18256) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_livekit_rtc_supported() != 48327) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_delegate() != 46437) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_login_with_qr_code_supported() != 14689) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_display_name() != 15292) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_report_room_api_supported() != 48577) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_invite_avatars_display_policy() != 48457) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_room_alias_available() != 53090) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_media_preview_display_policy() != 24080) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id() != 28397) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_media_retention_policy() != 2414) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_join_room_by_id_or_alias() != 16138) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 41975) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_knock() != 40592) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_utd_delegate() != 37720) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_login() != 48373) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_sliding_sync_version() != 4957) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_login_with_email() != 22630) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_space_service() != 31959) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_login_with_oidc_callback() != 63441) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_start_sso_login() != 34571) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_logout() != 54411) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_ignored_users() != 23285) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_new_grant_login_with_qr_code_handler() != 59558) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_media_preview_config() != 47047) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_new_login_with_qr_code_handler() != 37543) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_room_info() != 41103) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_notification_client() != 17687) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_send_queue_status() != 57403) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_observe_account_data_event() != 40713) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_send_queue_updates() != 33603) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_observe_room_account_data_event() != 46899) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_sync_service() != 52812) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_optimize_stores() != 53467) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_track_recently_visited_room() != 56986) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_register_notification_handler() != 46860) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 8489) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_remove_avatar() != 12536) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 64486) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_reset_supported_versions() != 12909) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 51195) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_reset_well_known() != 52054) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_url_for_oidc() != 19369) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_resolve_room_alias() != 16053) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 40531) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session() != 56243) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id_server_name() != 57725) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_restore_session_with() != 21462) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_add_root_certificates() != 14763) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_room_alias_exists() != 5713) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_auto_enable_backups() != 44502) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_room_directory_search() != 4257) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_auto_enable_cross_signing() != 37167) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_rooms() != 57092) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_backup_download_strategy() != 11959) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_search_users() != 23484) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 56018) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_server() != 11140) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_cross_process_store_locks_holder_name() != 46627) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_server_vendor_info() != 25767) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_decryption_settings() != 34715) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_session() != 47980) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_automatic_token_refresh() != 43839) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_account_data() != 56242) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_built_in_root_certificates() != 47525) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_delegate() != 377) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_ssl_verification() != 2334) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_display_name() != 47937) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_enable_oidc_refresh_lock() != 42214) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_invite_avatars_display_policy() != 57486) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_enable_share_history_on_invite() != 3856) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_media_preview_display_policy() != 27881) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 28347) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_media_retention_policy() != 45052) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_in_memory_store() != 28117) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 51438) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_proxy() != 5659) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_utd_delegate() != 38853) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_request_config() != 58783) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_sliding_sync_version() != 55440) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_room_key_recipient_strategy() != 41183) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_space_service() != 19054) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 29096) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_start_sso_login() != 11891) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name_or_homeserver_url() != 30022) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_ignored_users() != 10184) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_session_paths() != 40778) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_media_preview_config() != 11612) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_set_session_delegate() != 8576) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_room_info() != 3308) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sliding_sync_version_builder() != 39381) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_send_queue_status() != 39397) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sqlite_store() != 55579) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_send_queue_updates() != 53470) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_system_is_memory_constrained() != 30452) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_sync_service() != 47464) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_threads_enabled() != 23935) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_track_recently_visited_room() != 40498) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 13719) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 2582) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 45302) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 14839) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_exists_on_server() != 45490) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_media() != 19621) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state() != 51049) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_url_for_oidc() != 50450) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state_listener() != 14246) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id() != 11375) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_curve25519_key() != 58425) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_user_id_server_name() != 52727) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 18699) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_add_recent_emoji() != 15952) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_ed25519_key() != 11864) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_recent_emojis() != 49975) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 55446) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 42046) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 64351) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_persist() != 34214) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_has_devices_to_verify_against() != 7561) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_add_root_certificates() != 60910) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 27955) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_auto_enable_backups() != 19978) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover() != 33712) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_auto_enable_cross_signing() != 41588) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 12902) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_backup_download_strategy() != 5278) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state() != 54051) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_build() != 21717) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state_listener() != 36612) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_cross_process_store_locks_holder_name() != 56336) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_identity() != 13780) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_decryption_settings() != 36533) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 20380) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_automatic_token_refresh() != 60164) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_user_identity() != 20644) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_built_in_root_certificates() != 34380) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_verification_state() != 29114) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_disable_ssl_verification() != 17095) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_verification_state_listener() != 59806) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_enable_oidc_refresh_lock() != 54805) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 37503) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_enable_share_history_on_invite() != 47743) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_e2ee_initialization_tasks() != 41585) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_homeserver_url() != 27846) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_grantloginwithqrcodehandler_generate() != 56670) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_in_memory_store() != 7770) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_grantloginwithqrcodehandler_scan() != 60730) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_proxy() != 56894) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_sliding_sync_version() != 36573) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_request_config() != 41133) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supported_oidc_prompts() != 63396) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_room_key_recipient_strategy() != 7083) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_oidc_login() != 46090) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name() != 27235) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_password_login() != 33501) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_server_name_or_homeserver_url() != 11561) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_supports_sso_login() != 37773) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_session_paths() != 52143) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_homeserverlogindetails_url() != 61326) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_set_session_delegate() != 35713) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_auth_type() != 43501) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sliding_sync_version_builder() != 39928) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_cancel() != 57622) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_sqlite_store() != 54280) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_reset() != 11997) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_system_is_memory_constrained() != 64472) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_inreplytodetails_event() != 36106) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_threads_enabled() != 10698) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_inreplytodetails_event_id() != 5876) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_user_agent() != 31638) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_accept() != 25656) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientbuilder_username() != 9349) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_decline() != 65054) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_exists_on_server() != 16984) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_decline_and_ban() != 26242) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state() != 60707) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_mark_as_seen() != 36036) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state_listener() != 14813) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_contains_only_emojis() != 5211) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_curve25519_key() != 25462) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_debug_info() != 55450) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 43697) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_get_send_handle() != 46057) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_ed25519_key() != 30741) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_get_shields() != 12518) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 61920) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_leavespacehandle_leave() != 54036) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 2033) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_leavespacehandle_rooms() != 50920) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_has_devices_to_verify_against() != 50754) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_loginwithqrcodehandler_generate() != 59689) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 54322) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_loginwithqrcodehandler_scan() != 53560) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover() != 14635) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_path() != 16357) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recover_and_reset() != 48062) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediafilehandle_persist() != 12883) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state() != 28660) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_to_json() != 23306) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state_listener() != 17926) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_url() != 62692) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_identity() != 47257) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification() != 52873) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 15954) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notifications() != 64372) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_user_identity() != 39850) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_room() != 26581) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_verification_state() != 29580) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_homeserver_push_encrypted_event_to_device() != 37323) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_verification_state_listener() != 30914) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_push_encrypted_event_to_device() != 21251) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_backup_upload_steady_state() != 28614) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 60025) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_wait_for_e2ee_initialization_tasks() != 23168) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode() != 36211) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_auth_type() != 21421) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_raw_push_rules() != 17884) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_cancel() != 14034) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings() != 55295) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_reset() != 29457) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_rooms_with_user_defined_rules() != 19849) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_has_verification_violation() != 36877) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_user_defined_room_notification_mode() != 18228) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_is_verified() != 27675) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled() != 12210) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_master_key() != 44140) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_invite_for_me_enabled() != 533) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_pin() != 64915) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_room_mention_enabled() != 13304) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_was_previously_verified() != 10595) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_user_mention_enabled() != 49857) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_withdraw_verification() != 8452) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_restore_default_room_notification_mode() != 35399) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_content() != 50738) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_call_enabled() != 16823) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_id() != 64715) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_custom_push_rule() != 465) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_sender_id() != 16913) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_default_room_notification_mode() != 9426) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_thread_root_event_id() != 3965) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_delegate() != 57636) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 31754) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_invite_for_me_enabled() != 11988) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notification() != 47425) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_mention_enabled() != 31650) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_notifications() != 55817) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_notification_mode() != 4135) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationclient_get_room() != 22250) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_user_mention_enabled() != 56594) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_homeserver_push_encrypted_event_to_device() != 46370) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 47580) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_can_push_encrypted_event_to_device() != 24557) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_qrcodedata_server_name() != 30173) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_contains_keywords_rules() != 31603) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 61905) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_default_room_notification_mode() != 44201) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_room_call_participants() != 41533) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_raw_push_rules() != 22761) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 28555) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_room_notification_settings() != 44589) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_apply_power_level_changes() != 44206) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_rooms_with_user_defined_rules() != 23908) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 34637) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_get_user_defined_room_notification_mode() != 13690) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_ban_user() != 35046) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_call_enabled() != 42573) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 19786) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_invite_for_me_enabled() != 24945) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_clear_composer_draft() != 59182) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_room_mention_enabled() != 4073) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_clear_event_cache_storage() != 13838) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_is_user_mention_enabled() != 17837) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_decline_call() != 36115) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_restore_default_room_notification_mode() != 12358) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_discard_room_key() != 18081) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_call_enabled() != 17088) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 64194) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_custom_push_rule() != 49373) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 61956) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_default_room_notification_mode() != 29804) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_enable_encryption() != 14669) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_delegate() != 39042) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_enable_send_queue() != 23914) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_invite_for_me_enabled() != 34082) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_encryption_state() != 9101) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_mention_enabled() != 63495) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_thread_subscription() != 51696) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_room_notification_mode() != 21942) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_forget() != 37840) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_set_user_mention_enabled() != 22017) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_power_levels() != 47640) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettings_unmute_room() != 54475) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_room_visibility() != 412) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_checkcodesender_send() != 2180) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_has_active_room_call() != 33588) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_grantloginwithqrcodehandler_generate() != 59049) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_heroes() != 22313) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_grantloginwithqrcodehandler_scan() != 35786) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 61990) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_loginwithqrcodehandler_generate() != 27889) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_device_trust_and_resend() != 39984) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_loginwithqrcodehandler_scan() != 55947) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 62239) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_qrcodedata_server_name() != 52906) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_invite_user_by_id() != 41133) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_qrcodedata_to_bytes() != 22532) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_invited_members_count() != 1023) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_accept() != 60529) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 18103) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_decline() != 20051) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 10462) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_decline_and_ban() != 23767) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_encrypted() != 63995) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestactions_mark_as_seen() != 20986) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_public() != 57746) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_members_count() != 10052) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_send_queue_enabled() != 36591) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_active_room_call_participants() != 61411) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_space() != 16919) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_alternative_aliases() != 30946) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_join() != 9240) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_apply_power_level_changes() != 56335) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_joined_members_count() != 55835) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_avatar_url() != 4697) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_kick_user() != 28600) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ban_user() != 54282) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_latest_encryption_state() != 16843) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_canonical_alias() != 5795) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_latest_event() != 39083) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_clear_composer_draft() != 12270) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 63688) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_clear_event_cache_storage() != 14531) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_load_composer_draft() != 62856) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_decline_call() != 12323) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_load_or_fetch_event() != 12703) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_discard_room_key() != 57692) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_fully_read_unchecked() != 24981) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_display_name() != 45762) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read() != 57806) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_edit() != 6689) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_matrix_to_event_permalink() != 36705) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_enable_encryption() != 16452) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_matrix_to_permalink() != 47781) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_enable_send_queue() != 32996) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 48980) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_encryption_state() != 35766) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 29492) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_fetch_thread_subscription() != 37784) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 33206) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_forget() != 10622) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_with_sender_info() != 64964) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_power_levels() != 33125) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 42691) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_get_room_visibility() != 49289) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_members_no_sync() != 3255) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_has_active_room_call() != 1287) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 45951) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_heroes() != 38402) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_new_latest_event() != 11947) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_id() != 34667) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_own_user_id() != 39510) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_device_trust_and_resend() != 24786) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_predecessor_room() != 22093) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_ignore_user() != 45929) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_preview_room() != 60431) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_invite_user_by_id() != 27806) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_publish_room_alias_in_room_directory() != 13924) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_invited_members_count() != 44865) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_raw_name() != 15453) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_inviter() != 7247) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 45810) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_direct() != 61932) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 7230) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_encrypted() != 37204) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_room_alias_from_room_directory() != 16926) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_public() != 31529) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 16529) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_send_queue_enabled() != 5651) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_room() != 6449) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_is_space() != 19377) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_reset_power_levels() != 5060) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_join() != 65464) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_events_debug_string() != 37832) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_joined_members_count() != 55525) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 41146) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_kick_user() != 64949) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_save_composer_draft() != 27585) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_latest_encryption_state() != 9465) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_live_location() != 34248) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_latest_event() != 37006) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_raw() != 20486) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_leave() != 3346) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_favourite() != 64403) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_load_composer_draft() != 61910) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_low_priority() != 48070) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_load_or_fetch_event() != 47103) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 52127) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_fully_read_unchecked() != 1608) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_thread_subscription() != 48337) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_mark_as_read() != 38075) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 5576) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_matrix_to_event_permalink() != 30684) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_unread_flag() != 2381) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_matrix_to_permalink() != 10281) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_start_live_location_share() != 11488) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member() != 58977) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_stop_live_location_share() != 19983) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_avatar_url() != 44092) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_call_decline_events() != 62256) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_display_name() != 26431) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_identity_status_changes() != 8526) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_member_with_sender_info() != 36075) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_knock_requests() != 30649) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 13926) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_live_location_shares() != 57037) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members_no_sync() != 8950) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 48209) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_membership() != 65038) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_send_queue_updates() != 17661) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_own_user_id() != 32346) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_typing_notifications() != 38524) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_predecessor_room() != 21931) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_successor_room() != 27360) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_preview_room() != 20509) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_suggested_role_for_user() != 47787) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_publish_room_alias_in_room_directory() != 2302) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 51477) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_raw_name() != 65346) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline_with_configuration() != 35159) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_redact() != 56590) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 59745) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_avatar() != 3551) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_typing_notice() != 28642) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_remove_room_alias_from_room_directory() != 26389) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_unban_user() != 1803) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_content() != 27264) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_canonical_alias() != 25065) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_report_room() != 372) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_history_visibility() != 26248) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_reset_power_levels() != 32610) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_join_rules() != 49303) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_events_debug_string() != 35772) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_power_levels_for_users() != 52057) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_room_info() != 62185) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_room_visibility() != 64724) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_save_composer_draft() != 42915) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 19069) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_live_location() != 36351) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_room_withdraw_verification_and_resend() != 33485) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_raw() != 63831) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_is_at_last_page() != 34221) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_favourite() != 1289) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_loaded_pages() != 2923) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_is_low_priority() != 44950) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_next_page() != 29305) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_name() != 33828) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_results() != 30207) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_thread_subscription() != 55986) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_search() != 24438) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_topic() != 40525) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_adapters() != 36097) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_set_unread_flag() != 38235) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_adapters_with() != 21746) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_start_live_location_share() != 43479) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_loading_state() != 21585) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_stop_live_location_share() != 19603) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 62491) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_call_decline_events() != 21456) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_add_one_page() != 47748) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_identity_status_changes() != 49969) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_reset_to_one_page() != 61352) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_knock_requests() != 43535) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_set_filter() != 61202) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_live_location_shares() != 48977) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieswithdynamicadaptersresult_controller() != 36258) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_room_info_updates() != 32254) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieswithdynamicadaptersresult_entries_stream() != 56632) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_send_queue_updates() != 36773) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_all_rooms() != 49704) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_typing_notifications() != 12198) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_room() != 60695) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_successor_room() != 17951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_state() != 64650) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_suggested_role_for_user() != 58040) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_subscribe_to_rooms() != 5528) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline() != 51168) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 16821) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_timeline_with_configuration() != 46904) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_len() != 39835) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_topic() != 33844) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_next_chunk() != 23186) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_typing_notice() != 26086) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roommessageeventcontentwithoutrelation_with_mentions() != 50302) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_unban_user() != 25834) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_ban() != 7183) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_canonical_alias() != 35023) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_invite() != 57708) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_history_visibility() != 29249) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_kick() != 461) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_join_rules() != 62193) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_pin_unpin() != 52852) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_power_levels_for_users() != 46007) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_redact_other() != 60699) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_update_room_visibility() != 46267) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_redact_own() != 32905) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_upload_avatar() != 43932) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_send_message() != 2424) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_withdraw_verification_and_resend() != 13926) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_send_state() != 33539) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_len() != 59145) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_trigger_room_notification() != 64150) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roommembersiterator_next_chunk() != 47532) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_ban() != 57457) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_ban() != 52576) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_invite() != 41275) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_invite() != 55467) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_kick() != 51066) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_kick() != 8759) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_pin_unpin() != 4609) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_pin_unpin() != 64005) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_redact_other() != 52543) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_redact_other() != 10630) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_redact_own() != 2983) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_redact_own() != 10164) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_send_message() != 48291) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_send_message() != 27531) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_send_state() != 14792) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_send_state() != 17089) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_trigger_room_notification() != 26319) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_own_user_trigger_room_notification() != 59279) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_user_power_levels() != 16221) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_ban() != 12687) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_values() != 38774) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_invite() != 26290) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_forget() != 18179) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_kick() != 3923) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_info() != 50237) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_pin_unpin() != 20659) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_inviter() != 1297) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_redact_other() != 54198) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_leave() != 21886) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_redact_own() != 59218) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_own_membership_details() != 46321) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_send_message() != 45517) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 62384) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_send_state() != 40995) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 1903) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_can_user_trigger_room_notification() != 35381) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendgalleryjoinhandle_cancel() != 7014) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_events() != 10932) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendgalleryjoinhandle_join() != 57901) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_user_power_levels() != 48829) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendhandle_abort() != 11570) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompowerlevels_values() != 62886) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendhandle_try_resend() != 28691) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_is_at_last_page() != 31168) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_accept_verification_request() != 53466) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_loaded_pages() != 59827) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_acknowledge_verification_request() != 37982) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_next_page() != 14719) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 27140) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_results() != 21645) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 32994) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearch_search() != 38611) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 64345) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_adapters() != 19021) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_device_verification() != 4777) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_entries_with_dynamic_adapters_with() != 25653) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_user_verification() != 26149) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_loading_state() != 2181) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 42324) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlist_room() != 50761) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 16328) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_add_one_page() != 47488) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_description() != 21346) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_reset_to_one_page() != 4391) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_symbol() != 46075) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistdynamicentriescontroller_set_filter() != 8696) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_paginate() != 57707) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieswithdynamicadaptersresult_controller() != 21030) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_pagination_state() != 33381) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieswithdynamicadaptersresult_entries_stream() != 22467) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_rooms() != 24664) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_all_rooms() != 4638) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_space() != 25368) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_room() != 40756) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_subscribe_to_pagination_state_updates() != 16775) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_state() != 41751) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_subscribe_to_room_update() != 55793) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_subscribe_to_rooms() != 1302) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_subscribe_to_space_updates() != 26327) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservice_sync_indicator() != 48386) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_joined_spaces() != 54285) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 57541) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_leave_space() != 7949) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 60202) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_space_room_list() != 6768) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 27272) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_subscribe_to_joined_spaces() != 10090) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_forget() != 42918) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 8900) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_info() != 16635) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 47924) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_inviter() != 54424) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 33327) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_leave() != 52262) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_cache_size() != 52005) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roompreview_own_membership_details() != 16335) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_journal_size_limit() != 18671) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_to_json() != 19277) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_passphrase() != 58378) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediasource_url() != 53516) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_pool_max_size() != 65399) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_accept_verification_request() != 56039) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_system_is_memory_constrained() != 16295) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_acknowledge_verification_request() != 22948) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_ssohandler_finish() != 64706) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_approve_verification() != 26553) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_ssohandler_url() != 10889) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 32557) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_expire_sessions() != 45579) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 9058) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_room_list_service() != 26426) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_device_verification() != 20402) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start() != 16010) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_user_verification() != 11869) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_state() != 61806) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 65112) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_stop() != 42435) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_start_sas_verification() != 56151) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish() != 22814) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_description() != 45746) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 56326) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationemoji_symbol() != 54870) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_offline_mode() != 16958) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_leavespacehandle_leave() != 64951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_share_pos() != 18892) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_leavespacehandle_rooms() != 40216) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 9124) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_paginate() != 14784) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 29008) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_pagination_state() != 6614) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_threadsummary_latest_event() != 52917) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_rooms() != 65022) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_threadsummary_num_replies() != 10634) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_space() != 63772) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_add_listener() != 18746) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_subscribe_to_pagination_state_updates() != 15348) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_create_message_content() != 21811) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_subscribe_to_room_update() != 52629) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_create_poll() != 37925) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlist_subscribe_to_space_updates() != 31589) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit() != 42189) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_add_child_to_space() != 64688) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_end_poll() != 32659) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_editable_spaces() != 9178) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_details_for_event() != 54068) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_get_space_room() != 38097) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_members() != 37994) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_joined_parents_of_child() != 40037) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_event_timeline_item_by_event_id() != 33999) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_leave_space() != 57139) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_latest_event_id() != 20608) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_remove_child_from_space() != 22535) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_load_reply_details() != 54225) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_space_room_list() != 14788) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_mark_as_read() != 16621) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_subscribe_to_top_level_joined_spaces() != 59416) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 36829) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservice_top_level_joined_spaces() != 19973) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_forwards() != 30268) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_cache_size() != 61803) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_pin_event() != 41687) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_journal_size_limit() != 23095) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_redact_event() != 48707) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_passphrase() != 45337) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_decryption() != 21112) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_pool_max_size() != 41218) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send() != 9553) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_system_is_memory_constrained() != 19368) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_audio() != 36723) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_expire_sessions() != 5808) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_file() != 4740) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_room_list_service() != 39986) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_gallery() != 61071) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_start() != 42766) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_image() != 29043) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_state() != 56378) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_location() != 39080) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservice_stop() != 40415) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_poll_response() != 7453) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_finish() != 29725) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_read_receipt() != 37532) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_cross_process_lock() != 17911) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_reply() != 11149) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_offline_mode() != 48885) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_video() != 52974) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_share_pos() != 21315) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 41701) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_cancel() != 12353) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 46161) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_taskhandle_is_finished() != 17040) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction() != 13555) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_contains_only_emojis() != 57596) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_unpin_event() != 52414) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_debug_info() != 797) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_id() != 11088) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_get_send_handle() != 279) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_event_type() != 12922) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_lazytimelineitemprovider_get_shields() != 46064) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_sender_id() != 18142) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_cancel() != 5666) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_thread_root_event_id() != 56465) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendattachmentjoinhandle_join() != 22211) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineevent_timestamp() != 50929) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendhandle_abort() != 2406) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_event() != 6106) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendhandle_try_resend() != 50142) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_virtual() != 50960) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_add_listener() != 38550) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_fmt_debug() != 38094) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_create_message_content() != 54719) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_unique_id() != 39945) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_create_poll() != 33924) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_has_notifications() != 33024) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_edit() != 46968) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_highlight_count() != 35997) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_end_poll() != 2766) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unreadnotificationscount_notification_count() != 35655) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_details_for_event() != 22240) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_has_verification_violation() != 2948) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_fetch_members() != 22294) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_is_verified() != 61954) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_get_event_timeline_item_by_event_id() != 40008) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_master_key() != 4041) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_latest_event_id() != 31074) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_pin() != 62925) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_load_reply_details() != 11426) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_was_previously_verified() != 41686) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_mark_as_read() != 58804) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_useridentity_withdraw_verification() != 3578) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_backwards() != 53026) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriver_run() != 7519) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_paginate_forwards() != 35094) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_recv() != 2662) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_pin_event() != 40498) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_send() != 18689) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_redact_event() != 42154) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 27991) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_retry_decryption() != 39219) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 10564) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send() != 24846) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_url() != 11983) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_audio() != 52753) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_qrcodedata_from_bytes() != 32675) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_file() != 19448) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 53698) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_image() != 31845) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 14105) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_location() != 21302) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_sqlitestorebuilder_new() != 51363) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_poll_response() != 41951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_timelineeventtypefilter_exclude() != 53805) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_read_receipt() != 6077) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_constructor_timelineeventtypefilter_include() != 25498) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_reply() != 25065) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_accountdatalistener_on_change() != 16189) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_video() != 21275) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_backupstatelistener_on_update() != 12849) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 33769) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_backupsteadystatelistener_on_update() != 41052) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 27990) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_calldeclinelistener_call() != 13016) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction() != 42673) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_receive_auth_error() != 26350) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_unpin_event() != 18514) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_retrieve_session_from_keychain() != 43954) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_gallery() != 64895) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_save_session_in_keychain() != 53223) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_event() != 46788) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_enablerecoveryprogresslistener_on_update() != 13538) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_as_virtual() != 58215) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_generatedqrloginprogresslistener_on_update() != 28731) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_fmt_debug() != 59080) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_grantgeneratedqrloginprogresslistener_on_update() != 2320) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelineitem_unique_id() != 32877) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_grantqrloginprogresslistener_on_update() != 35830) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendgalleryjoinhandle_cancel() != 23182) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_identitystatuschangelistener_call() != 57311) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendgalleryjoinhandle_join() != 30455) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_ignoreduserslistener_call() != 47519) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_threadsummary_latest_event() != 49553) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestslistener_call() != 10077) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_threadsummary_num_replies() != 47977) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_livelocationsharelistener_call() != 34519) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_inreplytodetails_event() != 52000) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_mediapreviewconfiglistener_on_change() != 14770) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_inreplytodetails_event_id() != 55998) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 51708) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_enter() != 15935) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_paginationstatuslistener_on_update() != 65318) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_exit() != 2919) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 41133) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_span_is_none() != 59307) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_qrloginprogresslistener_on_update() != 9758) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriver_run() != 61502) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_recoverystatelistener_on_update() != 64575) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_recv() != 10867) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomaccountdatalistener_on_change() != 58105) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetdriverhandle_send() != 27865) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearchentrieslistener_on_update() != 41968) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_clientbuilder_new() != 40475) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roominfolistener_call() != 44934) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_qrcodedata_from_bytes() != 55735) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieslistener_on_update() != 12576) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_json() != 60091) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistloadingstatelistener_on_update() != 23169) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_mediasource_from_url() != 37564) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicestatelistener_on_update() != 24823) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_sqlitestorebuilder_new() != 604) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicesyncindicatorlistener_on_update() != 36937) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_timelineeventtypefilter_exclude() != 17142) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendqueuelistener_on_update() != 24843) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_timelineeventtypefilter_include() != 18137) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendqueueroomerrorlistener_on_error() != 38224) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_current() != 2135) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sendqueueroomupdatelistener_on_update() != 11544) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new() != 47713) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_request() != 3417) {
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_span_new_bridge_span() != 51316) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_accept_verification_request() != 3733) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_accountdatalistener_on_change() != 13017) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_start_sas_verification() != 56833) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientdelegate_did_receive_auth_error() != 38563) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_data() != 30840) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_retrieve_session_from_keychain() != 43233) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_fail() != 32164) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_clientsessiondelegate_save_session_in_keychain() != 4452) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_cancel() != 3367) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_ignoreduserslistener_call() != 6068) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_finish() != 37905) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_mediapreviewconfiglistener_on_change() != 45931) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlistentrieslistener_on_update() != 31502) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_progresswatcher_transmission_progress() != 41998) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlistpaginationstatelistener_on_update() != 11960) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomaccountdatalistener_on_change() != 54581) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlistspacelistener_on_update() != 39714) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendqueueroomerrorlistener_on_error() != 601) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservicejoinedspaceslistener_on_update() != 19262) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendqueueroomupdatelistener_on_update() != 56104) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncnotificationlistener_on_notification() != 38017) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncnotificationlistener_on_notification() != 39259) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicestateobserver_on_update() != 62231) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_backupstatelistener_on_update() != 43998) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 53990) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_backupsteadystatelistener_on_update() != 56068) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_typingnotificationslistener_call() != 64299) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_enablerecoveryprogresslistener_on_update() != 27773) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_unabletodecryptdelegate_on_utd() != 61791) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_recoverystatelistener_on_update() != 34195) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_verificationstatelistener_on_update() != 38998) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_verificationstatelistener_on_update() != 33992) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 12846) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_notificationsettingsdelegate_settings_did_change() != 52554) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_generatedqrloginprogresslistener_on_update() != 30858) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_grantgeneratedqrloginprogresslistener_on_update() != 23453) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_grantqrloginprogresslistener_on_update() != 63807) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_qrloginprogresslistener_on_update() != 62487) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_calldeclinelistener_call() != 6360) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_identitystatuschangelistener_call() != 13891) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_knockrequestslistener_call() != 17262) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_livelocationsharelistener_call() != 15280) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roominfolistener_call() != 61614) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sendqueuelistener_on_update() != 62056) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_typingnotificationslistener_call() != 36696) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomdirectorysearchentrieslistener_on_update() != 6069) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistentrieslistener_on_update() != 12283) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistloadingstatelistener_on_update() != 34444) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicestatelistener_on_update() != 60435) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_roomlistservicesyncindicatorlistener_on_update() != 47433) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_request() != 58189) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_accept_verification_request() != 43661) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_start_sas_verification() != 8006) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_data() != 8698) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_fail() != 45076) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_cancel() != 36580) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_finish() != 53036) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlistentrieslistener_on_update() != 20303) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlistpaginationstatelistener_on_update() != 4634) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlistspacelistener_on_update() != 21212) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_spaceservicejoinedspaceslistener_on_update() != 21383) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicestateobserver_on_update() != 7272) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_paginationstatuslistener_on_update() != 53207) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timelinelistener_on_update() != 35518) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_unabletodecryptdelegate_on_utd() != 3448) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_widgetcapabilitiesprovider_acquire_capabilities() != 3738) {
         return InitializationResult.apiChecksumMismatch
     }
 

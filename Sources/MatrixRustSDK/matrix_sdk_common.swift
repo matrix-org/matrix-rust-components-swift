@@ -497,6 +497,8 @@ public enum ShieldStateCode: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)

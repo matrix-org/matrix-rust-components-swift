@@ -481,6 +481,8 @@ public struct DecryptionSettings: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -564,6 +566,8 @@ public enum CollectStrategy: Equatable, Hashable {
      * - It is the current own device of the user.
      */
     case onlyTrustedDevices
+
+
 
 
 
@@ -670,6 +674,8 @@ public enum IdentityState: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -761,6 +767,8 @@ public enum LocalTrust: Equatable, Hashable {
      * The trust state is unset.
      */
     case unset
+
+
 
 
 
@@ -875,6 +883,8 @@ public enum LoginQrCodeDecodeError: Swift.Error, Equatable, Hashable, Foundation
      * The QR code data doesn't contain the expected `MATRIX` prefix.
      */
     case InvalidPrefix(message: String)
+    
+
     
 
     
@@ -1006,6 +1016,8 @@ public enum SignatureState: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -1095,6 +1107,8 @@ public enum TrustRequirement: Equatable, Hashable {
      * Only decrypt events from cross-signed devices.
      */
     case crossSigned
+
+
 
 
 
@@ -1249,6 +1263,8 @@ public enum UtdCause: Equatable, Hashable {
      * Expected message to user: "You need to verify this device".
      */
     case historicalMessageAndDeviceIsUnverified
+
+
 
 
 

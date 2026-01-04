@@ -572,7 +572,11 @@ open class OAuthAuthorizationData: OAuthAuthorizationDataProtocol, @unchecked Se
     // No primary constructor declared for this class.
 
     deinit {
-        guard handle != 0 else { return }
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
         try! rustCall { uniffi_matrix_sdk_fn_free_oauthauthorizationdata(handle, $0) }
     }
 
@@ -684,6 +688,10 @@ public struct RoomPowerLevelChanges: Equatable, Hashable {
      * The level required to change the room's topic.
      */
     public var roomTopic: Int64?
+    /**
+     * The level required to change the space's children.
+     */
+    public var spaceChild: Int64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -717,7 +725,10 @@ public struct RoomPowerLevelChanges: Equatable, Hashable {
          */roomAvatar: Int64? = nil, 
         /**
          * The level required to change the room's topic.
-         */roomTopic: Int64? = nil) {
+         */roomTopic: Int64? = nil, 
+        /**
+         * The level required to change the space's children.
+         */spaceChild: Int64? = nil) {
         self.ban = ban
         self.invite = invite
         self.kick = kick
@@ -728,7 +739,10 @@ public struct RoomPowerLevelChanges: Equatable, Hashable {
         self.roomName = roomName
         self.roomAvatar = roomAvatar
         self.roomTopic = roomTopic
+        self.spaceChild = spaceChild
     }
+
+    
 
     
 }
@@ -753,7 +767,8 @@ public struct FfiConverterTypeRoomPowerLevelChanges: FfiConverterRustBuffer {
                 usersDefault: FfiConverterOptionInt64.read(from: &buf), 
                 roomName: FfiConverterOptionInt64.read(from: &buf), 
                 roomAvatar: FfiConverterOptionInt64.read(from: &buf), 
-                roomTopic: FfiConverterOptionInt64.read(from: &buf)
+                roomTopic: FfiConverterOptionInt64.read(from: &buf), 
+                spaceChild: FfiConverterOptionInt64.read(from: &buf)
         )
     }
 
@@ -768,6 +783,7 @@ public struct FfiConverterTypeRoomPowerLevelChanges: FfiConverterRustBuffer {
         FfiConverterOptionInt64.write(value.roomName, into: &buf)
         FfiConverterOptionInt64.write(value.roomAvatar, into: &buf)
         FfiConverterOptionInt64.write(value.roomTopic, into: &buf)
+        FfiConverterOptionInt64.write(value.spaceChild, into: &buf)
     }
 }
 
@@ -812,6 +828,8 @@ public struct ServerVendorInfo: Equatable, Hashable {
         self.serverName = serverName
         self.version = version
     }
+
+    
 
     
 }
@@ -985,6 +1003,8 @@ public struct VirtualElementCallWidgetConfig: Equatable, Hashable {
         self.controlledAudioDevices = controlledAudioDevices
         self.sendNotificationType = sendNotificationType
     }
+
+    
 
     
 }
@@ -1200,6 +1220,8 @@ public struct VirtualElementCallWidgetProperties: Equatable, Hashable {
     }
 
     
+
+    
 }
 
 #if compiler(>=6)
@@ -1291,6 +1313,8 @@ public enum BackupDownloadStrategy: Equatable, Hashable {
      * This is the default option.
      */
     case manual
+
+
 
 
 
@@ -1387,6 +1411,8 @@ public enum EncryptionSystem: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -1470,6 +1496,8 @@ public enum HeaderStyle: Equatable, Hashable {
      * No Header (useful for webapps).
      */
     case none
+
+
 
 
 
@@ -1564,6 +1592,8 @@ public enum Intent: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -1650,6 +1680,8 @@ public enum NotificationType: Equatable, Hashable {
 
 
 
+
+
 }
 
 #if compiler(>=6)
@@ -1730,6 +1762,8 @@ public enum PaginatorState: Equatable, Hashable {
      * The paginator is… paginating one direction or another.
      */
     case paginating
+
+
 
 
 
@@ -1831,6 +1865,11 @@ public enum QrCodeLoginError: Swift.Error, Equatable, Hashable, Foundation.Local
     case SecureChannel(message: String)
     
     /**
+     * The rendezvous session was not found and might have expired.
+     */
+    case NotFound(message: String)
+    
+    /**
      * The cross-process refresh lock failed to be initialized.
      */
     case CrossProcessRefreshLock(message: String)
@@ -1864,6 +1903,8 @@ public enum QrCodeLoginError: Swift.Error, Equatable, Hashable, Foundation.Local
      * reset the server URL.
      */
     case ServerReset(message: String)
+    
+
     
 
     
@@ -1908,27 +1949,31 @@ public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 5: return .CrossProcessRefreshLock(
+        case 5: return .NotFound(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 6: return .UserIdDiscovery(
+        case 6: return .CrossProcessRefreshLock(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 7: return .SessionTokens(
+        case 7: return .UserIdDiscovery(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 8: return .DeviceKeyUpload(
+        case 8: return .SessionTokens(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 9: return .SecretImport(
+        case 9: return .DeviceKeyUpload(
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 10: return .ServerReset(
+        case 10: return .SecretImport(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 11: return .ServerReset(
             message: try FfiConverterString.read(from: &buf)
         )
         
@@ -1951,18 +1996,20 @@ public struct FfiConverterTypeQRCodeLoginError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(3))
         case .SecureChannel(_ /* message is ignored*/):
             writeInt(&buf, Int32(4))
-        case .CrossProcessRefreshLock(_ /* message is ignored*/):
+        case .NotFound(_ /* message is ignored*/):
             writeInt(&buf, Int32(5))
-        case .UserIdDiscovery(_ /* message is ignored*/):
+        case .CrossProcessRefreshLock(_ /* message is ignored*/):
             writeInt(&buf, Int32(6))
-        case .SessionTokens(_ /* message is ignored*/):
+        case .UserIdDiscovery(_ /* message is ignored*/):
             writeInt(&buf, Int32(7))
-        case .DeviceKeyUpload(_ /* message is ignored*/):
+        case .SessionTokens(_ /* message is ignored*/):
             writeInt(&buf, Int32(8))
-        case .SecretImport(_ /* message is ignored*/):
+        case .DeviceKeyUpload(_ /* message is ignored*/):
             writeInt(&buf, Int32(9))
-        case .ServerReset(_ /* message is ignored*/):
+        case .SecretImport(_ /* message is ignored*/):
             writeInt(&buf, Int32(10))
+        case .ServerReset(_ /* message is ignored*/):
+            writeInt(&buf, Int32(11))
 
         
         }
@@ -2017,6 +2064,8 @@ public enum RoomMemberRole: Equatable, Hashable {
      * The member is a regular user.
      */
     case user
+
+
 
 
 
@@ -2108,6 +2157,8 @@ public enum RoomPaginationStatus: Equatable, Hashable {
      * Back-pagination is already running in the background.
      */
     case paginating
+
+
 
 
 
@@ -2351,7 +2402,7 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_matrix_sdk_checksum_method_oauthauthorizationdata_login_url() != 25566) {
+    if (uniffi_matrix_sdk_checksum_method_oauthauthorizationdata_login_url() != 47865) {
         return InitializationResult.apiChecksumMismatch
     }
 
