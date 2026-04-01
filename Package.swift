@@ -1,4 +1,4 @@
-// swift-tools-version:5.5
+// swift-tools-version:5.7
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 import PackageDescription
 let checksum = "49e0324449233c6982db2a0f6da06f9aa18567546b49eee8169c1badb6493cc3"
@@ -7,7 +7,7 @@ let url = "https://github.com/matrix-org/matrix-rust-components-swift/releases/d
 let package = Package(
     name: "MatrixRustSDK",
     platforms: [
-        .iOS(.v15),
+        .iOS(.v16),
         .macOS(.v12)
     ],
     products: [
