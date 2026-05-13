@@ -685,14 +685,14 @@ public func FfiConverterTypeCrossSigningSecrets_lower(_ value: CrossSigningSecre
 
 
 /**
- * Struct containing the bundle of secrets to fully activate a new devices for
+ * Struct containing the bundle of secrets to fully activate a new device for
  * end-to-end encryption.
  */
 public protocol SecretsBundleProtocol: AnyObject, Sendable {
     
 }
 /**
- * Struct containing the bundle of secrets to fully activate a new devices for
+ * Struct containing the bundle of secrets to fully activate a new device for
  * end-to-end encryption.
  */
 open class SecretsBundle: SecretsBundleProtocol, @unchecked Sendable {

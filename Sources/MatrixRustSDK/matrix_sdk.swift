@@ -692,6 +692,14 @@ public struct RoomPowerLevelChanges: Equatable, Hashable {
      * The level required to change the space's children.
      */
     public var spaceChild: Int64?
+    /**
+     * The level required to send a beacon (live location) message event.
+     */
+    public var beacon: Int64?
+    /**
+     * The level required to send a beacon info state event.
+     */
+    public var beaconInfo: Int64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -728,7 +736,13 @@ public struct RoomPowerLevelChanges: Equatable, Hashable {
          */roomTopic: Int64? = nil, 
         /**
          * The level required to change the space's children.
-         */spaceChild: Int64? = nil) {
+         */spaceChild: Int64? = nil, 
+        /**
+         * The level required to send a beacon (live location) message event.
+         */beacon: Int64? = nil, 
+        /**
+         * The level required to send a beacon info state event.
+         */beaconInfo: Int64? = nil) {
         self.ban = ban
         self.invite = invite
         self.kick = kick
@@ -740,6 +754,8 @@ public struct RoomPowerLevelChanges: Equatable, Hashable {
         self.roomAvatar = roomAvatar
         self.roomTopic = roomTopic
         self.spaceChild = spaceChild
+        self.beacon = beacon
+        self.beaconInfo = beaconInfo
     }
 
     
@@ -768,7 +784,9 @@ public struct FfiConverterTypeRoomPowerLevelChanges: FfiConverterRustBuffer {
                 roomName: FfiConverterOptionInt64.read(from: &buf), 
                 roomAvatar: FfiConverterOptionInt64.read(from: &buf), 
                 roomTopic: FfiConverterOptionInt64.read(from: &buf), 
-                spaceChild: FfiConverterOptionInt64.read(from: &buf)
+                spaceChild: FfiConverterOptionInt64.read(from: &buf), 
+                beacon: FfiConverterOptionInt64.read(from: &buf), 
+                beaconInfo: FfiConverterOptionInt64.read(from: &buf)
         )
     }
 
@@ -784,6 +802,8 @@ public struct FfiConverterTypeRoomPowerLevelChanges: FfiConverterRustBuffer {
         FfiConverterOptionInt64.write(value.roomAvatar, into: &buf)
         FfiConverterOptionInt64.write(value.roomTopic, into: &buf)
         FfiConverterOptionInt64.write(value.spaceChild, into: &buf)
+        FfiConverterOptionInt64.write(value.beacon, into: &buf)
+        FfiConverterOptionInt64.write(value.beaconInfo, into: &buf)
     }
 }
 
