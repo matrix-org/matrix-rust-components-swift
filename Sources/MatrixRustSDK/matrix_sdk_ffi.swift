@@ -1364,7 +1364,7 @@ public protocol ClientProtocol: AnyObject, Sendable {
     /**
      * Registers a pusher with given parameters
      */
-    func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String) async throws 
+    func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String, append: Bool) async throws 
     
     /**
      * Sets the [`UnableToDecryptDelegate`] which will inform about UTDs.
@@ -1459,6 +1459,16 @@ public protocol ClientProtocol: AnyObject, Sendable {
      * The listener is called after each successful sync response.
      */
     func syncV2(settings: SyncSettingsV2, listener: SyncListenerV2)  -> TaskHandle
+    
+    /**
+     * Get information about the homeserver's advertised map tile server, if
+     * any.
+     *
+     * Reads the `tile_server` field of the matrix client well-known (MSC3488).
+     * Uses the cached well-known when available, otherwise fetches it from the
+     * homeserver.
+     */
+    func tileServer() async  -> TileServerInfo?
     
     func trackRecentlyVisitedRoom(room: String) async throws 
     
@@ -3234,13 +3244,13 @@ open func setMediaRetentionPolicy(policy: MediaRetentionPolicy)async throws   {
     /**
      * Registers a pusher with given parameters
      */
-open func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String)async throws   {
+open func setPusher(identifiers: PusherIdentifiers, kind: PusherKind, appDisplayName: String, deviceDisplayName: String, profileTag: String?, lang: String, append: Bool)async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_set_pusher(
                     self.uniffiCloneHandle(),
-                    FfiConverterTypePusherIdentifiers_lower(identifiers),FfiConverterTypePusherKind_lower(kind),FfiConverterString.lower(appDisplayName),FfiConverterString.lower(deviceDisplayName),FfiConverterOptionString.lower(profileTag),FfiConverterString.lower(lang)
+                    FfiConverterTypePusherIdentifiers_lower(identifiers),FfiConverterTypePusherKind_lower(kind),FfiConverterString.lower(appDisplayName),FfiConverterString.lower(deviceDisplayName),FfiConverterOptionString.lower(profileTag),FfiConverterString.lower(lang),FfiConverterBool.lower(append)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -3497,6 +3507,32 @@ open func syncV2(settings: SyncSettingsV2, listener: SyncListenerV2) -> TaskHand
         FfiConverterCallbackInterfaceSyncListenerV2_lower(listener),$0
     )
 })
+}
+    
+    /**
+     * Get information about the homeserver's advertised map tile server, if
+     * any.
+     *
+     * Reads the `tile_server` field of the matrix client well-known (MSC3488).
+     * Uses the cached well-known when available, otherwise fetches it from the
+     * homeserver.
+     */
+open func tileServer()async  -> TileServerInfo?  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_tile_server(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeTileServerInfo.lift,
+            errorHandler: nil
+            
+        )
 }
     
 open func trackRecentlyVisitedRoom(room: String)async throws   {
@@ -15182,7 +15218,14 @@ public protocol SqliteStoreBuilderProtocol: AnyObject, Sendable {
     func journalSizeLimit(limit: UInt32?)  -> SqliteStoreBuilder
     
     /**
-     * Set the passphrase for the stores.
+     * Set the raw key for the stores and removes any [`Self::passphrase`]
+     * previously set.
+     */
+    func key(key: Data?)  -> SqliteStoreBuilder
+    
+    /**
+     * Set the passphrase for the stores and removes any [`Self::key`]
+     * previously set.
      */
     func passphrase(passphrase: String?)  -> SqliteStoreBuilder
     
@@ -15322,7 +15365,21 @@ open func journalSizeLimit(limit: UInt32?) -> SqliteStoreBuilder  {
 }
     
     /**
-     * Set the passphrase for the stores.
+     * Set the raw key for the stores and removes any [`Self::passphrase`]
+     * previously set.
+     */
+open func key(key: Data?) -> SqliteStoreBuilder  {
+    return try!  FfiConverterTypeSqliteStoreBuilder_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_sqlitestorebuilder_key(
+            self.uniffiCloneHandle(),
+        FfiConverterOptionData.lower(key),$0
+    )
+})
+}
+    
+    /**
+     * Set the passphrase for the stores and removes any [`Self::key`]
+     * previously set.
      */
 open func passphrase(passphrase: String?) -> SqliteStoreBuilder  {
     return try!  FfiConverterTypeSqliteStoreBuilder_lift(try! rustCall() {
@@ -23407,6 +23464,10 @@ public struct RoomInfo {
      */
     public var numUnreadMentions: UInt64
     /**
+     * Event ID of the user's `m.fully_read` marker for this room, if any.
+     */
+    public var fullyReadEventId: String?
+    /**
      * The currently pinned event ids.
      */
     public var pinnedEventIds: [String]
@@ -23476,6 +23537,9 @@ public struct RoomInfo {
          * notification settings.
          */numUnreadMentions: UInt64, 
         /**
+         * Event ID of the user's `m.fully_read` marker for this room, if any.
+         */fullyReadEventId: String?, 
+        /**
          * The currently pinned event ids.
          */pinnedEventIds: [String], 
         /**
@@ -23530,6 +23594,7 @@ public struct RoomInfo {
         self.numUnreadMessages = numUnreadMessages
         self.numUnreadNotifications = numUnreadNotifications
         self.numUnreadMentions = numUnreadMentions
+        self.fullyReadEventId = fullyReadEventId
         self.pinnedEventIds = pinnedEventIds
         self.joinRule = joinRule
         self.historyVisibility = historyVisibility
@@ -23588,6 +23653,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
                 numUnreadMessages: FfiConverterUInt64.read(from: &buf), 
                 numUnreadNotifications: FfiConverterUInt64.read(from: &buf), 
                 numUnreadMentions: FfiConverterUInt64.read(from: &buf), 
+                fullyReadEventId: FfiConverterOptionString.read(from: &buf), 
                 pinnedEventIds: FfiConverterSequenceString.read(from: &buf), 
                 joinRule: FfiConverterOptionTypeJoinRule.read(from: &buf), 
                 historyVisibility: FfiConverterTypeRoomHistoryVisibility.read(from: &buf), 
@@ -23632,6 +23698,7 @@ public struct FfiConverterTypeRoomInfo: FfiConverterRustBuffer {
         FfiConverterUInt64.write(value.numUnreadMessages, into: &buf)
         FfiConverterUInt64.write(value.numUnreadNotifications, into: &buf)
         FfiConverterUInt64.write(value.numUnreadMentions, into: &buf)
+        FfiConverterOptionString.write(value.fullyReadEventId, into: &buf)
         FfiConverterSequenceString.write(value.pinnedEventIds, into: &buf)
         FfiConverterOptionTypeJoinRule.write(value.joinRule, into: &buf)
         FfiConverterTypeRoomHistoryVisibility.write(value.historyVisibility, into: &buf)
@@ -28641,6 +28708,8 @@ public enum ClientBuildError: Swift.Error, Equatable, Hashable, Foundation.Local
     
     case EventCache(message: String)
     
+    case InvalidRawKey(message: String)
+    
     case Generic(message: String)
     
 
@@ -28704,7 +28773,11 @@ public struct FfiConverterTypeClientBuildError: FfiConverterRustBuffer {
             message: try FfiConverterString.read(from: &buf)
         )
         
-        case 9: return .Generic(
+        case 9: return .InvalidRawKey(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 10: return .Generic(
             message: try FfiConverterString.read(from: &buf)
         )
         
@@ -28735,8 +28808,10 @@ public struct FfiConverterTypeClientBuildError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(7))
         case .EventCache(_ /* message is ignored*/):
             writeInt(&buf, Int32(8))
-        case .Generic(_ /* message is ignored*/):
+        case .InvalidRawKey(_ /* message is ignored*/):
             writeInt(&buf, Int32(9))
+        case .Generic(_ /* message is ignored*/):
+            writeInt(&buf, Int32(10))
 
         
         }
@@ -48966,6 +49041,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionDuration: FfiConverterRustBuffer {
     typealias SwiftType = TimeInterval?
 
@@ -49246,6 +49345,30 @@ fileprivate struct FfiConverterOptionTypeUserIdentity: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeUserIdentity.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeTileServerInfo: FfiConverterRustBuffer {
+    typealias SwiftType = TileServerInfo?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeTileServerInfo.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeTileServerInfo.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -53106,7 +53229,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_set_media_retention_policy() != 45052) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 51438) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_pusher() != 42931) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_set_utd_delegate() != 53527) {
@@ -53149,6 +53272,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_sync_v2() != 9900) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_tile_server() != 43179) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_track_recently_visited_room() != 40498) {
@@ -54099,7 +54225,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_journal_size_limit() != 23095) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_passphrase() != 45337) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_key() != 24015) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_passphrase() != 33498) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sqlitestorebuilder_pool_max_size() != 41218) {
