@@ -654,6 +654,123 @@ public func FfiConverterTypeLatestEventValueLocalState_lower(_ value: LatestEven
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
+ * The membership states that should be included/excluded from the timeline
+ * item filters.
+ */
+
+public enum MembershipChangeFilter: Equatable, Hashable {
+    
+    /**
+     * Include/exclude all membership state events.
+     */
+    case any
+    /**
+     * Include/exclude only `join` membership state events.
+     */
+    case join
+    /**
+     * Include/exclude only `leave` membership state events.
+     */
+    case leave
+    /**
+     * Include/exclude only `invite` membership state events.
+     */
+    case invite
+    /**
+     * Include/exclude only `ban` membership state events.
+     */
+    case ban
+    /**
+     * Include/exclude only `knock` membership state events.
+     */
+    case knock
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MembershipChangeFilter: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMembershipChangeFilter: FfiConverterRustBuffer {
+    typealias SwiftType = MembershipChangeFilter
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MembershipChangeFilter {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .any
+        
+        case 2: return .join
+        
+        case 3: return .leave
+        
+        case 4: return .invite
+        
+        case 5: return .ban
+        
+        case 6: return .knock
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MembershipChangeFilter, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .any:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .join:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .leave:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .invite:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .ban:
+            writeInt(&buf, Int32(5))
+        
+        
+        case .knock:
+            writeInt(&buf, Int32(6))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMembershipChangeFilter_lift(_ buf: RustBuffer) throws -> MembershipChangeFilter {
+    return try FfiConverterTypeMembershipChangeFilter.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMembershipChangeFilter_lower(_ value: MembershipChangeFilter) -> RustBuffer {
+    return FfiConverterTypeMembershipChangeFilter.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
  * The type of change between the previous and current pinned events.
  */
 
@@ -734,6 +851,86 @@ public func FfiConverterTypeRoomPinnedEventsChange_lift(_ buf: RustBuffer) throw
 #endif
 public func FfiConverterTypeRoomPinnedEventsChange_lower(_ value: RoomPinnedEventsChange) -> RustBuffer {
     return FfiConverterTypeRoomPinnedEventsChange.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Whether the search service is currently loading a page of results.
+ */
+
+public enum SearchServicePaginationState: Equatable, Hashable {
+    
+    /**
+     * Not currently paginating. `end_reached` is `true` once every source has
+     * been exhausted for the current query.
+     */
+    case idle(endReached: Bool
+    )
+    /**
+     * A page of results is currently being loaded.
+     */
+    case loading
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension SearchServicePaginationState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSearchServicePaginationState: FfiConverterRustBuffer {
+    typealias SwiftType = SearchServicePaginationState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SearchServicePaginationState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .idle(endReached: try FfiConverterBool.read(from: &buf)
+        )
+        
+        case 2: return .loading
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SearchServicePaginationState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .idle(endReached):
+            writeInt(&buf, Int32(1))
+            FfiConverterBool.write(endReached, into: &buf)
+            
+        
+        case .loading:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSearchServicePaginationState_lift(_ buf: RustBuffer) throws -> SearchServicePaginationState {
+    return try FfiConverterTypeSearchServicePaginationState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSearchServicePaginationState_lower(_ value: SearchServicePaginationState) -> RustBuffer {
+    return FfiConverterTypeSearchServicePaginationState.lower(value)
 }
 
 
