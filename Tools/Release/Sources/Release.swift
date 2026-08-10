@@ -55,10 +55,8 @@ struct Release: AsyncParsableCommand {
         Log.info("Building \(branch) at \(commitHash)")
         
         // unset fixes an issue where swift compilation prevents building for targets other than macOS
-        try Zsh.run(
-            command: "unset SDKROOT && cargo xtask swift build-framework --release --macos-deployment-target=12.0",
-            directory: buildDirectory
-        )
+        try Zsh.run(command: "unset SDKROOT && cargo xtask swift build-framework --release --macos-deployment-target=12.0",
+                    directory: buildDirectory)
         
         return BuildProduct(sourceRepo: sourceRepo,
                             version: version,
