@@ -966,6 +966,12 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func enableAutomaticBackpagination() 
     
     /**
+     * Enable or disable automatic mirroring of this device's MatrixRTC
+     * participation into the MSC4426 `m.call` profile field.
+     */
+    func enableAutomaticCallStatus(enabled: Bool) 
+    
+    /**
      * Enables or disables progress reporting for media uploads in the send
      * queue.
      */
@@ -1089,8 +1095,13 @@ public protocol ClientProtocol: AnyObject, Sendable {
     
     /**
      * Checks if the server supports the LiveKit RTC focus for placing calls.
+     *
+     * Transports are discovered through the authenticated
+     * `GET /_matrix/client/v1/rtc/transports` endpoint (MSC4143). If the
+     * homeserver doesn't implement it and `fallback_to_well_known` is `true`,
+     * then the well-known will be queried.
      */
-    func isLivekitRtcSupported() async throws  -> Bool
+    func isLivekitRtcSupported(fallbackToWellKnown: Bool) async throws  -> Bool
     
     /**
      * Checks if the server supports login using a QR code.
@@ -2061,6 +2072,18 @@ open func enableAutomaticBackpagination()  {try! rustCall() {
 }
     
     /**
+     * Enable or disable automatic mirroring of this device's MatrixRTC
+     * participation into the MSC4426 `m.call` profile field.
+     */
+open func enableAutomaticCallStatus(enabled: Bool)  {try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_client_enable_automatic_call_status(
+            self.uniffiCloneHandle(),
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+}
+    
+    /**
      * Enables or disables progress reporting for media uploads in the send
      * queue.
      */
@@ -2501,14 +2524,19 @@ open func ignoredUsers()async throws  -> [String]  {
     
     /**
      * Checks if the server supports the LiveKit RTC focus for placing calls.
+     *
+     * Transports are discovered through the authenticated
+     * `GET /_matrix/client/v1/rtc/transports` endpoint (MSC4143). If the
+     * homeserver doesn't implement it and `fallback_to_well_known` is `true`,
+     * then the well-known will be queried.
      */
-open func isLivekitRtcSupported()async throws  -> Bool  {
+open func isLivekitRtcSupported(fallbackToWellKnown: Bool = false)async throws  -> Bool  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_is_livekit_rtc_supported(
-                    self.uniffiCloneHandle()
-                    
+                    self.uniffiCloneHandle(),
+                    FfiConverterBool.lower(fallbackToWellKnown)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -4889,10 +4917,33 @@ public protocol EncryptionProtocol: AnyObject, Sendable {
     func backupStateListener(listener: BackupStateListener)  -> TaskHandle
     
     /**
+     * Build a fresh dehydrated device, encrypt it with the supplied pickle
+     * key, and upload it to the homeserver. Returns the new device ID.
+     *
+     * The pickle key is a 32-byte secret, base64 encoded. Callers are
+     * responsible for storing the pickle key safely (typically in Secret
+     * Storage via [`Encryption::start_dehydrated_devices`]).
+     */
+    func createDehydratedDevice(displayName: String?, pickleKey: String) async throws  -> String
+    
+    /**
      * Get the public curve25519 key of our own device in base64. This is
      * usually what is called the identity key of the device.
      */
     func curve25519Key() async  -> String?
+    
+    /**
+     * Subscribe to lifecycle events emitted by the dehydrated-device
+     * manager. The returned [`TaskHandle`] keeps the listener alive; drop
+     * it to unsubscribe.
+     */
+    func dehydratedDeviceEventListener(listener: DehydratedDeviceEventListener)  -> TaskHandle
+    
+    /**
+     * Delete the current dehydrated device, if one exists. Silent if no
+     * device is on the server or the server does not implement MSC3814.
+     */
+    func deleteDehydratedDevice() async throws 
     
     func disableRecovery() async throws 
     
@@ -4931,6 +4982,12 @@ public protocol EncryptionProtocol: AnyObject, Sendable {
      */
     func importSecretsBundle(secretsBundle: SecretsBundleWithUserId) async throws 
     
+    /**
+     * Return whether the homeserver advertises support for MSC3814
+     * dehydrated devices.
+     */
+    func isDehydratedDeviceSupported() async throws  -> Bool
+    
     func isLastDevice() async throws  -> Bool
     
     /**
@@ -4958,12 +5015,39 @@ public protocol EncryptionProtocol: AnyObject, Sendable {
     func recoveryStateListener(listener: RecoveryStateListener)  -> TaskHandle
     
     /**
+     * Rehydrate the dehydrated device currently on the server, if any.
+     *
+     * Returns `true` if a device was rehydrated end to end, `false` if the
+     * server reports no dehydrated device or does not implement the endpoint.
+     */
+    func rehydrateDehydratedDevice(pickleKey: String) async throws  -> Bool
+    
+    /**
      * Completely reset the current user's crypto identity: reset the cross
      * signing keys, delete the existing backup and recovery key.
      */
     func resetIdentity() async throws  -> IdentityResetHandle?
     
     func resetRecoveryKey() async throws  -> String
+    
+    /**
+     * Start using dehydrated devices for this client, resolving the pickle
+     * key through Secret Storage and scheduling weekly rotation.
+     *
+     * The Rust-side copy of the recovery key is zeroized after Secret
+     * Storage has been unlocked; the caller keeps responsibility for the
+     * string it passed in.
+     */
+    func startDehydratedDevices(recoveryKey: String, settings: StartDehydratedDevicesSettings) async throws 
+    
+    /**
+     * Stop the scheduled dehydrated-device rotation.
+     *
+     * Has no effect when no rotation is scheduled. Existing dehydrated
+     * devices on the server are left in place; pair with
+     * [`Encryption::delete_dehydrated_device`] to remove them.
+     */
+    func stopDehydratedDevices() 
     
     /**
      * Get the E2EE identity of a user.
@@ -5099,6 +5183,31 @@ open func backupStateListener(listener: BackupStateListener) -> TaskHandle  {
 }
     
     /**
+     * Build a fresh dehydrated device, encrypt it with the supplied pickle
+     * key, and upload it to the homeserver. Returns the new device ID.
+     *
+     * The pickle key is a 32-byte secret, base64 encoded. Callers are
+     * responsible for storing the pickle key safely (typically in Secret
+     * Storage via [`Encryption::start_dehydrated_devices`]).
+     */
+open func createDehydratedDevice(displayName: String?, pickleKey: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_create_dehydrated_device(
+                    self.uniffiCloneHandle(),
+                    FfiConverterOptionString.lower(displayName),FfiConverterString.lower(pickleKey)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeDehydratedDeviceError_lift
+        )
+}
+    
+    /**
      * Get the public curve25519 key of our own device in base64. This is
      * usually what is called the identity key of the device.
      */
@@ -5117,6 +5226,41 @@ open func curve25519Key()async  -> String?  {
             liftFunc: FfiConverterOptionString.lift,
             errorHandler: nil
             
+        )
+}
+    
+    /**
+     * Subscribe to lifecycle events emitted by the dehydrated-device
+     * manager. The returned [`TaskHandle`] keeps the listener alive; drop
+     * it to unsubscribe.
+     */
+open func dehydratedDeviceEventListener(listener: DehydratedDeviceEventListener) -> TaskHandle  {
+    return try!  FfiConverterTypeTaskHandle_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_encryption_dehydrated_device_event_listener(
+            self.uniffiCloneHandle(),
+        FfiConverterCallbackInterfaceDehydratedDeviceEventListener_lower(listener),$0
+    )
+})
+}
+    
+    /**
+     * Delete the current dehydrated device, if one exists. Silent if no
+     * device is on the server or the server does not implement MSC3814.
+     */
+open func deleteDehydratedDevice()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_delete_dehydrated_device(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeDehydratedDeviceError_lift
         )
 }
     
@@ -5248,6 +5392,27 @@ open func importSecretsBundle(secretsBundle: SecretsBundleWithUserId)async throw
         )
 }
     
+    /**
+     * Return whether the homeserver advertises support for MSC3814
+     * dehydrated devices.
+     */
+open func isDehydratedDeviceSupported()async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_is_dehydrated_device_supported(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeDehydratedDeviceError_lift
+        )
+}
+    
 open func isLastDevice()async throws  -> Bool  {
     return
         try  await uniffiRustCallAsync(
@@ -5348,6 +5513,29 @@ open func recoveryStateListener(listener: RecoveryStateListener) -> TaskHandle  
 }
     
     /**
+     * Rehydrate the dehydrated device currently on the server, if any.
+     *
+     * Returns `true` if a device was rehydrated end to end, `false` if the
+     * server reports no dehydrated device or does not implement the endpoint.
+     */
+open func rehydrateDehydratedDevice(pickleKey: String)async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_rehydrate_dehydrated_device(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(pickleKey)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeDehydratedDeviceError_lift
+        )
+}
+    
+    /**
      * Completely reset the current user's crypto identity: reset the cross
      * signing keys, delete the existing backup and recovery key.
      */
@@ -5383,6 +5571,45 @@ open func resetRecoveryKey()async throws  -> String  {
             liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeRecoveryError_lift
         )
+}
+    
+    /**
+     * Start using dehydrated devices for this client, resolving the pickle
+     * key through Secret Storage and scheduling weekly rotation.
+     *
+     * The Rust-side copy of the recovery key is zeroized after Secret
+     * Storage has been unlocked; the caller keeps responsibility for the
+     * string it passed in.
+     */
+open func startDehydratedDevices(recoveryKey: String, settings: StartDehydratedDevicesSettings)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_encryption_start_dehydrated_devices(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(recoveryKey),FfiConverterTypeStartDehydratedDevicesSettings_lower(settings)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeDehydratedDeviceError_lift
+        )
+}
+    
+    /**
+     * Stop the scheduled dehydrated-device rotation.
+     *
+     * Has no effect when no rotation is scheduled. Existing dehydrated
+     * devices on the server are left in place; pair with
+     * [`Encryption::delete_dehydrated_device`] to remove them.
+     */
+open func stopDehydratedDevices()  {try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_encryption_stop_dehydrated_devices(
+            self.uniffiCloneHandle(),$0
+    )
+}
 }
     
     /**
@@ -9530,6 +9757,19 @@ public protocol RoomProtocol: AnyObject, Sendable {
     func sendRaw(eventType: String, content: String) async throws 
     
     /**
+     * Send a single receipt of the given type for the given event, optionally
+     * scoped to a thread.
+     *
+     * This allows sending receipts for events without instantiating the
+     * [`Timeline`] they belong to, e.g. marking a thread as read from its
+     * root and latest event ids. Note that this won't check whether sending
+     * the receipt is necessary or valid (i.e. it can move a receipt
+     * backwards); prefer [`Timeline::send_single_receipt`] when a timeline
+     * is available.
+     */
+    func sendSingleReceipt(receiptType: ReceiptType, thread: ReceiptThread, eventId: String) async throws 
+    
+    /**
      * Send a raw state event to the room.
      *
      * # Arguments
@@ -11047,6 +11287,34 @@ open func sendRaw(eventType: String, content: String)async throws   {
                 uniffi_matrix_sdk_ffi_fn_method_room_send_raw(
                     self.uniffiCloneHandle(),
                     FfiConverterString.lower(eventType),FfiConverterString.lower(content)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Send a single receipt of the given type for the given event, optionally
+     * scoped to a thread.
+     *
+     * This allows sending receipts for events without instantiating the
+     * [`Timeline`] they belong to, e.g. marking a thread as read from its
+     * root and latest event ids. Note that this won't check whether sending
+     * the receipt is necessary or valid (i.e. it can move a receipt
+     * backwards); prefer [`Timeline::send_single_receipt`] when a timeline
+     * is available.
+     */
+open func sendSingleReceipt(receiptType: ReceiptType, thread: ReceiptThread, eventId: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_send_single_receipt(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeReceiptType_lower(receiptType),FfiConverterTypeReceiptThread_lower(thread),FfiConverterString.lower(eventId)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -16515,6 +16783,11 @@ public protocol SyncServiceBuilderProtocol: AnyObject, Sendable {
     func withOfflineMode()  -> SyncServiceBuilder
     
     /**
+     * Set a parent tracing Span for the tasks within this sync service.
+     */
+    func withParentSpan(span: Span)  -> SyncServiceBuilder
+    
+    /**
      * Enable the Profiles sliding sync extension for the room list service.
      *
      * Required to merge the global `m.status` and `m.call` fields into the
@@ -16620,6 +16893,18 @@ open func withOfflineMode() -> SyncServiceBuilder  {
     return try!  FfiConverterTypeSyncServiceBuilder_lift(try! rustCall() {
     uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_offline_mode(
             self.uniffiCloneHandle(),$0
+    )
+})
+}
+    
+    /**
+     * Set a parent tracing Span for the tasks within this sync service.
+     */
+open func withParentSpan(span: Span) -> SyncServiceBuilder  {
+    return try!  FfiConverterTypeSyncServiceBuilder_lift(try! rustCall() {
+    uniffi_matrix_sdk_ffi_fn_method_syncservicebuilder_with_parent_span(
+            self.uniffiCloneHandle(),
+        FfiConverterTypeSpan_lower(span),$0
     )
 })
 }
@@ -17411,6 +17696,12 @@ public protocol TimelineProtocol: AnyObject, Sendable {
     
     func sendVoiceMessage(params: UploadParameters, audioInfo: AudioInfo, waveform: [Float]) throws  -> SendAttachmentJoinHandle
     
+    /**
+     * Like [`Self::send`], but merges the given additional top-level fields
+     * (a JSON object, encoded as a string) into the outgoing event's content.
+     */
+    func sendWithExtraContent(msg: RoomMessageEventContentWithoutRelation, extraContentJson: String?) async throws  -> SendHandle
+    
     func subscribeToBackPaginationStatus(listener: PaginationStatusListener) async throws  -> TaskHandle
     
     /**
@@ -17429,6 +17720,16 @@ public protocol TimelineProtocol: AnyObject, Sendable {
      * Returns `true` if the reaction was added, `false` if it was removed.
      */
     func toggleReaction(itemId: EventOrTransactionId, key: String) async throws  -> Bool
+    
+    /**
+     * Like [`Self::toggle_reaction`], but merges the given additional
+     * top-level fields (a JSON object, encoded as a string) into the
+     * reaction's content when one is added.
+     *
+     * Removing a reaction is a redaction, which carries no content, so the
+     * extra fields are only used when adding one.
+     */
+    func toggleReactionWithExtraContent(itemId: EventOrTransactionId, key: String, extraContentJson: String?) async throws  -> Bool
     
     /**
      * Adds a new pinned event by sending an updated `m.room.pinned_events`
@@ -17979,6 +18280,27 @@ open func sendVoiceMessage(params: UploadParameters, audioInfo: AudioInfo, wavef
 })
 }
     
+    /**
+     * Like [`Self::send`], but merges the given additional top-level fields
+     * (a JSON object, encoded as a string) into the outgoing event's content.
+     */
+open func sendWithExtraContent(msg: RoomMessageEventContentWithoutRelation, extraContentJson: String?)async throws  -> SendHandle  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_send_with_extra_content(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeRoomMessageEventContentWithoutRelation_lower(msg),FfiConverterOptionString.lower(extraContentJson)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_u64,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_u64,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeSendHandle_lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
 open func subscribeToBackPaginationStatus(listener: PaginationStatusListener)async throws  -> TaskHandle  {
     return
         try  await uniffiRustCallAsync(
@@ -18018,6 +18340,31 @@ open func toggleReaction(itemId: EventOrTransactionId, key: String)async throws 
                 uniffi_matrix_sdk_ffi_fn_method_timeline_toggle_reaction(
                     self.uniffiCloneHandle(),
                     FfiConverterTypeEventOrTransactionId_lower(itemId),FfiConverterString.lower(key)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Like [`Self::toggle_reaction`], but merges the given additional
+     * top-level fields (a JSON object, encoded as a string) into the
+     * reaction's content when one is added.
+     *
+     * Removing a reaction is a redaction, which carries no content, so the
+     * extra fields are only used when adding one.
+     */
+open func toggleReactionWithExtraContent(itemId: EventOrTransactionId, key: String, extraContentJson: String?)async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_timeline_toggle_reaction_with_extra_content(
+                    self.uniffiCloneHandle(),
+                    FfiConverterTypeEventOrTransactionId_lower(itemId),FfiConverterString.lower(key),FfiConverterOptionString.lower(extraContentJson)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
@@ -26271,6 +26618,91 @@ public func FfiConverterTypeSpaceRoom_lower(_ value: SpaceRoom) -> RustBuffer {
 
 
 /**
+ * Settings for [`Encryption::start_dehydrated_devices`].
+ */
+public struct StartDehydratedDevicesSettings: Equatable, Hashable {
+    /**
+     * Force generation of a fresh random pickle key on start, replacing
+     * any existing entry in Secret Storage and the local cache.
+     */
+    public var createNewKey: Bool
+    /**
+     * Whether to attempt to rehydrate the existing dehydrated device, if
+     * any, before creating the next one.
+     */
+    public var rehydrate: Bool
+    /**
+     * If `true`, the call becomes a no-op when no pickle key is cached
+     * locally.
+     */
+    public var onlyIfKeyCached: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Force generation of a fresh random pickle key on start, replacing
+         * any existing entry in Secret Storage and the local cache.
+         */createNewKey: Bool = false, 
+        /**
+         * Whether to attempt to rehydrate the existing dehydrated device, if
+         * any, before creating the next one.
+         */rehydrate: Bool = true, 
+        /**
+         * If `true`, the call becomes a no-op when no pickle key is cached
+         * locally.
+         */onlyIfKeyCached: Bool = false) {
+        self.createNewKey = createNewKey
+        self.rehydrate = rehydrate
+        self.onlyIfKeyCached = onlyIfKeyCached
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension StartDehydratedDevicesSettings: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeStartDehydratedDevicesSettings: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StartDehydratedDevicesSettings {
+        return
+            try StartDehydratedDevicesSettings(
+                createNewKey: FfiConverterBool.read(from: &buf), 
+                rehydrate: FfiConverterBool.read(from: &buf), 
+                onlyIfKeyCached: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: StartDehydratedDevicesSettings, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.createNewKey, into: &buf)
+        FfiConverterBool.write(value.rehydrate, into: &buf)
+        FfiConverterBool.write(value.onlyIfKeyCached, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStartDehydratedDevicesSettings_lift(_ buf: RustBuffer) throws -> StartDehydratedDevicesSettings {
+    return try FfiConverterTypeStartDehydratedDevicesSettings.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeStartDehydratedDevicesSettings_lower(_ value: StartDehydratedDevicesSettings) -> RustBuffer {
+    return FfiConverterTypeStartDehydratedDevicesSettings.lower(value)
+}
+
+
+/**
  * Contains the disk size of the different stores, if known. It won't be
  * available for in-memory stores.
  */
@@ -27851,6 +28283,11 @@ public struct UploadParameters: Equatable, Hashable {
      * Optional Event ID to reply to.
      */
     public var inReplyTo: String?
+    /**
+     * Optional additional top-level fields for the media event's content,
+     * as a serialized JSON object.
+     */
+    public var extraContentJson: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -27869,12 +28306,17 @@ public struct UploadParameters: Equatable, Hashable {
          */mentions: Mentions?, 
         /**
          * Optional Event ID to reply to.
-         */inReplyTo: String?) {
+         */inReplyTo: String?, 
+        /**
+         * Optional additional top-level fields for the media event's content,
+         * as a serialized JSON object.
+         */extraContentJson: String? = nil) {
         self.source = source
         self.caption = caption
         self.formattedCaption = formattedCaption
         self.mentions = mentions
         self.inReplyTo = inReplyTo
+        self.extraContentJson = extraContentJson
     }
 
     
@@ -27897,7 +28339,8 @@ public struct FfiConverterTypeUploadParameters: FfiConverterRustBuffer {
                 caption: FfiConverterOptionString.read(from: &buf), 
                 formattedCaption: FfiConverterOptionTypeFormattedBody.read(from: &buf), 
                 mentions: FfiConverterOptionTypeMentions.read(from: &buf), 
-                inReplyTo: FfiConverterOptionString.read(from: &buf)
+                inReplyTo: FfiConverterOptionString.read(from: &buf), 
+                extraContentJson: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -27907,6 +28350,7 @@ public struct FfiConverterTypeUploadParameters: FfiConverterRustBuffer {
         FfiConverterOptionTypeFormattedBody.write(value.formattedCaption, into: &buf)
         FfiConverterOptionTypeMentions.write(value.mentions, into: &buf)
         FfiConverterOptionString.write(value.inReplyTo, into: &buf)
+        FfiConverterOptionString.write(value.extraContentJson, into: &buf)
     }
 }
 
@@ -28496,6 +28940,11 @@ public struct WidgetCapabilities: Equatable, Hashable {
      * This allows the widget to download files (avatars)
      */
     public var downloadFiles: Bool
+    /**
+     * This allows the widget to discover the RTC transports advertised by the
+     * homeserver (MSC4515).
+     */
+    public var rtcTransports: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -28521,13 +28970,18 @@ public struct WidgetCapabilities: Equatable, Hashable {
          */sendDelayedEvent: Bool, 
         /**
          * This allows the widget to download files (avatars)
-         */downloadFiles: Bool) {
+         */downloadFiles: Bool, 
+        /**
+         * This allows the widget to discover the RTC transports advertised by the
+         * homeserver (MSC4515).
+         */rtcTransports: Bool) {
         self.read = read
         self.send = send
         self.requiresClient = requiresClient
         self.updateDelayedEvent = updateDelayedEvent
         self.sendDelayedEvent = sendDelayedEvent
         self.downloadFiles = downloadFiles
+        self.rtcTransports = rtcTransports
     }
 
     
@@ -28551,7 +29005,8 @@ public struct FfiConverterTypeWidgetCapabilities: FfiConverterRustBuffer {
                 requiresClient: FfiConverterBool.read(from: &buf), 
                 updateDelayedEvent: FfiConverterBool.read(from: &buf), 
                 sendDelayedEvent: FfiConverterBool.read(from: &buf), 
-                downloadFiles: FfiConverterBool.read(from: &buf)
+                downloadFiles: FfiConverterBool.read(from: &buf), 
+                rtcTransports: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -28562,6 +29017,7 @@ public struct FfiConverterTypeWidgetCapabilities: FfiConverterRustBuffer {
         FfiConverterBool.write(value.updateDelayedEvent, into: &buf)
         FfiConverterBool.write(value.sendDelayedEvent, into: &buf)
         FfiConverterBool.write(value.downloadFiles, into: &buf)
+        FfiConverterBool.write(value.rtcTransports, into: &buf)
     }
 }
 
@@ -30514,6 +30970,293 @@ public func FfiConverterTypeDateDividerMode_lift(_ buf: RustBuffer) throws -> Da
 #endif
 public func FfiConverterTypeDateDividerMode_lower(_ value: DateDividerMode) -> RustBuffer {
     return FfiConverterTypeDateDividerMode.lower(value)
+}
+
+
+
+/**
+ * Errors returned by the dehydrated-device FFI surface.
+ */
+public enum DehydratedDeviceError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+
+    
+    
+    /**
+     * The client is not logged in.
+     */
+    case NotLoggedIn(message: String)
+    
+    /**
+     * The supplied base64-encoded pickle key did not decode to 32 bytes.
+     */
+    case InvalidPickleKey(message: String)
+    
+    /**
+     * Opening Secret Storage with the supplied recovery key failed.
+     */
+    case SecretStorage(message: String)
+    
+    /**
+     * Any other failure surfaced by the SDK.
+     */
+    case Sdk(message: String)
+    
+
+    
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
+}
+
+#if compiler(>=6)
+extension DehydratedDeviceError: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDehydratedDeviceError: FfiConverterRustBuffer {
+    typealias SwiftType = DehydratedDeviceError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DehydratedDeviceError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .NotLoggedIn(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .InvalidPickleKey(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .SecretStorage(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 4: return .Sdk(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: DehydratedDeviceError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        case .NotLoggedIn(_ /* message is ignored*/):
+            writeInt(&buf, Int32(1))
+        case .InvalidPickleKey(_ /* message is ignored*/):
+            writeInt(&buf, Int32(2))
+        case .SecretStorage(_ /* message is ignored*/):
+            writeInt(&buf, Int32(3))
+        case .Sdk(_ /* message is ignored*/):
+            writeInt(&buf, Int32(4))
+
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDehydratedDeviceError_lift(_ buf: RustBuffer) throws -> DehydratedDeviceError {
+    return try FfiConverterTypeDehydratedDeviceError.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDehydratedDeviceError_lower(_ value: DehydratedDeviceError) -> RustBuffer {
+    return FfiConverterTypeDehydratedDeviceError.lower(value)
+}
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Lifecycle event emitted by the dehydrated-device manager.
+ *
+ * Mirrors [`dehydrated_devices::DehydratedDeviceEvent`]; subscribe via
+ * [`Encryption::dehydrated_device_event_listener`].
+ */
+
+public enum DehydratedDeviceEvent: Equatable, Hashable {
+    
+    /**
+     * A fresh dehydrated device was constructed in the local crypto store,
+     * before the upload PUT.
+     */
+    case created(deviceId: String
+    )
+    /**
+     * The homeserver accepted the upload of the dehydrated device.
+     */
+    case uploaded(deviceId: String
+    )
+    /**
+     * The dehydrated device on the homeserver was deleted.
+     */
+    case deleted
+    /**
+     * A pickle key was cached in the local crypto store.
+     */
+    case keyCached
+    /**
+     * Rehydration of a dehydrated device began.
+     */
+    case rehydrationStarted(deviceId: String
+    )
+    /**
+     * A batch of to-device events has been imported during rehydration.
+     */
+    case rehydrationProgress(roomKeysImported: UInt64, toDeviceEvents: UInt64
+    )
+    /**
+     * Rehydration finished successfully.
+     */
+    case rehydrationCompleted(deviceId: String, roomKeysImported: UInt64, toDeviceEvents: UInt64
+    )
+    /**
+     * Rehydration failed.
+     */
+    case rehydrationError(error: String
+    )
+    /**
+     * A scheduled rotation tick failed; the rotation task remains scheduled.
+     */
+    case rotationError(error: String
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DehydratedDeviceEvent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDehydratedDeviceEvent: FfiConverterRustBuffer {
+    typealias SwiftType = DehydratedDeviceEvent
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DehydratedDeviceEvent {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .created(deviceId: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .uploaded(deviceId: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 3: return .deleted
+        
+        case 4: return .keyCached
+        
+        case 5: return .rehydrationStarted(deviceId: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 6: return .rehydrationProgress(roomKeysImported: try FfiConverterUInt64.read(from: &buf), toDeviceEvents: try FfiConverterUInt64.read(from: &buf)
+        )
+        
+        case 7: return .rehydrationCompleted(deviceId: try FfiConverterString.read(from: &buf), roomKeysImported: try FfiConverterUInt64.read(from: &buf), toDeviceEvents: try FfiConverterUInt64.read(from: &buf)
+        )
+        
+        case 8: return .rehydrationError(error: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 9: return .rotationError(error: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: DehydratedDeviceEvent, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .created(deviceId):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(deviceId, into: &buf)
+            
+        
+        case let .uploaded(deviceId):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(deviceId, into: &buf)
+            
+        
+        case .deleted:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .keyCached:
+            writeInt(&buf, Int32(4))
+        
+        
+        case let .rehydrationStarted(deviceId):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(deviceId, into: &buf)
+            
+        
+        case let .rehydrationProgress(roomKeysImported,toDeviceEvents):
+            writeInt(&buf, Int32(6))
+            FfiConverterUInt64.write(roomKeysImported, into: &buf)
+            FfiConverterUInt64.write(toDeviceEvents, into: &buf)
+            
+        
+        case let .rehydrationCompleted(deviceId,roomKeysImported,toDeviceEvents):
+            writeInt(&buf, Int32(7))
+            FfiConverterString.write(deviceId, into: &buf)
+            FfiConverterUInt64.write(roomKeysImported, into: &buf)
+            FfiConverterUInt64.write(toDeviceEvents, into: &buf)
+            
+        
+        case let .rehydrationError(error):
+            writeInt(&buf, Int32(8))
+            FfiConverterString.write(error, into: &buf)
+            
+        
+        case let .rotationError(error):
+            writeInt(&buf, Int32(9))
+            FfiConverterString.write(error, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDehydratedDeviceEvent_lift(_ buf: RustBuffer) throws -> DehydratedDeviceEvent {
+    return try FfiConverterTypeDehydratedDeviceEvent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDehydratedDeviceEvent_lower(_ value: DehydratedDeviceEvent) -> RustBuffer {
+    return FfiConverterTypeDehydratedDeviceEvent.lower(value)
 }
 
 
@@ -43177,6 +43920,10 @@ public enum TraceLogPacks: Equatable, Hashable {
      * Enables all the logs relevant to the latest events.
      */
     case latestEvents
+    /**
+     * Enables all the logs relevant to message search.
+     */
+    case search
 
 
 
@@ -43210,6 +43957,8 @@ public struct FfiConverterTypeTraceLogPacks: FfiConverterRustBuffer {
         
         case 6: return .latestEvents
         
+        case 7: return .search
+        
         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
@@ -43240,6 +43989,10 @@ public struct FfiConverterTypeTraceLogPacks: FfiConverterRustBuffer {
         
         case .latestEvents:
             writeInt(&buf, Int32(6))
+        
+        
+        case .search:
+            writeInt(&buf, Int32(7))
         
         }
     }
@@ -44696,6 +45449,130 @@ public func FfiConverterCallbackInterfaceClientSessionDelegate_lift(_ handle: UI
 #endif
 public func FfiConverterCallbackInterfaceClientSessionDelegate_lower(_ v: ClientSessionDelegate) -> UInt64 {
     return FfiConverterCallbackInterfaceClientSessionDelegate.lower(v)
+}
+
+
+
+
+public protocol DehydratedDeviceEventListener: AnyObject, Sendable {
+    
+    func onEvent(event: DehydratedDeviceEvent) 
+    
+}
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceDehydratedDeviceEventListener {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // This creates 1-element array, since this seems to be the only way to construct a const
+    // pointer that we can pass to the Rust code.
+    static let vtable: [UniffiVTableCallbackInterfaceDehydratedDeviceEventListener] = [UniffiVTableCallbackInterfaceDehydratedDeviceEventListener(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterCallbackInterfaceDehydratedDeviceEventListener.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface DehydratedDeviceEventListener: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterCallbackInterfaceDehydratedDeviceEventListener.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface DehydratedDeviceEventListener: handle missing in uniffiClone")
+            }
+        },
+        onEvent: { (
+            uniffiHandle: UInt64,
+            event: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceDehydratedDeviceEventListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onEvent(
+                     event: try FfiConverterTypeDehydratedDeviceEvent_lift(event)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        }
+    )]
+}
+
+private func uniffiCallbackInitDehydratedDeviceEventListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_dehydrateddeviceeventlistener(UniffiCallbackInterfaceDehydratedDeviceEventListener.vtable)
+}
+
+// FfiConverter protocol for callback interfaces
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterCallbackInterfaceDehydratedDeviceEventListener {
+    fileprivate static let handleMap = UniffiHandleMap<DehydratedDeviceEventListener>()
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+extension FfiConverterCallbackInterfaceDehydratedDeviceEventListener : FfiConverter {
+    typealias SwiftType = DehydratedDeviceEventListener
+    typealias FfiType = UInt64
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceDehydratedDeviceEventListener_lift(_ handle: UInt64) throws -> DehydratedDeviceEventListener {
+    return try FfiConverterCallbackInterfaceDehydratedDeviceEventListener.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceDehydratedDeviceEventListener_lower(_ v: DehydratedDeviceEventListener) -> UInt64 {
+    return FfiConverterCallbackInterfaceDehydratedDeviceEventListener.lower(v)
 }
 
 
@@ -54691,6 +55568,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_enable_automatic_backpagination() != 35365) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_enable_automatic_call_status() != 12950) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_enable_send_queue_upload_progress() != 30956) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -54766,7 +55646,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_ignored_users() != 57288) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_livekit_rtc_supported() != 48327) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_livekit_rtc_supported() != 41745) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_is_login_with_qr_code_supported() != 14689) {
@@ -55111,7 +55991,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_backup_state_listener() != 14813) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_create_dehydrated_device() != 21795) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_curve25519_key() != 25462) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_dehydrated_device_event_listener() != 8652) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_delete_dehydrated_device() != 64344) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_disable_recovery() != 43697) {
@@ -55132,6 +56021,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_import_secrets_bundle() != 9110) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_dehydrated_device_supported() != 29079) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_is_last_device() != 54322) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -55150,10 +56042,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_recovery_state_listener() != 17926) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_rehydrate_dehydrated_device() != 33307) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_identity() != 47257) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_reset_recovery_key() != 15954) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_start_dehydrated_devices() != 58581) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_stop_dehydrated_devices() != 10190) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_user_identity() != 39850) {
@@ -55561,6 +56462,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_raw() != 63831) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_single_receipt() != 34985) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_send_state_event_raw() != 55730) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -55957,6 +56861,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_offline_mode() != 48885) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_parent_span() != 54084) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_syncservicebuilder_with_profiles_extension() != 15111) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -56080,10 +56987,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_voice_message() != 33769) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_send_with_extra_content() != 65257) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_subscribe_to_back_pagination_status() != 27990) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction() != 42673) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_timeline_toggle_reaction_with_extra_content() != 37370) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_timeline_unpin_event() != 18514) {
@@ -56254,6 +57167,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_backupsteadystatelistener_on_update() != 56068) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_dehydrateddeviceeventlistener_on_event() != 1944) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_enablerecoveryprogresslistener_on_update() != 27773) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -56388,6 +57304,7 @@ private let initializationResult: InitializationResult = {
     uniffiCallbackInitCallDeclineListener()
     uniffiCallbackInitClientDelegate()
     uniffiCallbackInitClientSessionDelegate()
+    uniffiCallbackInitDehydratedDeviceEventListener()
     uniffiCallbackInitDuplicateKeyUploadErrorListener()
     uniffiCallbackInitEnableRecoveryProgressListener()
     uniffiCallbackInitGeneratedQrLoginProgressListener()
