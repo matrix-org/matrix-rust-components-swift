@@ -39,6 +39,52 @@ fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
+
+    init(rawBufferPointer: UnsafeRawBufferPointer) {
+        self.init(
+            len: Int32(rawBufferPointer.count),
+            data: rawBufferPointer.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        )
+    }
+}
+
+// Converter for `&[u8]` / `[ByRef] bytes` arguments.
+//
+// Conforms to `FfiConverter` so the compiler enforces the full converter
+// method set. Only the scope-bound `lower(_:_body:)` overload is sound —
+// zero-copy byte buffers only flow foreign -> Rust, and only in argument
+// position. The four protocol-witness methods (`lift`, `lower`, `read`,
+// `write`) `fatalError` at runtime if anyone reaches them.
+//
+// The scope-bound `lower` takes a closure because the `ForeignBytes`
+// pointer is only guaranteed valid for the duration of
+// `Data.withUnsafeBytes`. Callers must run the full FFI call inside
+// the closure body.
+fileprivate enum FfiConverterByRefBytes: FfiConverter {
+    typealias SwiftType = Data
+    typealias FfiType = ForeignBytes
+
+    static func lower<R>(_ value: Data, _ body: (ForeignBytes) throws -> R) rethrows -> R {
+        return try value.withUnsafeBytes { rawBuf in
+            try body(ForeignBytes(rawBufferPointer: rawBuf))
+        }
+    }
+
+    static func lower(_ value: Data) -> ForeignBytes {
+        fatalError("ByRef bytes cannot use the plain lower: returning ForeignBytes escapes the Data.withUnsafeBytes scope. Use the scope-bound lower(_:_body:) overload instead.")
+    }
+
+    static func lift(_ value: ForeignBytes) throws -> Data {
+        fatalError("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
+    }
+
+    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        fatalError("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
+
+    static func write(_ value: Data, into buf: inout [UInt8]) {
+        fatalError("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
 }
 
 // For every type used in the interface, we provide helper methods for conveniently
@@ -447,7 +493,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -463,7 +513,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -537,15 +588,14 @@ public struct MediaRetentionPolicy: Equatable, Hashable {
      *
      * If it is set, media content bigger than the maximum size will not be
      * cached. If the maximum size changed after media content that exceeds the
-     * new value was cached, the corresponding content will be removed
-     * during a cleanup.
+     * new value was cached, the corresponding content will be removed during a
+     * cleanup.
      *
      * Defaults to 20 MiB.
      */
     public var maxFileSize: UInt64?
     /**
-     * The duration after which unaccessed media content is considered
-     * expired.
+     * The duration after which unaccessed media content is considered expired.
      *
      * If this is set, media content whose last access is older than this
      * duration will be removed from the media cache during a cleanup.
@@ -556,8 +606,8 @@ public struct MediaRetentionPolicy: Equatable, Hashable {
     /**
      * The duration between two automatic media cache cleanups.
      *
-     * If this is set, a cleanup will be triggered after the given duration
-     * is elapsed, at the next call to the media cache API. If this is set to
+     * If this is set, a cleanup will be triggered after the given duration is
+     * elapsed, at the next call to the media cache API. If this is set to
      * zero, each call to the media cache API will trigger a cleanup. If this
      * is `None`, cleanups will only occur if they are triggered manually.
      *
@@ -596,14 +646,13 @@ public struct MediaRetentionPolicy: Equatable, Hashable {
          *
          * If it is set, media content bigger than the maximum size will not be
          * cached. If the maximum size changed after media content that exceeds the
-         * new value was cached, the corresponding content will be removed
-         * during a cleanup.
+         * new value was cached, the corresponding content will be removed during a
+         * cleanup.
          *
          * Defaults to 20 MiB.
          */maxFileSize: UInt64?, 
         /**
-         * The duration after which unaccessed media content is considered
-         * expired.
+         * The duration after which unaccessed media content is considered expired.
          *
          * If this is set, media content whose last access is older than this
          * duration will be removed from the media cache during a cleanup.
@@ -613,8 +662,8 @@ public struct MediaRetentionPolicy: Equatable, Hashable {
         /**
          * The duration between two automatic media cache cleanups.
          *
-         * If this is set, a cleanup will be triggered after the given duration
-         * is elapsed, at the next call to the media cache API. If this is set to
+         * If this is set, a cleanup will be triggered after the given duration is
+         * elapsed, at the next call to the media cache API. If this is set to
          * zero, each call to the media cache API will trigger a cleanup. If this
          * is `None`, cleanups will only occur if they are triggered manually.
          *
@@ -672,8 +721,7 @@ public func FfiConverterTypeMediaRetentionPolicy_lower(_ value: MediaRetentionPo
     return FfiConverterTypeMediaRetentionPolicy.lower(value)
 }
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * An enum that defines what the [`BaseClient`] should consider a DM room.
  */
@@ -750,8 +798,7 @@ public func FfiConverterTypeDmRoomDefinition_lower(_ value: DmRoomDefinition) ->
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Represents the state of a room encryption.
  */
@@ -834,6 +881,92 @@ public func FfiConverterTypeEncryptionState_lift(_ buf: RustBuffer) throws -> En
 #endif
 public func FfiConverterTypeEncryptionState_lower(_ value: EncryptionState) -> RustBuffer {
     return FfiConverterTypeEncryptionState.lower(value)
+}
+
+
+
+/**
+ * Why a sticky event disappeared from the map of a room.
+ */
+
+public enum RemovalReason: Equatable, Hashable {
+    
+    /**
+     * The event stopped being sticky.
+     */
+    case expired
+    /**
+     * A newer event with the same key and an empty content (a removal, in
+     * MSC4354 terms) replaced it.
+     */
+    case replaced
+    /**
+     * We left the room.
+     */
+    case roomLeft
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension RemovalReason: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRemovalReason: FfiConverterRustBuffer {
+    typealias SwiftType = RemovalReason
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RemovalReason {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .expired
+        
+        case 2: return .replaced
+        
+        case 3: return .roomLeft
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: RemovalReason, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .expired:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .replaced:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .roomLeft:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRemovalReason_lift(_ buf: RustBuffer) throws -> RemovalReason {
+    return try FfiConverterTypeRemovalReason.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRemovalReason_lower(_ value: RemovalReason) -> RustBuffer {
+    return FfiConverterTypeRemovalReason.lower(value)
 }
 
 

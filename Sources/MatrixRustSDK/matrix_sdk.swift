@@ -39,6 +39,52 @@ fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
+
+    init(rawBufferPointer: UnsafeRawBufferPointer) {
+        self.init(
+            len: Int32(rawBufferPointer.count),
+            data: rawBufferPointer.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        )
+    }
+}
+
+// Converter for `&[u8]` / `[ByRef] bytes` arguments.
+//
+// Conforms to `FfiConverter` so the compiler enforces the full converter
+// method set. Only the scope-bound `lower(_:_body:)` overload is sound —
+// zero-copy byte buffers only flow foreign -> Rust, and only in argument
+// position. The four protocol-witness methods (`lift`, `lower`, `read`,
+// `write`) `fatalError` at runtime if anyone reaches them.
+//
+// The scope-bound `lower` takes a closure because the `ForeignBytes`
+// pointer is only guaranteed valid for the duration of
+// `Data.withUnsafeBytes`. Callers must run the full FFI call inside
+// the closure body.
+fileprivate enum FfiConverterByRefBytes: FfiConverter {
+    typealias SwiftType = Data
+    typealias FfiType = ForeignBytes
+
+    static func lower<R>(_ value: Data, _ body: (ForeignBytes) throws -> R) rethrows -> R {
+        return try value.withUnsafeBytes { rawBuf in
+            try body(ForeignBytes(rawBufferPointer: rawBuf))
+        }
+    }
+
+    static func lower(_ value: Data) -> ForeignBytes {
+        fatalError("ByRef bytes cannot use the plain lower: returning ForeignBytes escapes the Data.withUnsafeBytes scope. Use the scope-bound lower(_:_body:) overload instead.")
+    }
+
+    static func lift(_ value: ForeignBytes) throws -> Data {
+        fatalError("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
+    }
+
+    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        fatalError("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
+
+    static func write(_ value: Data, into buf: inout [UInt8]) {
+        fatalError("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
 }
 
 // For every type used in the interface, we provide helper methods for conveniently
@@ -487,7 +533,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -503,7 +553,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -588,8 +639,9 @@ open class OAuthAuthorizationData: OAuthAuthorizationDataProtocol, @unchecked Se
      */
 open func loginUrl() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_matrix_sdk_fn_method_oauthauthorizationdata_login_url(
-            self.uniffiCloneHandle(),$0
+            self.uniffiCloneHandle(),uniffiCallStatus
     )
 })
 }
@@ -644,8 +696,8 @@ public func FfiConverterTypeOAuthAuthorizationData_lower(_ value: OAuthAuthoriza
 
 /**
  * A set of common power levels required for various operations within a room,
- * that can be applied as a single operation. When updating these
- * settings, any levels that are `None` will remain unchanged.
+ * that can be applied as a single operation. When updating these settings, any
+ * levels that are `None` will remain unchanged.
  */
 public struct RoomPowerLevelChanges: Equatable, Hashable {
     /**
@@ -960,18 +1012,18 @@ public func FfiConverterTypeTileServerInfo_lower(_ value: TileServerInfo) -> Rus
  * Configuration parameters, to create a new virtual Element Call widget.
  *
  * If `intent` is provided the appropriate default values for all other
- * parameters will be used by element call.
- * In most cases its enough to only set the intent. Use the other properties
- * only if you want to deviate from the `intent` defaults.
+ * parameters will be used by element call. In most cases its enough to only
+ * set the intent. Use the other properties only if you want to deviate from
+ * the `intent` defaults.
  *
- * Set [`docs/url-params.md`](https://github.com/element-hq/element-call/blob/livekit/docs/url-params.md)
+ * Set
+ * [`docs/url-params.md`](https://github.com/element-hq/element-call/blob/livekit/docs/url-params.md)
  * to find out more about the parameters and their defaults.
  */
 public struct VirtualElementCallWidgetConfig: Equatable, Hashable {
     /**
-     * The intent of showing the call.
-     * If the user wants to start a call or join an existing one.
-     * Controls if the lobby is skipped or not.
+     * The intent of showing the call. If the user wants to start a call or
+     * join an existing one. Controls if the lobby is skipped or not.
      */
     public var intent: Intent?
     /**
@@ -992,8 +1044,8 @@ public struct VirtualElementCallWidgetConfig: Equatable, Hashable {
      */
     public var hideHeader: Bool?
     /**
-     * If set, the lobby will be skipped and the widget will join the
-     * call on the `io.element.join` action.
+     * If set, the lobby will be skipped and the widget will join the call on
+     * the `io.element.join` action.
      *
      * Default: `false`
      */
@@ -1030,9 +1082,8 @@ public struct VirtualElementCallWidgetConfig: Equatable, Hashable {
     // declare one manually.
     public init(
         /**
-         * The intent of showing the call.
-         * If the user wants to start a call or join an existing one.
-         * Controls if the lobby is skipped or not.
+         * The intent of showing the call. If the user wants to start a call or
+         * join an existing one. Controls if the lobby is skipped or not.
          */intent: Intent?, 
         /**
          * Skip the lobby when joining a call.
@@ -1049,8 +1100,8 @@ public struct VirtualElementCallWidgetConfig: Equatable, Hashable {
          * Default: `true`
          */hideHeader: Bool? = nil, 
         /**
-         * If set, the lobby will be skipped and the widget will join the
-         * call on the `io.element.join` action.
+         * If set, the lobby will be skipped and the widget will join the call on
+         * the `io.element.join` action.
          *
          * Default: `false`
          */preload: Bool? = nil, 
@@ -1150,9 +1201,9 @@ public func FfiConverterTypeVirtualElementCallWidgetConfig_lower(_ value: Virtua
 /**
  * Properties to create a new virtual Element Call widget.
  *
- * All these are required to start the widget in the first place.
- * This is different from the `VirtualElementCallWidgetConfiguration` which
- * configures the widgets behavior.
+ * All these are required to start the widget in the first place. This is
+ * different from the `VirtualElementCallWidgetConfiguration` which configures
+ * the widgets behavior.
  */
 public struct VirtualElementCallWidgetProperties: Equatable, Hashable {
     /**
@@ -1166,16 +1217,16 @@ public struct VirtualElementCallWidgetProperties: Equatable, Hashable {
      */
     public var widgetId: String
     /**
-     * The url that is used as the target for the PostMessages sent
-     * by the widget (to the client).
+     * The url that is used as the target for the PostMessages sent by the
+     * widget (to the client).
      *
      * For a web app client this is the client url. In case of using other
-     * platforms the client most likely is setup up to listen to
-     * postmessages in the same webview the widget is hosted. In this case
-     * the `parent_url` is set to the url of the webview with the widget. Be
-     * aware that this means that the widget will receive its own postmessage
-     * messages. The `matrix-widget-api` (js) ignores those so this works but
-     * it might break custom implementations.
+     * platforms the client most likely is setup up to listen to postmessages
+     * in the same webview the widget is hosted. In this case the `parent_url`
+     * is set to the url of the webview with the widget. Be aware that this
+     * means that the widget will receive its own postmessage messages. The
+     * `matrix-widget-api` (js) ignores those so this works but it might break
+     * custom implementations.
      *
      * Defaults to `element_call_url` for the non-iframe (dedicated webview)
      * usecase.
@@ -1202,18 +1253,18 @@ public struct VirtualElementCallWidgetProperties: Equatable, Hashable {
      */
     public var posthogUserId: String?
     /**
-     * The host of the posthog api.
-     * This is only used by the embedded package of Element Call.
+     * The host of the posthog api. This is only used by the embedded package
+     * of Element Call.
      */
     public var posthogApiHost: String?
     /**
-     * The key for the posthog api.
-     * This is only used by the embedded package of Element Call.
+     * The key for the posthog api. This is only used by the embedded package
+     * of Element Call.
      */
     public var posthogApiKey: String?
     /**
-     * The url to use for submitting rageshakes.
-     * This is only used by the embedded package of Element Call.
+     * The url to use for submitting rageshakes. This is only used by the
+     * embedded package of Element Call.
      */
     public var rageshakeSubmitUrl: String?
     /**
@@ -1222,8 +1273,9 @@ public struct VirtualElementCallWidgetProperties: Equatable, Hashable {
      */
     public var sentryDsn: String?
     /**
-     * Sentry [environment](https://docs.sentry.io/concepts/key-terms/key-terms/)
-     * This is only used by the embedded package of Element Call.
+     * Sentry
+     * [environment](https://docs.sentry.io/concepts/key-terms/key-terms/) This
+     * is only used by the embedded package of Element Call.
      */
     public var sentryEnvironment: String?
 
@@ -1239,16 +1291,16 @@ public struct VirtualElementCallWidgetProperties: Equatable, Hashable {
          * The widget id.
          */widgetId: String, 
         /**
-         * The url that is used as the target for the PostMessages sent
-         * by the widget (to the client).
+         * The url that is used as the target for the PostMessages sent by the
+         * widget (to the client).
          *
          * For a web app client this is the client url. In case of using other
-         * platforms the client most likely is setup up to listen to
-         * postmessages in the same webview the widget is hosted. In this case
-         * the `parent_url` is set to the url of the webview with the widget. Be
-         * aware that this means that the widget will receive its own postmessage
-         * messages. The `matrix-widget-api` (js) ignores those so this works but
-         * it might break custom implementations.
+         * platforms the client most likely is setup up to listen to postmessages
+         * in the same webview the widget is hosted. In this case the `parent_url`
+         * is set to the url of the webview with the widget. Be aware that this
+         * means that the widget will receive its own postmessage messages. The
+         * `matrix-widget-api` (js) ignores those so this works but it might break
+         * custom implementations.
          *
          * Defaults to `element_call_url` for the non-iframe (dedicated webview)
          * usecase.
@@ -1270,24 +1322,25 @@ public struct VirtualElementCallWidgetProperties: Equatable, Hashable {
          * Can be used to pass a PostHog id to element call.
          */posthogUserId: String? = nil, 
         /**
-         * The host of the posthog api.
-         * This is only used by the embedded package of Element Call.
+         * The host of the posthog api. This is only used by the embedded package
+         * of Element Call.
          */posthogApiHost: String? = nil, 
         /**
-         * The key for the posthog api.
-         * This is only used by the embedded package of Element Call.
+         * The key for the posthog api. This is only used by the embedded package
+         * of Element Call.
          */posthogApiKey: String? = nil, 
         /**
-         * The url to use for submitting rageshakes.
-         * This is only used by the embedded package of Element Call.
+         * The url to use for submitting rageshakes. This is only used by the
+         * embedded package of Element Call.
          */rageshakeSubmitUrl: String? = nil, 
         /**
          * Sentry [DSN](https://docs.sentry.io/concepts/key-terms/dsn-explainer/)
          * This is only used by the embedded package of Element Call.
          */sentryDsn: String? = nil, 
         /**
-         * Sentry [environment](https://docs.sentry.io/concepts/key-terms/key-terms/)
-         * This is only used by the embedded package of Element Call.
+         * Sentry
+         * [environment](https://docs.sentry.io/concepts/key-terms/key-terms/) This
+         * is only used by the embedded package of Element Call.
          */sentryEnvironment: String? = nil) {
         self.elementCallUrl = elementCallUrl
         self.widgetId = widgetId
@@ -1365,8 +1418,7 @@ public func FfiConverterTypeVirtualElementCallWidgetProperties_lower(_ value: Vi
     return FfiConverterTypeVirtualElementCallWidgetProperties.lower(value)
 }
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Settings for end-to-end encryption features.
  */
@@ -1463,8 +1515,7 @@ public func FfiConverterTypeBackupDownloadStrategy_lower(_ value: BackupDownload
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Defines if a call is encrypted and which encryption system should be used.
  *
@@ -1479,13 +1530,11 @@ public enum EncryptionSystem: Equatable, Hashable {
      */
     case unencrypted
     /**
-     * Equivalent to the element call url parameters:
-     * `perParticipantE2EE=true`
+     * Equivalent to the element call url parameters: `perParticipantE2EE=true`
      */
     case perParticipantKeys
     /**
-     * Equivalent to the element call url parameters:
-     * `password={secret}`
+     * Equivalent to the element call url parameters: `password={secret}`
      */
     case sharedSecret(
         /**
@@ -1560,8 +1609,7 @@ public func FfiConverterTypeEncryptionSystem_lower(_ value: EncryptionSystem) ->
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Defines how (if) element-call renders a header.
  */
@@ -1646,8 +1694,7 @@ public func FfiConverterTypeHeaderStyle_lower(_ value: HeaderStyle) -> RustBuffe
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Defines the intent of showing the call.
  *
@@ -1678,8 +1725,8 @@ public enum Intent: Equatable, Hashable {
      */
     case startCallDmVoice
     /**
-     * The user wants to join an existing  voice call that is a "Direct
-     * Message" (DM) room.
+     * The user wants to join an existing voice call that is a "Direct Message"
+     * (DM) room.
      */
     case joinExistingDmVoice
 
@@ -1766,8 +1813,7 @@ public func FfiConverterTypeIntent_lower(_ value: Intent) -> RustBuffer {
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Types of call notifications.
  */
@@ -1842,8 +1888,7 @@ public func FfiConverterTypeNotificationType_lower(_ value: NotificationType) ->
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Status for the pagination on a cache.
  */
@@ -1855,8 +1900,8 @@ public enum PaginationStatus: Equatable, Hashable {
      */
     case idle(
         /**
-         * Have we hit the start of the timeline, i.e. paginating wouldn't
-         * have any effect?
+         * Have we hit the start of the timeline, i.e. paginating wouldn't have
+         * any effect?
          */hitTimelineStart: Bool
     )
     /**
@@ -1925,8 +1970,7 @@ public func FfiConverterTypePaginationStatus_lower(_ value: PaginationStatus) ->
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Current state of a [`Paginator`].
  */
@@ -2027,7 +2071,8 @@ public func FfiConverterTypePaginatorState_lower(_ value: PaginatorState) -> Rus
  * The error type for failures while trying to log in a new device using a QR
  * code.
  */
-public enum QrCodeLoginError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+public 
+enum QrCodeLoginError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
     
@@ -2219,8 +2264,7 @@ public func FfiConverterTypeQRCodeLoginError_lower(_ value: QrCodeLoginError) ->
     return FfiConverterTypeQRCodeLoginError.lower(value)
 }
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The role of a member in a room.
  */
@@ -2321,6 +2365,83 @@ public func FfiConverterTypeRoomMemberRole_lift(_ buf: RustBuffer) throws -> Roo
 #endif
 public func FfiConverterTypeRoomMemberRole_lower(_ value: RoomMemberRole) -> RustBuffer {
     return FfiConverterTypeRoomMemberRole.lower(value)
+}
+
+
+
+/**
+ * How aggressively a search backfill runs.
+ */
+
+public enum SearchBackfillStrategy: Equatable, Hashable {
+    
+    /**
+     * The app is in the foreground: pause between paginations so this doesn't
+     * compete with interactive traffic.
+     */
+    case foreground
+    /**
+     * A time-boxed background task (e.g. iOS `BGAppRefreshTask`) where there's
+     * no interactive traffic to protect.
+     */
+    case background
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension SearchBackfillStrategy: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSearchBackfillStrategy: FfiConverterRustBuffer {
+    typealias SwiftType = SearchBackfillStrategy
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SearchBackfillStrategy {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .foreground
+        
+        case 2: return .background
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SearchBackfillStrategy, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .foreground:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .background:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSearchBackfillStrategy_lift(_ buf: RustBuffer) throws -> SearchBackfillStrategy {
+    return try FfiConverterTypeSearchBackfillStrategy.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSearchBackfillStrategy_lower(_ value: SearchBackfillStrategy) -> RustBuffer {
+    return FfiConverterTypeSearchBackfillStrategy.lower(value)
 }
 
 
@@ -2507,7 +2628,7 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_matrix_sdk_checksum_method_oauthauthorizationdata_login_url() != 47865) {
+    if (uniffi_matrix_sdk_checksum_method_oauthauthorizationdata_login_url() != 7277) {
         return InitializationResult.apiChecksumMismatch
     }
 

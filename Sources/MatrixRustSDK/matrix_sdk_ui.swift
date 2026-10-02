@@ -39,6 +39,52 @@ fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
+
+    init(rawBufferPointer: UnsafeRawBufferPointer) {
+        self.init(
+            len: Int32(rawBufferPointer.count),
+            data: rawBufferPointer.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        )
+    }
+}
+
+// Converter for `&[u8]` / `[ByRef] bytes` arguments.
+//
+// Conforms to `FfiConverter` so the compiler enforces the full converter
+// method set. Only the scope-bound `lower(_:_body:)` overload is sound —
+// zero-copy byte buffers only flow foreign -> Rust, and only in argument
+// position. The four protocol-witness methods (`lift`, `lower`, `read`,
+// `write`) `fatalError` at runtime if anyone reaches them.
+//
+// The scope-bound `lower` takes a closure because the `ForeignBytes`
+// pointer is only guaranteed valid for the duration of
+// `Data.withUnsafeBytes`. Callers must run the full FFI call inside
+// the closure body.
+fileprivate enum FfiConverterByRefBytes: FfiConverter {
+    typealias SwiftType = Data
+    typealias FfiType = ForeignBytes
+
+    static func lower<R>(_ value: Data, _ body: (ForeignBytes) throws -> R) rethrows -> R {
+        return try value.withUnsafeBytes { rawBuf in
+            try body(ForeignBytes(rawBufferPointer: rawBuf))
+        }
+    }
+
+    static func lower(_ value: Data) -> ForeignBytes {
+        fatalError("ByRef bytes cannot use the plain lower: returning ForeignBytes escapes the Data.withUnsafeBytes scope. Use the scope-bound lower(_:_body:) overload instead.")
+    }
+
+    static func lift(_ value: ForeignBytes) throws -> Data {
+        fatalError("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
+    }
+
+    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        fatalError("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
+
+    static func write(_ value: Data, into buf: inout [UInt8]) {
+        fatalError("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
 }
 
 // For every type used in the interface, we provide helper methods for conveniently
@@ -455,7 +501,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -471,7 +521,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -481,8 +532,7 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Where this event came.
  */
@@ -577,8 +627,7 @@ public func FfiConverterTypeEventItemOrigin_lower(_ value: EventItemOrigin) -> R
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 
 public enum LatestEventValueLocalState: Equatable, Hashable {
     
@@ -651,8 +700,7 @@ public func FfiConverterTypeLatestEventValueLocalState_lower(_ value: LatestEven
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The membership states that should be included/excluded from the timeline
  * item filters.
@@ -768,8 +816,7 @@ public func FfiConverterTypeMembershipChangeFilter_lower(_ value: MembershipChan
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * An enum to represent whether a room is about “people” (strictly 2 users) or
  * “group” (1 or more than 2 users).
@@ -779,8 +826,8 @@ public func FfiConverterTypeMembershipChangeFilter_lower(_ value: MembershipChan
  * different for this high-level UI API.
  *
  * This is implemented this way so that it's impossible to filter by “group”
- * and by “people” at the same time: these criteria are mutually
- * exclusive by design per filter.
+ * and by “people” at the same time: these criteria are mutually exclusive by
+ * design per filter.
  */
 
 public enum RoomListFilterCategory: Equatable, Hashable {
@@ -847,8 +894,7 @@ public func FfiConverterTypeRoomListFilterCategory_lower(_ value: RoomListFilter
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Filter read receipts by…
  *
@@ -943,8 +989,7 @@ public func FfiConverterTypeRoomListFilterReadReceipts_lower(_ value: RoomListFi
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of change between the previous and current pinned events.
  */
@@ -1029,8 +1074,7 @@ public func FfiConverterTypeRoomPinnedEventsChange_lower(_ value: RoomPinnedEven
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Whether the search service is currently loading a page of results.
  */
@@ -1109,8 +1153,7 @@ public func FfiConverterTypeSearchServicePaginationState_lower(_ value: SearchSe
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 
 public enum SpaceRoomListPaginationState: Equatable, Hashable {
     
@@ -1179,8 +1222,7 @@ public func FfiConverterTypeSpaceRoomListPaginationState_lower(_ value: SpaceRoo
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The pagination state of a [`ThreadListService`].
  */
@@ -1262,11 +1304,206 @@ public func FfiConverterTypeThreadListPaginationState_lower(_ value: ThreadListP
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
- * Options for controlling the behaviour of [`TimelineFocus::Event`]
- * for threaded events.
+ * A condition that matches on an event's type or content.
+ */
+
+public enum TimelineEventCondition: Equatable, Hashable {
+    
+    /**
+     * The event has the specified event type.
+     */
+    case eventType(TimelineEventType
+    )
+    /**
+     * The event is an `m.room.member` event that represents a membership
+     * change (join, leave, etc.).
+     */
+    case membershipChange(MembershipChangeFilter
+    )
+    /**
+     * The event is an `m.room.member` event that represents a profile change
+     * (displayname or avatar URL).
+     */
+    case profileChange
+    /**
+     * The event is a custom message-like event type.
+     */
+    case anyCustomMessageLikeEvent
+    /**
+     * The event is a custom state event type.
+     */
+    case anyCustomStateEvent
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TimelineEventCondition: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTimelineEventCondition: FfiConverterRustBuffer {
+    typealias SwiftType = TimelineEventCondition
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineEventCondition {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .eventType(try FfiConverterTypeTimelineEventType.read(from: &buf)
+        )
+        
+        case 2: return .membershipChange(try FfiConverterTypeMembershipChangeFilter.read(from: &buf)
+        )
+        
+        case 3: return .profileChange
+        
+        case 4: return .anyCustomMessageLikeEvent
+        
+        case 5: return .anyCustomStateEvent
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: TimelineEventCondition, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .eventType(v1):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeTimelineEventType.write(v1, into: &buf)
+            
+        
+        case let .membershipChange(v1):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeMembershipChangeFilter.write(v1, into: &buf)
+            
+        
+        case .profileChange:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .anyCustomMessageLikeEvent:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .anyCustomStateEvent:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTimelineEventCondition_lift(_ buf: RustBuffer) throws -> TimelineEventCondition {
+    return try FfiConverterTypeTimelineEventCondition.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTimelineEventCondition_lower(_ value: TimelineEventCondition) -> RustBuffer {
+    return FfiConverterTypeTimelineEventCondition.lower(value)
+}
+
+
+
+/**
+ * A timeline filter that in- or excludes events based on their type or
+ * content.
+ */
+
+public enum TimelineEventFilter: Equatable, Hashable {
+    
+    /**
+     * Only return items whose event matches any of the conditions in the list.
+     */
+    case include([TimelineEventCondition]
+    )
+    /**
+     * Return all items except the ones whose event matches any of the
+     * conditions in the list
+     */
+    case exclude([TimelineEventCondition]
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension TimelineEventFilter: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTimelineEventFilter: FfiConverterRustBuffer {
+    typealias SwiftType = TimelineEventFilter
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TimelineEventFilter {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .include(try FfiConverterSequenceTypeTimelineEventCondition.read(from: &buf)
+        )
+        
+        case 2: return .exclude(try FfiConverterSequenceTypeTimelineEventCondition.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: TimelineEventFilter, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .include(v1):
+            writeInt(&buf, Int32(1))
+            FfiConverterSequenceTypeTimelineEventCondition.write(v1, into: &buf)
+            
+        
+        case let .exclude(v1):
+            writeInt(&buf, Int32(2))
+            FfiConverterSequenceTypeTimelineEventCondition.write(v1, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTimelineEventFilter_lift(_ buf: RustBuffer) throws -> TimelineEventFilter {
+    return try FfiConverterTypeTimelineEventFilter.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTimelineEventFilter_lower(_ value: TimelineEventFilter) -> RustBuffer {
+    return FfiConverterTypeTimelineEventFilter.lower(value)
+}
+
+
+
+/**
+ * Options for controlling the behaviour of [`TimelineFocus::Event`] for
+ * threaded events.
  */
 
 public enum TimelineEventFocusThreadMode: Equatable, Hashable {
@@ -1276,20 +1513,19 @@ public enum TimelineEventFocusThreadMode: Equatable, Hashable {
      *
      * When the focused event is part of a thread, the timeline will be focused
      * on that thread's root. Otherwise, the timeline will treat the target
-     * event itself as the thread root. Threaded events will never be
-     * hidden.
+     * event itself as the thread root. Threaded events will never be hidden.
      */
     case forceThread
     /**
      * Automatically determine if the target event is part of a thread or not.
      *
-     * If the event is part of a thread, the timeline
-     * will be filtered to on-thread events.
+     * If the event is part of a thread, the timeline will be filtered to
+     * on-thread events.
      */
     case automatic(
         /**
-         * When the target event is not part of a thread, whether to
-         * hide in-thread replies from the live timeline.
+         * When the target event is not part of a thread, whether to hide
+         * in-thread replies from the live timeline.
          *
          * Has no effect when the target event is part of a thread.
          *
@@ -1360,8 +1596,7 @@ public func FfiConverterTypeTimelineEventFocusThreadMode_lower(_ value: Timeline
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Extends [`ShieldStateCode`] to allow for a `SentInClear` code.
  */
@@ -1487,8 +1722,7 @@ public func FfiConverterTypeTimelineEventShieldStateCode_lower(_ value: Timeline
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The level of read receipt tracking for the timeline.
  */
@@ -1573,6 +1807,31 @@ public func FfiConverterTypeTimelineReadReceiptTracking_lower(_ value: TimelineR
 }
 
 
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeTimelineEventCondition: FfiConverterRustBuffer {
+    typealias SwiftType = [TimelineEventCondition]
+
+    public static func write(_ value: [TimelineEventCondition], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeTimelineEventCondition.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [TimelineEventCondition] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [TimelineEventCondition]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeTimelineEventCondition.read(from: &buf))
+        }
+        return seq
+    }
+}
+
 private enum InitializationResult {
     case ok
     case contractVersionMismatch
@@ -1589,6 +1848,7 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.contractVersionMismatch
     }
 
+    uniffiEnsureRumaEventsInitialized()
     return InitializationResult.ok
 }()
 

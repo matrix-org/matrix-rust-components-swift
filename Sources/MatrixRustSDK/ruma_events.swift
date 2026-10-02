@@ -39,6 +39,52 @@ fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
+
+    init(rawBufferPointer: UnsafeRawBufferPointer) {
+        self.init(
+            len: Int32(rawBufferPointer.count),
+            data: rawBufferPointer.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        )
+    }
+}
+
+// Converter for `&[u8]` / `[ByRef] bytes` arguments.
+//
+// Conforms to `FfiConverter` so the compiler enforces the full converter
+// method set. Only the scope-bound `lower(_:_body:)` overload is sound —
+// zero-copy byte buffers only flow foreign -> Rust, and only in argument
+// position. The four protocol-witness methods (`lift`, `lower`, `read`,
+// `write`) `fatalError` at runtime if anyone reaches them.
+//
+// The scope-bound `lower` takes a closure because the `ForeignBytes`
+// pointer is only guaranteed valid for the duration of
+// `Data.withUnsafeBytes`. Callers must run the full FFI call inside
+// the closure body.
+fileprivate enum FfiConverterByRefBytes: FfiConverter {
+    typealias SwiftType = Data
+    typealias FfiType = ForeignBytes
+
+    static func lower<R>(_ value: Data, _ body: (ForeignBytes) throws -> R) rethrows -> R {
+        return try value.withUnsafeBytes { rawBuf in
+            try body(ForeignBytes(rawBufferPointer: rawBuf))
+        }
+    }
+
+    static func lower(_ value: Data) -> ForeignBytes {
+        fatalError("ByRef bytes cannot use the plain lower: returning ForeignBytes escapes the Data.withUnsafeBytes scope. Use the scope-bound lower(_:_body:) overload instead.")
+    }
+
+    static func lift(_ value: ForeignBytes) throws -> Data {
+        fatalError("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
+    }
+
+    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        fatalError("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
+
+    static func write(_ value: Data, into buf: inout [UInt8]) {
+        fatalError("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
 }
 
 // For every type used in the interface, we provide helper methods for conveniently
@@ -471,7 +517,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -487,7 +537,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -603,8 +654,7 @@ public func FfiConverterTypePrivateString_lower(_ value: PrivateString) -> UInt6
 
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of `EphemeralRoomEvent` this is.
  *
@@ -638,8 +688,9 @@ public enum EphemeralRoomEventType: Equatable, Hashable, CustomStringConvertible
 public var description: String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_ephemeralroomeventtype_uniffi_trait_display(
-            FfiConverterTypeEphemeralRoomEventType_lower(self),$0
+            FfiConverterTypeEphemeralRoomEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -648,9 +699,10 @@ public var description: String {
 public static func == (self: EphemeralRoomEventType, other: EphemeralRoomEventType) -> Bool {
     return try!  FfiConverterBool.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_ephemeralroomeventtype_uniffi_trait_eq_eq(
             FfiConverterTypeEphemeralRoomEventType_lower(self),
-        FfiConverterTypeEphemeralRoomEventType_lower(other),$0
+        FfiConverterTypeEphemeralRoomEventType_lower(other),uniffiCallStatus
     )
 }
     )
@@ -659,8 +711,9 @@ public static func == (self: EphemeralRoomEventType, other: EphemeralRoomEventTy
 public func hash(into hasher: inout Hasher) {
     let val = try!  FfiConverterUInt64.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_ephemeralroomeventtype_uniffi_trait_hash(
-            FfiConverterTypeEphemeralRoomEventType_lower(self),$0
+            FfiConverterTypeEphemeralRoomEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -729,8 +782,7 @@ public func FfiConverterTypeEphemeralRoomEventType_lower(_ value: EphemeralRoomE
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of `GlobalAccountDataEvent` this is.
  *
@@ -805,8 +857,9 @@ public enum GlobalAccountDataEventType: Equatable, Hashable, CustomStringConvert
 public var description: String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_globalaccountdataeventtype_uniffi_trait_display(
-            FfiConverterTypeGlobalAccountDataEventType_lower(self),$0
+            FfiConverterTypeGlobalAccountDataEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -815,9 +868,10 @@ public var description: String {
 public static func == (self: GlobalAccountDataEventType, other: GlobalAccountDataEventType) -> Bool {
     return try!  FfiConverterBool.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_globalaccountdataeventtype_uniffi_trait_eq_eq(
             FfiConverterTypeGlobalAccountDataEventType_lower(self),
-        FfiConverterTypeGlobalAccountDataEventType_lower(other),$0
+        FfiConverterTypeGlobalAccountDataEventType_lower(other),uniffiCallStatus
     )
 }
     )
@@ -826,8 +880,9 @@ public static func == (self: GlobalAccountDataEventType, other: GlobalAccountDat
 public func hash(into hasher: inout Hasher) {
     let val = try!  FfiConverterUInt64.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_globalaccountdataeventtype_uniffi_trait_hash(
-            FfiConverterTypeGlobalAccountDataEventType_lower(self),$0
+            FfiConverterTypeGlobalAccountDataEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -958,8 +1013,7 @@ public func FfiConverterTypeGlobalAccountDataEventType_lower(_ value: GlobalAcco
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of `MessageLikeEvent` this is.
  *
@@ -1191,8 +1245,9 @@ public enum MessageLikeEventType: Equatable, Hashable, CustomStringConvertible {
 public var description: String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_messagelikeeventtype_uniffi_trait_display(
-            FfiConverterTypeMessageLikeEventType_lower(self),$0
+            FfiConverterTypeMessageLikeEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -1201,9 +1256,10 @@ public var description: String {
 public static func == (self: MessageLikeEventType, other: MessageLikeEventType) -> Bool {
     return try!  FfiConverterBool.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_messagelikeeventtype_uniffi_trait_eq_eq(
             FfiConverterTypeMessageLikeEventType_lower(self),
-        FfiConverterTypeMessageLikeEventType_lower(other),$0
+        FfiConverterTypeMessageLikeEventType_lower(other),uniffiCallStatus
     )
 }
     )
@@ -1212,8 +1268,9 @@ public static func == (self: MessageLikeEventType, other: MessageLikeEventType) 
 public func hash(into hasher: inout Hasher) {
     let val = try!  FfiConverterUInt64.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_messagelikeeventtype_uniffi_trait_hash(
-            FfiConverterTypeMessageLikeEventType_lower(self),$0
+            FfiConverterTypeMessageLikeEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -1504,8 +1561,7 @@ public func FfiConverterTypeMessageLikeEventType_lower(_ value: MessageLikeEvent
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of `RoomAccountDataEvent` this is.
  *
@@ -1563,8 +1619,9 @@ public enum RoomAccountDataEventType: Equatable, Hashable, CustomStringConvertib
 public var description: String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_roomaccountdataeventtype_uniffi_trait_display(
-            FfiConverterTypeRoomAccountDataEventType_lower(self),$0
+            FfiConverterTypeRoomAccountDataEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -1573,9 +1630,10 @@ public var description: String {
 public static func == (self: RoomAccountDataEventType, other: RoomAccountDataEventType) -> Bool {
     return try!  FfiConverterBool.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_roomaccountdataeventtype_uniffi_trait_eq_eq(
             FfiConverterTypeRoomAccountDataEventType_lower(self),
-        FfiConverterTypeRoomAccountDataEventType_lower(other),$0
+        FfiConverterTypeRoomAccountDataEventType_lower(other),uniffiCallStatus
     )
 }
     )
@@ -1584,8 +1642,9 @@ public static func == (self: RoomAccountDataEventType, other: RoomAccountDataEve
 public func hash(into hasher: inout Hasher) {
     let val = try!  FfiConverterUInt64.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_roomaccountdataeventtype_uniffi_trait_hash(
-            FfiConverterTypeRoomAccountDataEventType_lower(self),$0
+            FfiConverterTypeRoomAccountDataEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -1684,8 +1743,7 @@ public func FfiConverterTypeRoomAccountDataEventType_lower(_ value: RoomAccountD
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of `StateEvent` this is.
  *
@@ -1839,8 +1897,9 @@ public enum StateEventType: Equatable, Hashable, CustomStringConvertible {
 public var description: String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_stateeventtype_uniffi_trait_display(
-            FfiConverterTypeStateEventType_lower(self),$0
+            FfiConverterTypeStateEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -1849,9 +1908,10 @@ public var description: String {
 public static func == (self: StateEventType, other: StateEventType) -> Bool {
     return try!  FfiConverterBool.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_stateeventtype_uniffi_trait_eq_eq(
             FfiConverterTypeStateEventType_lower(self),
-        FfiConverterTypeStateEventType_lower(other),$0
+        FfiConverterTypeStateEventType_lower(other),uniffiCallStatus
     )
 }
     )
@@ -1860,8 +1920,9 @@ public static func == (self: StateEventType, other: StateEventType) -> Bool {
 public func hash(into hasher: inout Hasher) {
     let val = try!  FfiConverterUInt64.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_stateeventtype_uniffi_trait_hash(
-            FfiConverterTypeStateEventType_lower(self),$0
+            FfiConverterTypeStateEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -2080,8 +2141,7 @@ public func FfiConverterTypeStateEventType_lower(_ value: StateEventType) -> Rus
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of `TimelineEvent` this is.
  *
@@ -2441,8 +2501,9 @@ public enum TimelineEventType: Equatable, Hashable, CustomStringConvertible {
 public var description: String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_timelineeventtype_uniffi_trait_display(
-            FfiConverterTypeTimelineEventType_lower(self),$0
+            FfiConverterTypeTimelineEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -2451,9 +2512,10 @@ public var description: String {
 public static func == (self: TimelineEventType, other: TimelineEventType) -> Bool {
     return try!  FfiConverterBool.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_timelineeventtype_uniffi_trait_eq_eq(
             FfiConverterTypeTimelineEventType_lower(self),
-        FfiConverterTypeTimelineEventType_lower(other),$0
+        FfiConverterTypeTimelineEventType_lower(other),uniffiCallStatus
     )
 }
     )
@@ -2462,8 +2524,9 @@ public static func == (self: TimelineEventType, other: TimelineEventType) -> Boo
 public func hash(into hasher: inout Hasher) {
     let val = try!  FfiConverterUInt64.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_timelineeventtype_uniffi_trait_hash(
-            FfiConverterTypeTimelineEventType_lower(self),$0
+            FfiConverterTypeTimelineEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -2916,8 +2979,7 @@ public func FfiConverterTypeTimelineEventType_lower(_ value: TimelineEventType) 
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The type of `ToDeviceEvent` this is.
  *
@@ -3019,8 +3081,9 @@ public enum ToDeviceEventType: Equatable, Hashable, CustomStringConvertible {
 public var description: String {
     return try!  FfiConverterString.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_todeviceeventtype_uniffi_trait_display(
-            FfiConverterTypeToDeviceEventType_lower(self),$0
+            FfiConverterTypeToDeviceEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -3029,9 +3092,10 @@ public var description: String {
 public static func == (self: ToDeviceEventType, other: ToDeviceEventType) -> Bool {
     return try!  FfiConverterBool.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_todeviceeventtype_uniffi_trait_eq_eq(
             FfiConverterTypeToDeviceEventType_lower(self),
-        FfiConverterTypeToDeviceEventType_lower(other),$0
+        FfiConverterTypeToDeviceEventType_lower(other),uniffiCallStatus
     )
 }
     )
@@ -3040,8 +3104,9 @@ public static func == (self: ToDeviceEventType, other: ToDeviceEventType) -> Boo
 public func hash(into hasher: inout Hasher) {
     let val = try!  FfiConverterUInt64.lift(
         try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_method_todeviceeventtype_uniffi_trait_hash(
-            FfiConverterTypeToDeviceEventType_lower(self),$0
+            FfiConverterTypeToDeviceEventType_lower(self),uniffiCallStatus
     )
 }
     )
@@ -3207,10 +3272,6 @@ public func FfiConverterTypeToDeviceEventType_lower(_ value: ToDeviceEventType) 
 
 
 
-/**
- * Typealias from the type name used in the UDL file to the builtin type.  This
- * is needed because the UDL type name is used in function/method signatures.
- */
 public typealias PrivOwnedStr = PrivateString
 
 #if swift(>=5.8)
@@ -3254,8 +3315,9 @@ public func FfiConverterTypePrivOwnedStr_lower(_ value: PrivOwnedStr) -> UInt64 
  */
 public func ephemeralRoomEventTypeFromString(s: String) -> EphemeralRoomEventType  {
     return try!  FfiConverterTypeEphemeralRoomEventType_lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_func_ephemeral_room_event_type_from_string(
-        FfiConverterString.lower(s),$0
+        FfiConverterString.lower(s),uniffiCallStatus
     )
 })
 }
@@ -3264,8 +3326,9 @@ public func ephemeralRoomEventTypeFromString(s: String) -> EphemeralRoomEventTyp
  */
 public func globalAccountDataEventTypeFromString(s: String) -> GlobalAccountDataEventType  {
     return try!  FfiConverterTypeGlobalAccountDataEventType_lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_func_global_account_data_event_type_from_string(
-        FfiConverterString.lower(s),$0
+        FfiConverterString.lower(s),uniffiCallStatus
     )
 })
 }
@@ -3274,8 +3337,9 @@ public func globalAccountDataEventTypeFromString(s: String) -> GlobalAccountData
  */
 public func messageLikeEventTypeFromString(s: String) -> MessageLikeEventType  {
     return try!  FfiConverterTypeMessageLikeEventType_lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_func_message_like_event_type_from_string(
-        FfiConverterString.lower(s),$0
+        FfiConverterString.lower(s),uniffiCallStatus
     )
 })
 }
@@ -3284,8 +3348,9 @@ public func messageLikeEventTypeFromString(s: String) -> MessageLikeEventType  {
  */
 public func roomAccountDataEventTypeFromString(s: String) -> RoomAccountDataEventType  {
     return try!  FfiConverterTypeRoomAccountDataEventType_lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_func_room_account_data_event_type_from_string(
-        FfiConverterString.lower(s),$0
+        FfiConverterString.lower(s),uniffiCallStatus
     )
 })
 }
@@ -3294,8 +3359,9 @@ public func roomAccountDataEventTypeFromString(s: String) -> RoomAccountDataEven
  */
 public func stateEventTypeFromString(s: String) -> StateEventType  {
     return try!  FfiConverterTypeStateEventType_lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_func_state_event_type_from_string(
-        FfiConverterString.lower(s),$0
+        FfiConverterString.lower(s),uniffiCallStatus
     )
 })
 }
@@ -3304,8 +3370,9 @@ public func stateEventTypeFromString(s: String) -> StateEventType  {
  */
 public func timelineEventTypeFromString(s: String) -> TimelineEventType  {
     return try!  FfiConverterTypeTimelineEventType_lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_func_timeline_event_type_from_string(
-        FfiConverterString.lower(s),$0
+        FfiConverterString.lower(s),uniffiCallStatus
     )
 })
 }
@@ -3314,8 +3381,9 @@ public func timelineEventTypeFromString(s: String) -> TimelineEventType  {
  */
 public func toDeviceEventTypeFromString(s: String) -> ToDeviceEventType  {
     return try!  FfiConverterTypeToDeviceEventType_lift(try! rustCall() {
+        uniffiCallStatus in
     uniffi_ruma_events_fn_func_to_device_event_type_from_string(
-        FfiConverterString.lower(s),$0
+        FfiConverterString.lower(s),uniffiCallStatus
     )
 })
 }
@@ -3335,25 +3403,25 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_ruma_events_checksum_func_ephemeral_room_event_type_from_string() != 49031) {
+    if (uniffi_ruma_events_checksum_func_ephemeral_room_event_type_from_string() != 51810) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_ruma_events_checksum_func_global_account_data_event_type_from_string() != 55409) {
+    if (uniffi_ruma_events_checksum_func_global_account_data_event_type_from_string() != 52367) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_ruma_events_checksum_func_message_like_event_type_from_string() != 19374) {
+    if (uniffi_ruma_events_checksum_func_message_like_event_type_from_string() != 24196) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_ruma_events_checksum_func_room_account_data_event_type_from_string() != 19617) {
+    if (uniffi_ruma_events_checksum_func_room_account_data_event_type_from_string() != 53674) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_ruma_events_checksum_func_state_event_type_from_string() != 7090) {
+    if (uniffi_ruma_events_checksum_func_state_event_type_from_string() != 63281) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_ruma_events_checksum_func_timeline_event_type_from_string() != 64429) {
+    if (uniffi_ruma_events_checksum_func_timeline_event_type_from_string() != 30144) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_ruma_events_checksum_func_to_device_event_type_from_string() != 65088) {
+    if (uniffi_ruma_events_checksum_func_to_device_event_type_from_string() != 26044) {
         return InitializationResult.apiChecksumMismatch
     }
 

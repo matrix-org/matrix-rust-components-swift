@@ -39,6 +39,52 @@ fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
+
+    init(rawBufferPointer: UnsafeRawBufferPointer) {
+        self.init(
+            len: Int32(rawBufferPointer.count),
+            data: rawBufferPointer.baseAddress?.assumingMemoryBound(to: UInt8.self)
+        )
+    }
+}
+
+// Converter for `&[u8]` / `[ByRef] bytes` arguments.
+//
+// Conforms to `FfiConverter` so the compiler enforces the full converter
+// method set. Only the scope-bound `lower(_:_body:)` overload is sound —
+// zero-copy byte buffers only flow foreign -> Rust, and only in argument
+// position. The four protocol-witness methods (`lift`, `lower`, `read`,
+// `write`) `fatalError` at runtime if anyone reaches them.
+//
+// The scope-bound `lower` takes a closure because the `ForeignBytes`
+// pointer is only guaranteed valid for the duration of
+// `Data.withUnsafeBytes`. Callers must run the full FFI call inside
+// the closure body.
+fileprivate enum FfiConverterByRefBytes: FfiConverter {
+    typealias SwiftType = Data
+    typealias FfiType = ForeignBytes
+
+    static func lower<R>(_ value: Data, _ body: (ForeignBytes) throws -> R) rethrows -> R {
+        return try value.withUnsafeBytes { rawBuf in
+            try body(ForeignBytes(rawBufferPointer: rawBuf))
+        }
+    }
+
+    static func lower(_ value: Data) -> ForeignBytes {
+        fatalError("ByRef bytes cannot use the plain lower: returning ForeignBytes escapes the Data.withUnsafeBytes scope. Use the scope-bound lower(_:_body:) overload instead.")
+    }
+
+    static func lift(_ value: ForeignBytes) throws -> Data {
+        fatalError("ByRef bytes cannot be lifted: zero-copy &[u8] only flows foreign->Rust")
+    }
+
+    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
+        fatalError("ByRef bytes cannot be read from a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
+
+    static func write(_ value: Data, into buf: inout [UInt8]) {
+        fatalError("ByRef bytes cannot be written to a buffer: zero-copy &[u8] is only supported in argument position, not nested in records/options/etc.")
+    }
 }
 
 // For every type used in the interface, we provide helper methods for conveniently
@@ -431,7 +477,11 @@ fileprivate struct FfiConverterString: FfiConverter {
             return String()
         }
         let bytes = UnsafeBufferPointer<UInt8>(start: value.data!, count: Int(value.len))
-        return String(bytes: bytes, encoding: String.Encoding.utf8)!
+        // Use Swift's native UTF-8 decoder; `String(bytes:encoding:.utf8)` goes
+        // through Foundation's NSString and silently strips a leading U+FEFF BOM.
+        // Invalid UTF-8 substitutes U+FFFD instead of trapping (unreachable
+        // given Rust's `String` invariant).
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     public static func lower(_ value: String) -> RustBuffer {
@@ -447,7 +497,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        // See `lift` above for why we avoid Foundation's NSString-backed decoder here.
+        return String(decoding: try readBytes(&buf, count: Int(len)), as: UTF8.self)
     }
 
     public static func write(_ value: String, into buf: inout [UInt8]) {
@@ -858,8 +909,7 @@ public func FfiConverterTypeDecryptionSettings_lower(_ value: DecryptionSettings
     return FfiConverterTypeDecryptionSettings.lower(value)
 }
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Strategy to collect the devices that should receive room keys for the
  * current discussion.
@@ -879,20 +929,19 @@ public enum CollectStrategy: Equatable, Hashable {
      */
     case allDevices
     /**
-     * Share with all devices, except errors for *verified* users cause sharing
+     * Share with all devices, except errors for _verified_ users cause sharing
      * to fail with an error.
      *
-     * In this strategy, if a verified user has an unsigned device,
-     * key sharing will fail with a
-     * [`SessionRecipientCollectionError::VerifiedUserHasUnsignedDevice`].
-     * If a verified user has replaced their identity, key
-     * sharing will fail with a
+     * In this strategy, if a verified user has an unsigned device, key sharing
+     * will fail with a
+     * [`SessionRecipientCollectionError::VerifiedUserHasUnsignedDevice`]. If a
+     * verified user has replaced their identity, key sharing will fail with a
      * [`SessionRecipientCollectionError::VerifiedUserChangedIdentity`].
      *
      * Otherwise, keys are shared with unsigned devices as normal.
      *
-     * Once the problematic devices are blacklisted or whitelisted the
-     * caller can retry to share a second time.
+     * Once the problematic devices are blacklisted or whitelisted the caller
+     * can retry to share a second time.
      *
      * Not recommended, per the guidance of [MSC4153].
      *
@@ -901,8 +950,8 @@ public enum CollectStrategy: Equatable, Hashable {
     case errorOnVerifiedUserProblem
     /**
      * Share based on identity. Only distribute to devices signed by their
-     * owner. If a user has no published identity he will not receive
-     * any room keys.
+     * owner. If a user has no published identity he will not receive any room
+     * keys.
      *
      * This is the recommended strategy: it is compliant with the guidance of
      * [MSC4153].
@@ -1003,8 +1052,7 @@ public func FfiConverterTypeCollectStrategy_lower(_ value: CollectStrategy) -> R
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The state of an identity - verified, pinned etc.
  */
@@ -1017,15 +1065,15 @@ public enum IdentityState: Equatable, Hashable {
     case verified
     /**
      * Either this is the first identity we have seen for this user, or the
-     * user has acknowledged a change of identity explicitly e.g. by
-     * clicking OK on a notification.
+     * user has acknowledged a change of identity explicitly e.g. by clicking
+     * OK on a notification.
      */
     case pinned
     /**
      * The user's identity has changed since it was pinned. The user should be
-     * notified about this and given the opportunity to acknowledge the
-     * change, which will make the new identity pinned.
-     * When the user acknowledges the change, the app should call
+     * notified about this and given the opportunity to acknowledge the change,
+     * which will make the new identity pinned. When the user acknowledges the
+     * change, the app should call
      * [`crate::OtherUserIdentity::pin_current_master_key`].
      */
     case pinViolation
@@ -1108,8 +1156,7 @@ public func FfiConverterTypeIdentityState_lower(_ value: IdentityState) -> RustB
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The local trust state of a device.
  */
@@ -1208,7 +1255,8 @@ public func FfiConverterTypeLocalTrust_lower(_ value: LocalTrust) -> RustBuffer 
 /**
  * Error type for the decoding of the [`QrCodeData`].
  */
-public enum LoginQrCodeDecodeError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+public 
+enum LoginQrCodeDecodeError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
 
     
     
@@ -1228,8 +1276,8 @@ public enum LoginQrCodeDecodeError: Swift.Error, Equatable, Hashable, Foundation
     case UrlParse(message: String)
     
     /**
-     * The QR code data contains an invalid intent, we expect the login
-     * intent or the reciprocate intent.
+     * The QR code data contains an invalid intent, we expect the login intent
+     * or the reciprocate intent.
      */
     case InvalidIntent(message: String)
     
@@ -1352,8 +1400,101 @@ public func FfiConverterTypeLoginQrCodeDecodeError_lower(_ value: LoginQrCodeDec
     return FfiConverterTypeLoginQrCodeDecodeError.lower(value)
 }
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+/**
+ * Error type for the creation of a new [`QrCodeData`] struct.
+ */
+public 
+enum QrCodeCreationError: Swift.Error, Equatable, Hashable, Foundation.LocalizedError {
+
+    
+    
+    /**
+     * The base URL of the homeserver needs to be at most [`u16::MAX`] bytes
+     * long, otherwise it doesn't fit into the QR code.
+     */
+    case TooLongBaseUrl(message: String)
+    
+    /**
+     * The rendezvous ID of the channel needs to be at most [`u16::MAX`] bytes
+     * long, otherwise it doesn't fit into the QR code.
+     */
+    case TooLongRendezvousId(message: String)
+    
+
+    
+
+    
+
+    
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+    
+}
+
+#if compiler(>=6)
+extension QrCodeCreationError: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeQrCodeCreationError: FfiConverterRustBuffer {
+    typealias SwiftType = QrCodeCreationError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> QrCodeCreationError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .TooLongBaseUrl(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .TooLongRendezvousId(
+            message: try FfiConverterString.read(from: &buf)
+        )
+        
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: QrCodeCreationError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        case .TooLongBaseUrl(_ /* message is ignored*/):
+            writeInt(&buf, Int32(1))
+        case .TooLongRendezvousId(_ /* message is ignored*/):
+            writeInt(&buf, Int32(2))
+
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeQrCodeCreationError_lift(_ buf: RustBuffer) throws -> QrCodeCreationError {
+    return try FfiConverterTypeQrCodeCreationError.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeQrCodeCreationError_lower(_ value: QrCodeCreationError) -> RustBuffer {
+    return FfiConverterTypeQrCodeCreationError.lower(value)
+}
+
+
 /**
  * The intent of the device that generated/displayed the QR code.
  *
@@ -1436,8 +1577,7 @@ public func FfiConverterTypeQrCodeIntent_lower(_ value: QrCodeIntent) -> RustBuf
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * The result of a signature check.
  */
@@ -1534,11 +1674,9 @@ public func FfiConverterTypeSignatureState_lower(_ value: SignatureState) -> Rus
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
- * The trust level in the sender's device that is required to decrypt an
- * event.
+ * The trust level in the sender's device that is required to decrypt an event.
  */
 
 public enum TrustRequirement: Equatable, Hashable {
@@ -1626,8 +1764,7 @@ public func FfiConverterTypeTrustRequirement_lower(_ value: TrustRequirement) ->
 }
 
 
-// Note that we don't yet support `indirect` for enums.
-// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 /**
  * Our best guess at the reason why an event can't be decrypted.
  */
@@ -1668,9 +1805,9 @@ public enum UtdCause: Equatable, Hashable {
      * signed by its owner, and we were unable to securely find the device.
      *
      * This could be because the device has since been deleted, because we
-     * haven't yet downloaded it from the server, or because the session
-     * data was obtained from an insecure source (imported from a file,
-     * obtained from a legacy (asymmetric) backup, unsafe key forward, etc.)
+     * haven't yet downloaded it from the server, or because the session data
+     * was obtained from an insecure source (imported from a file, obtained
+     * from a legacy (asymmetric) backup, unsafe key forward, etc.)
      */
     case unknownDevice
     /**
@@ -1680,9 +1817,8 @@ public enum UtdCause: Equatable, Hashable {
      *
      * Device-historical means that the message was sent before the current
      * device existed (but the current user was probably a member of the room
-     * at the time the message was sent). Not to
-     * be confused with pre-join or pre-invite messages (see
-     * [`UtdCause::SentBeforeWeJoined`] for that).
+     * at the time the message was sent). Not to be confused with pre-join or
+     * pre-invite messages (see [`UtdCause::SentBeforeWeJoined`] for that).
      *
      * Expected message to user: "History is not available on this device".
      */
@@ -1696,10 +1832,10 @@ public enum UtdCause: Equatable, Hashable {
     case withheldForUnverifiedOrInsecureDevice
     /**
      * The keys for this event are missing, likely because the sender was
-     * unable to share them (e.g., failure to establish an Olm 1:1
-     * channel). Alternatively, the sender may have deliberately excluded
-     * this device by cherry-picking and blocking it, in which case, no action
-     * can be taken on our side.
+     * unable to share them (e.g., failure to establish an Olm 1:1 channel).
+     * Alternatively, the sender may have deliberately excluded this device by
+     * cherry-picking and blocking it, in which case, no action can be taken on
+     * our side.
      */
     case withheldBySender
     /**
@@ -1709,9 +1845,8 @@ public enum UtdCause: Equatable, Hashable {
      *
      * Device-historical means that the message was sent before the current
      * device existed (but the current user was probably a member of the room
-     * at the time the message was sent). Not to
-     * be confused with pre-join or pre-invite messages (see
-     * [`UtdCause::SentBeforeWeJoined`] for that).
+     * at the time the message was sent). Not to be confused with pre-join or
+     * pre-invite messages (see [`UtdCause::SentBeforeWeJoined`] for that).
      *
      * Expected message to user: "You need to verify this device".
      */
