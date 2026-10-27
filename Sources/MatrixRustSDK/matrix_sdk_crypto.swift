@@ -1410,13 +1410,13 @@ enum QrCodeCreationError: Swift.Error, Equatable, Hashable, Foundation.Localized
     
     
     /**
-     * The base URL of the homeserver needs to be at most [`u16::MAX`] bytes
+     * The base URL of the homeserver needs to be at most [`u8::MAX`] bytes
      * long, otherwise it doesn't fit into the QR code.
      */
     case TooLongBaseUrl(message: String)
     
     /**
-     * The rendezvous ID of the channel needs to be at most [`u16::MAX`] bytes
+     * The rendezvous ID of the channel needs to be at most [`u8::MAX`] bytes
      * long, otherwise it doesn't fit into the QR code.
      */
     case TooLongRendezvousId(message: String)
