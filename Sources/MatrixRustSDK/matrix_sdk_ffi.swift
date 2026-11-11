@@ -938,11 +938,12 @@ public protocol ClientProtocol: AnyObject, Sendable {
      * it via dropping the previous and re-creating it, restarting their
      * application, or any other similar means.
      *
-     * - This will get rid of the backing state store file, if provided.
      * - This will empty all the room's persisted event caches, so all rooms
      * will start as if they were empty.
-     * - This will empty the media cache according to the current media
-     * retention policy.
+     * - This will delete the search index.
+     * - This will close all the stores, then get rid of the backing state
+     * store, event cache store and media store files, if provided. The
+     * crypto store is kept.
      */
     func clearCaches(syncService: SyncService?) async throws 
     
@@ -1063,6 +1064,13 @@ public protocol ClientProtocol: AnyObject, Sendable {
      * cache.
      */
     func getInviteAvatarsDisplayPolicy() async throws  -> InviteAvatars?
+    
+    /**
+     * Get the room invite permission stored in the cache.
+     *
+     * A missing configuration is treated as unrestricted.
+     */
+    func getInvitePermission() async throws  -> InvitePermissionState
     
     /**
      * Gets the `max_upload_size` value from the homeserver, which controls the
@@ -1189,6 +1197,9 @@ public protocol ClientProtocol: AnyObject, Sendable {
      * a fallback, unless well-known discovery was disabled with
      * [`ClientBuilder::disable_well_known_lookup`] or
      * [`Client::disable_well_known_lookup`].
+     *
+     * Both the `m.livekit` and the legacy `livekit` transport types count as
+     * LiveKit support.
      */
     func isLivekitRtcSupported() async throws  -> Bool
     
@@ -1551,6 +1562,11 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func setInviteAvatarsDisplayPolicy(policy: InviteAvatars) async throws 
     
     /**
+     * Set the room invite permission for this account.
+     */
+    func setInvitePermission(action: InvitePermissionAction) async throws 
+    
+    /**
      * Set the media previews timeline display policy
      */
     func setMediaPreviewDisplayPolicy(policy: MediaPreviews) async throws 
@@ -1623,6 +1639,11 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func subscribeToDuplicateKeyUploadErrors(listener: DuplicateKeyUploadErrorListener)  -> TaskHandle
     
     func subscribeToIgnoredUsers(listener: IgnoredUsersListener)  -> TaskHandle
+    
+    /**
+     * Subscribe to changes in the room invite permission configuration.
+     */
+    func subscribeToInvitePermission(listener: InvitePermissionListener) async throws  -> TaskHandle
     
     /**
      * Subscribe to changes in the media preview configuration.
@@ -1722,6 +1743,26 @@ public protocol ClientProtocol: AnyObject, Sendable {
     func trackRecentlyVisitedRoom(room: String) async throws 
     
     func unignoreUser(userId: String) async throws 
+    
+    /**
+     * Cancel, restart or immediately send a previously scheduled delayed
+     * event ([MSC4140]).
+     *
+     * # Arguments
+     *
+     * * `delay_id` - The identifier returned by [`Room::send_delayed_event`]
+     * or [`Room::send_delayed_state_event`].
+     *
+     * * `action` - What should happen to the delayed event.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     * [`Room::send_delayed_event`]: crate::room::Room::send_delayed_event
+     * [`Room::send_delayed_state_event`]: crate::room::Room::send_delayed_state_event
+     */
+    func updateDelayedEvent(delayId: String, action: DelayedEventUpdateAction, requestConfigOverride: RequestConfigOverride?) async throws 
     
     func uploadAvatar(mimeType: String, data: Data) async throws 
     
@@ -2026,11 +2067,12 @@ open func canDeactivateAccount() -> Bool  {
      * it via dropping the previous and re-creating it, restarting their
      * application, or any other similar means.
      *
-     * - This will get rid of the backing state store file, if provided.
      * - This will empty all the room's persisted event caches, so all rooms
      * will start as if they were empty.
-     * - This will empty the media cache according to the current media
-     * retention policy.
+     * - This will delete the search index.
+     * - This will close all the stores, then get rid of the backing state
+     * store, event cache store and media store files, if provided. The
+     * crypto store is kept.
      */
 open func clearCaches(syncService: SyncService?)async throws   {
     return
@@ -2369,6 +2411,27 @@ open func getInviteAvatarsDisplayPolicy()async throws  -> InviteAvatars?  {
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionTypeInviteAvatars.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Get the room invite permission stored in the cache.
+     *
+     * A missing configuration is treated as unrestricted.
+     */
+open func getInvitePermission()async throws  -> InvitePermissionState  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_get_invite_permission(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeInvitePermissionState_lift,
             errorHandler: FfiConverterTypeClientError_lift
         )
 }
@@ -2774,6 +2837,9 @@ open func ignoredUsers()async throws  -> [String]  {
      * a fallback, unless well-known discovery was disabled with
      * [`ClientBuilder::disable_well_known_lookup`] or
      * [`Client::disable_well_known_lookup`].
+     *
+     * Both the `m.livekit` and the legacy `livekit` transport types count as
+     * LiveKit support.
      */
 open func isLivekitRtcSupported()async throws  -> Bool  {
     return
@@ -3743,6 +3809,25 @@ open func setInviteAvatarsDisplayPolicy(policy: InviteAvatars)async throws   {
 }
     
     /**
+     * Set the room invite permission for this account.
+     */
+open func setInvitePermission(action: InvitePermissionAction)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_set_invite_permission(
+                        self.uniffiCloneHandle(),FfiConverterTypeInvitePermissionAction_lower(action)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
      * Set the media previews timeline display policy
      */
 open func setMediaPreviewDisplayPolicy(policy: MediaPreviews)async throws   {
@@ -3959,6 +4044,25 @@ open func subscribeToIgnoredUsers(listener: IgnoredUsersListener) -> TaskHandle 
         FfiConverterCallbackInterfaceIgnoredUsersListener_lower(listener),uniffiCallStatus
     )
 })
+}
+    
+    /**
+     * Subscribe to changes in the room invite permission configuration.
+     */
+open func subscribeToInvitePermission(listener: InvitePermissionListener)async throws  -> TaskHandle  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_subscribe_to_invite_permission(
+                        self.uniffiCloneHandle(),FfiConverterCallbackInterfaceInvitePermissionListener_lower(listener)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_u64,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_u64,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeTaskHandle_lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
 }
     
     /**
@@ -4196,6 +4300,40 @@ open func unignoreUser(userId: String)async throws   {
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_client_unignore_user(
                         self.uniffiCloneHandle(),FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Cancel, restart or immediately send a previously scheduled delayed
+     * event ([MSC4140]).
+     *
+     * # Arguments
+     *
+     * * `delay_id` - The identifier returned by [`Room::send_delayed_event`]
+     * or [`Room::send_delayed_state_event`].
+     *
+     * * `action` - What should happen to the delayed event.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     * [`Room::send_delayed_event`]: crate::room::Room::send_delayed_event
+     * [`Room::send_delayed_state_event`]: crate::room::Room::send_delayed_state_event
+     */
+open func updateDelayedEvent(delayId: String, action: DelayedEventUpdateAction, requestConfigOverride: RequestConfigOverride? = nil)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_client_update_delayed_event(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(delayId),FfiConverterTypeDelayedEventUpdateAction_lower(action),FfiConverterOptionTypeRequestConfigOverride.lower(requestConfigOverride)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -5566,7 +5704,23 @@ public protocol EncryptionProtocol: AnyObject, Sendable {
     
     func enableBackups() async throws 
     
-    func enableRecovery(waitForBackupsToUpload: Bool, passphrase: String?, progressListener: EnableRecoveryProgressListener) async throws  -> String
+    /**
+     * Enable recovery on the account.
+     *
+     * # Arguments
+     *
+     * - `wait_for_backups_to_upload` - Should the enabling of the recovery
+     * also wait for _all_ room keys to be uploaded to the server-side key
+     * backup?
+     * - `key` - The key to use to encrypt secret storage.  If `None`, a new
+     * key will be randomly generated.  A key can be generated from a
+     * passphrase by using [`SecretStorageKey::new_from_passphrase`].
+     * - `progress_listener` - A listener to track the progress of enabling
+     * recovery.
+     *
+     * Returns the base58-representation of the secret storage key.
+     */
+    func enableRecovery(waitForBackupsToUpload: Bool, key: SecretStorageKey?, progressListener: EnableRecoveryProgressListener) async throws  -> String
     
     /**
      * Does the user have devices, other than the current one, that the
@@ -5926,12 +6080,28 @@ open func enableBackups()async throws   {
         )
 }
     
-open func enableRecovery(waitForBackupsToUpload: Bool, passphrase: String?, progressListener: EnableRecoveryProgressListener)async throws  -> String  {
+    /**
+     * Enable recovery on the account.
+     *
+     * # Arguments
+     *
+     * - `wait_for_backups_to_upload` - Should the enabling of the recovery
+     * also wait for _all_ room keys to be uploaded to the server-side key
+     * backup?
+     * - `key` - The key to use to encrypt secret storage.  If `None`, a new
+     * key will be randomly generated.  A key can be generated from a
+     * passphrase by using [`SecretStorageKey::new_from_passphrase`].
+     * - `progress_listener` - A listener to track the progress of enabling
+     * recovery.
+     *
+     * Returns the base58-representation of the secret storage key.
+     */
+open func enableRecovery(waitForBackupsToUpload: Bool, key: SecretStorageKey?, progressListener: EnableRecoveryProgressListener)async throws  -> String  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_matrix_sdk_ffi_fn_method_encryption_enable_recovery(
-                        self.uniffiCloneHandle(),FfiConverterBool.lower(waitForBackupsToUpload),FfiConverterOptionString.lower(passphrase),FfiConverterCallbackInterfaceEnableRecoveryProgressListener_lower(progressListener)
+                        self.uniffiCloneHandle(),FfiConverterBool.lower(waitForBackupsToUpload),FfiConverterOptionTypeSecretStorageKey.lower(key),FfiConverterCallbackInterfaceEnableRecoveryProgressListener_lower(progressListener)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
@@ -10650,6 +10820,13 @@ public protocol RoomProtocol: AnyObject, Sendable {
     
     func members() async throws  -> RoomMembersIterator
     
+    /**
+     * Gets the members for this room, like [`Room::members`], but also fetches
+     * any missing global profiles for those members in the background (when
+     * supported by the server).
+     */
+    func membersFetchingGlobalProfiles() async throws  -> RoomMembersIterator
+    
     func membersNoSync() async throws  -> RoomMembersIterator
     
     /**
@@ -11021,6 +11198,96 @@ public protocol RoomProtocol: AnyObject, Sendable {
      * echo the send error applies to
      */
     func withdrawVerificationAndResend(userIds: [String], sendHandle: SendHandle) async throws 
+    
+    /**
+     * Send a delayed message-like event to the room ([MSC4140]).
+     *
+     * The homeserver holds on to the event and only distributes it to the room
+     * once `delay_ms` has elapsed, unless the delayed event is updated
+     * beforehand with [`Client::update_delayed_event`].
+     *
+     * If the room is encrypted, the content is encrypted when the event is
+     * scheduled, like [`Room::send_raw`] does. A member joining the room
+     * before the delay elapses won't be able to decrypt it.
+     *
+     * # Arguments
+     *
+     * * `event_type` - The type of the event to send.
+     *
+     * * `content` - The content of the event to send encoded as a JSON string.
+     *
+     * * `delay_ms` - How long, in milliseconds, the homeserver should hold on
+     * to the event.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * Returns the `delay_id` identifying the scheduled event.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     * [`Client::update_delayed_event`]: crate::client::Client::update_delayed_event
+     */
+    func sendDelayedEvent(eventType: String, content: String, delayMs: UInt64, requestConfigOverride: RequestConfigOverride?) async throws  -> String
+    
+    /**
+     * Send a delayed state event to the room ([MSC4140]).
+     *
+     * See [`Room::send_delayed_event`] for the semantics of delayed events.
+     * Unlike message-like events, state events can't be sticky.
+     *
+     * # Arguments
+     *
+     * * `event_type` - The type of the state event to send.
+     *
+     * * `state_key` - A unique key which defines the overwriting semantics for
+     * this piece of room state. This is often an empty string.
+     *
+     * * `content` - The content of the event to send encoded as a JSON string.
+     *
+     * * `delay_ms` - How long, in milliseconds, the homeserver should hold on
+     * to the event.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * Returns the `delay_id` identifying the scheduled event.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     */
+    func sendDelayedStateEvent(eventType: String, stateKey: String, content: String, delayMs: UInt64, requestConfigOverride: RequestConfigOverride?) async throws  -> String
+    
+    /**
+     * Send a delayed message-like event to the room ([MSC4140]) that becomes
+     * sticky ([MSC4354]) once the homeserver sends it.
+     *
+     * See [`Room::send_delayed_event`] for the semantics of delayed events.
+     *
+     * Note that if the homeserver doesn't support sticky events, it will
+     * ignore the duration and send the event unsticky. Server support can be
+     * checked with [`Client::is_sticky_events_supported`].
+     *
+     * # Arguments
+     *
+     * * `event_type` - The type of the event to send.
+     *
+     * * `content` - The content of the event to send encoded as a JSON string.
+     *
+     * * `delay_ms` - How long, in milliseconds, the homeserver should hold on
+     * to the event.
+     *
+     * * `sticky_duration_ms` - How long the event stays sticky for once it is
+     * sent, in milliseconds, clamped to one hour.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * Returns the `delay_id` identifying the scheduled event.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     * [MSC4354]: https://github.com/matrix-org/matrix-spec-proposals/pull/4354
+     * [`Client::is_sticky_events_supported`]: crate::client::Client::is_sticky_events_supported
+     */
+    func sendStickyDelayedEvent(eventType: String, content: String, delayMs: UInt64, stickyDurationMs: UInt64, requestConfigOverride: RequestConfigOverride?) async throws  -> String
     
     /**
      * Subscribe to the message-like events of the given type in this room.
@@ -12093,6 +12360,27 @@ open func members()async throws  -> RoomMembersIterator  {
         )
 }
     
+    /**
+     * Gets the members for this room, like [`Room::members`], but also fetches
+     * any missing global profiles for those members in the background (when
+     * supported by the server).
+     */
+open func membersFetchingGlobalProfiles()async throws  -> RoomMembersIterator  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_members_fetching_global_profiles(
+                        self.uniffiCloneHandle()
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_u64,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_u64,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_u64,
+            liftFunc: FfiConverterTypeRoomMembersIterator_lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
 open func membersNoSync()async throws  -> RoomMembersIterator  {
     return
         try  await uniffiRustCallAsync(
@@ -13104,6 +13392,138 @@ open func withdrawVerificationAndResend(userIds: [String], sendHandle: SendHandl
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Send a delayed message-like event to the room ([MSC4140]).
+     *
+     * The homeserver holds on to the event and only distributes it to the room
+     * once `delay_ms` has elapsed, unless the delayed event is updated
+     * beforehand with [`Client::update_delayed_event`].
+     *
+     * If the room is encrypted, the content is encrypted when the event is
+     * scheduled, like [`Room::send_raw`] does. A member joining the room
+     * before the delay elapses won't be able to decrypt it.
+     *
+     * # Arguments
+     *
+     * * `event_type` - The type of the event to send.
+     *
+     * * `content` - The content of the event to send encoded as a JSON string.
+     *
+     * * `delay_ms` - How long, in milliseconds, the homeserver should hold on
+     * to the event.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * Returns the `delay_id` identifying the scheduled event.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     * [`Client::update_delayed_event`]: crate::client::Client::update_delayed_event
+     */
+open func sendDelayedEvent(eventType: String, content: String, delayMs: UInt64, requestConfigOverride: RequestConfigOverride? = nil)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_send_delayed_event(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(eventType),FfiConverterString.lower(content),FfiConverterUInt64.lower(delayMs),FfiConverterOptionTypeRequestConfigOverride.lower(requestConfigOverride)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Send a delayed state event to the room ([MSC4140]).
+     *
+     * See [`Room::send_delayed_event`] for the semantics of delayed events.
+     * Unlike message-like events, state events can't be sticky.
+     *
+     * # Arguments
+     *
+     * * `event_type` - The type of the state event to send.
+     *
+     * * `state_key` - A unique key which defines the overwriting semantics for
+     * this piece of room state. This is often an empty string.
+     *
+     * * `content` - The content of the event to send encoded as a JSON string.
+     *
+     * * `delay_ms` - How long, in milliseconds, the homeserver should hold on
+     * to the event.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * Returns the `delay_id` identifying the scheduled event.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     */
+open func sendDelayedStateEvent(eventType: String, stateKey: String, content: String, delayMs: UInt64, requestConfigOverride: RequestConfigOverride? = nil)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_send_delayed_state_event(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(eventType),FfiConverterString.lower(stateKey),FfiConverterString.lower(content),FfiConverterUInt64.lower(delayMs),FfiConverterOptionTypeRequestConfigOverride.lower(requestConfigOverride)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Send a delayed message-like event to the room ([MSC4140]) that becomes
+     * sticky ([MSC4354]) once the homeserver sends it.
+     *
+     * See [`Room::send_delayed_event`] for the semantics of delayed events.
+     *
+     * Note that if the homeserver doesn't support sticky events, it will
+     * ignore the duration and send the event unsticky. Server support can be
+     * checked with [`Client::is_sticky_events_supported`].
+     *
+     * # Arguments
+     *
+     * * `event_type` - The type of the event to send.
+     *
+     * * `content` - The content of the event to send encoded as a JSON string.
+     *
+     * * `delay_ms` - How long, in milliseconds, the homeserver should hold on
+     * to the event.
+     *
+     * * `sticky_duration_ms` - How long the event stays sticky for once it is
+     * sent, in milliseconds, clamped to one hour.
+     *
+     * * `request_config_override` - Overrides the client's request config for
+     * this request. Fields that are not set keep the client's values.
+     *
+     * Returns the `delay_id` identifying the scheduled event.
+     *
+     * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+     * [MSC4354]: https://github.com/matrix-org/matrix-spec-proposals/pull/4354
+     * [`Client::is_sticky_events_supported`]: crate::client::Client::is_sticky_events_supported
+     */
+open func sendStickyDelayedEvent(eventType: String, content: String, delayMs: UInt64, stickyDurationMs: UInt64, requestConfigOverride: RequestConfigOverride? = nil)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_room_send_sticky_delayed_event(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(eventType),FfiConverterString.lower(content),FfiConverterUInt64.lower(delayMs),FfiConverterUInt64.lower(stickyDurationMs),FfiConverterOptionTypeRequestConfigOverride.lower(requestConfigOverride)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeClientError_lift
         )
 }
@@ -15376,6 +15796,166 @@ public func FfiConverterTypeSearchService_lift(_ handle: UInt64) throws -> Searc
 #endif
 public func FfiConverterTypeSearchService_lower(_ value: SearchService) -> UInt64 {
     return FfiConverterTypeSearchService.lower(value)
+}
+
+
+
+
+
+
+/**
+ * A secret storage key.
+ */
+public protocol SecretStorageKeyProtocol: AnyObject, Sendable {
+    
+    /**
+     * The base-58 representation of the key to present to the user.
+     *
+     * _Note_: This returns a copy of the private key material of the
+     * [`SecretStorageKey`] as a string. The caller needs to ensure that this
+     * string is zeroized.
+     */
+    func toBase58()  -> String
+    
+}
+/**
+ * A secret storage key.
+ */
+open class SecretStorageKey: SecretStorageKeyProtocol, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_matrix_sdk_ffi_fn_clone_secretstoragekey(self.handle, $0) }
+    }
+    /**
+     * Create a new random secret storage key.
+     */
+public convenience init() {
+    let handle =
+        try! rustCall() {
+        uniffiCallStatus in
+    uniffi_matrix_sdk_ffi_fn_constructor_secretstoragekey_new(uniffiCallStatus
+    )
+}
+    self.init(unsafeFromHandle: handle)
+}
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_matrix_sdk_ffi_fn_free_secretstoragekey(handle, $0) }
+    }
+
+    
+    /**
+     * Create a new secret storage key from a passphrase.
+     */
+public static func newFromPassphrase(passphrase: String) -> SecretStorageKey  {
+    return try!  FfiConverterTypeSecretStorageKey_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_matrix_sdk_ffi_fn_constructor_secretstoragekey_new_from_passphrase(
+        FfiConverterString.lower(passphrase),uniffiCallStatus
+    )
+})
+}
+    
+
+    
+    /**
+     * The base-58 representation of the key to present to the user.
+     *
+     * _Note_: This returns a copy of the private key material of the
+     * [`SecretStorageKey`] as a string. The caller needs to ensure that this
+     * string is zeroized.
+     */
+open func toBase58() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_matrix_sdk_ffi_fn_method_secretstoragekey_to_base58(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+
+    
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSecretStorageKey: FfiConverter {
+    typealias FfiType = UInt64
+    typealias SwiftType = SecretStorageKey
+
+    public static func lift(_ handle: UInt64) throws -> SecretStorageKey {
+        return SecretStorageKey(unsafeFromHandle: handle)
+    }
+
+    public static func lower(_ value: SecretStorageKey) -> UInt64 {
+        return value.uniffiCloneHandle()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SecretStorageKey {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: SecretStorageKey, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSecretStorageKey_lift(_ handle: UInt64) throws -> SecretStorageKey {
+    return try FfiConverterTypeSecretStorageKey.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSecretStorageKey_lower(_ value: SecretStorageKey) -> UInt64 {
+    return FfiConverterTypeSecretStorageKey.lower(value)
 }
 
 
@@ -22320,6 +22900,11 @@ public struct EventTimelineItem {
      * Send state of our pending redaction of this event, if any.
      */
     public var redactionSendState: EventSendState?
+    /**
+     * The reason given with the redaction of this event, if any: from the
+     * server, or from our own redaction while it is still pending.
+     */
+    public var redactionReason: String?
     public var localCreatedAt: UInt64?
     public var readReceipts: [String: Receipt]
     public var origin: EventItemOrigin?
@@ -22341,7 +22926,11 @@ public struct EventTimelineItem {
          */editSendState: EventSendState?, 
         /**
          * Send state of our pending redaction of this event, if any.
-         */redactionSendState: EventSendState?, localCreatedAt: UInt64?, readReceipts: [String: Receipt], origin: EventItemOrigin?, canBeRepliedTo: Bool, lazyProvider: LazyTimelineItemProvider) {
+         */redactionSendState: EventSendState?, 
+        /**
+         * The reason given with the redaction of this event, if any: from the
+         * server, or from our own redaction while it is still pending.
+         */redactionReason: String?, localCreatedAt: UInt64?, readReceipts: [String: Receipt], origin: EventItemOrigin?, canBeRepliedTo: Bool, lazyProvider: LazyTimelineItemProvider) {
         self.isRemote = isRemote
         self.eventOrTransactionId = eventOrTransactionId
         self.sender = sender
@@ -22357,6 +22946,7 @@ public struct EventTimelineItem {
         self.localSendState = localSendState
         self.editSendState = editSendState
         self.redactionSendState = redactionSendState
+        self.redactionReason = redactionReason
         self.localCreatedAt = localCreatedAt
         self.readReceipts = readReceipts
         self.origin = origin
@@ -22395,6 +22985,7 @@ public struct FfiConverterTypeEventTimelineItem: FfiConverterRustBuffer {
                 localSendState: FfiConverterOptionTypeEventSendState.read(from: &buf), 
                 editSendState: FfiConverterOptionTypeEventSendState.read(from: &buf), 
                 redactionSendState: FfiConverterOptionTypeEventSendState.read(from: &buf), 
+                redactionReason: FfiConverterOptionString.read(from: &buf), 
                 localCreatedAt: FfiConverterOptionUInt64.read(from: &buf), 
                 readReceipts: FfiConverterDictionaryStringTypeReceipt.read(from: &buf), 
                 origin: FfiConverterOptionTypeEventItemOrigin.read(from: &buf), 
@@ -22419,6 +23010,7 @@ public struct FfiConverterTypeEventTimelineItem: FfiConverterRustBuffer {
         FfiConverterOptionTypeEventSendState.write(value.localSendState, into: &buf)
         FfiConverterOptionTypeEventSendState.write(value.editSendState, into: &buf)
         FfiConverterOptionTypeEventSendState.write(value.redactionSendState, into: &buf)
+        FfiConverterOptionString.write(value.redactionReason, into: &buf)
         FfiConverterOptionUInt64.write(value.localCreatedAt, into: &buf)
         FfiConverterDictionaryStringTypeReceipt.write(value.readReceipts, into: &buf)
         FfiConverterOptionTypeEventItemOrigin.write(value.origin, into: &buf)
@@ -31578,10 +32170,23 @@ public struct VideoInfo {
     public var thumbnailInfo: ThumbnailInfo?
     public var thumbnailSource: MediaSource?
     public var blurhash: String?
+    /**
+     * Whether this video should be displayed as a circle video
+     * ([MSC4546](https://github.com/matrix-org/matrix-spec-proposals/pull/4546)).
+     *
+     * Defaults to `false`.
+     */
+    public var circle: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(duration: TimeInterval?, height: UInt64?, width: UInt64?, mimetype: String?, size: UInt64?, thumbnailInfo: ThumbnailInfo?, thumbnailSource: MediaSource?, blurhash: String?) {
+    public init(duration: TimeInterval?, height: UInt64?, width: UInt64?, mimetype: String?, size: UInt64?, thumbnailInfo: ThumbnailInfo?, thumbnailSource: MediaSource?, blurhash: String?, 
+        /**
+         * Whether this video should be displayed as a circle video
+         * ([MSC4546](https://github.com/matrix-org/matrix-spec-proposals/pull/4546)).
+         *
+         * Defaults to `false`.
+         */circle: Bool = false) {
         self.duration = duration
         self.height = height
         self.width = width
@@ -31590,6 +32195,7 @@ public struct VideoInfo {
         self.thumbnailInfo = thumbnailInfo
         self.thumbnailSource = thumbnailSource
         self.blurhash = blurhash
+        self.circle = circle
     }
 
     
@@ -31615,7 +32221,8 @@ public struct FfiConverterTypeVideoInfo: FfiConverterRustBuffer {
                 size: FfiConverterOptionUInt64.read(from: &buf), 
                 thumbnailInfo: FfiConverterOptionTypeThumbnailInfo.read(from: &buf), 
                 thumbnailSource: FfiConverterOptionTypeMediaSource.read(from: &buf), 
-                blurhash: FfiConverterOptionString.read(from: &buf)
+                blurhash: FfiConverterOptionString.read(from: &buf), 
+                circle: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -31628,6 +32235,7 @@ public struct FfiConverterTypeVideoInfo: FfiConverterRustBuffer {
         FfiConverterOptionTypeThumbnailInfo.write(value.thumbnailInfo, into: &buf)
         FfiConverterOptionTypeMediaSource.write(value.thumbnailSource, into: &buf)
         FfiConverterOptionString.write(value.blurhash, into: &buf)
+        FfiConverterBool.write(value.circle, into: &buf)
     }
 }
 
@@ -31656,18 +32264,32 @@ public struct VideoMessageContent {
     public var formattedCaption: FormattedBody?
     public var source: MediaSource
     public var info: VideoInfo?
+    /**
+     * Whether this video should be displayed as a circle video
+     * ([MSC4546](https://github.com/matrix-org/matrix-spec-proposals/pull/4546)).
+     *
+     * Defaults to `false`.
+     */
+    public var circle: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(
         /**
          * The computed filename, for use in a client.
-         */filename: String, caption: String?, formattedCaption: FormattedBody?, source: MediaSource, info: VideoInfo?) {
+         */filename: String, caption: String?, formattedCaption: FormattedBody?, source: MediaSource, info: VideoInfo?, 
+        /**
+         * Whether this video should be displayed as a circle video
+         * ([MSC4546](https://github.com/matrix-org/matrix-spec-proposals/pull/4546)).
+         *
+         * Defaults to `false`.
+         */circle: Bool = false) {
         self.filename = filename
         self.caption = caption
         self.formattedCaption = formattedCaption
         self.source = source
         self.info = info
+        self.circle = circle
     }
 
     
@@ -31690,7 +32312,8 @@ public struct FfiConverterTypeVideoMessageContent: FfiConverterRustBuffer {
                 caption: FfiConverterOptionString.read(from: &buf), 
                 formattedCaption: FfiConverterOptionTypeFormattedBody.read(from: &buf), 
                 source: FfiConverterTypeMediaSource.read(from: &buf), 
-                info: FfiConverterOptionTypeVideoInfo.read(from: &buf)
+                info: FfiConverterOptionTypeVideoInfo.read(from: &buf), 
+                circle: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -31700,6 +32323,7 @@ public struct FfiConverterTypeVideoMessageContent: FfiConverterRustBuffer {
         FfiConverterOptionTypeFormattedBody.write(value.formattedCaption, into: &buf)
         FfiConverterTypeMediaSource.write(value.source, into: &buf)
         FfiConverterOptionTypeVideoInfo.write(value.info, into: &buf)
+        FfiConverterBool.write(value.circle, into: &buf)
     }
 }
 
@@ -34205,6 +34829,94 @@ public func FfiConverterTypeDehydratedDeviceEvent_lift(_ buf: RustBuffer) throws
 #endif
 public func FfiConverterTypeDehydratedDeviceEvent_lower(_ value: DehydratedDeviceEvent) -> RustBuffer {
     return FfiConverterTypeDehydratedDeviceEvent.lower(value)
+}
+
+
+
+/**
+ * What to do with a delayed event that hasn't been distributed to the room
+ * yet ([MSC4140]).
+ *
+ * [MSC4140]: https://github.com/matrix-org/matrix-spec-proposals/pull/4140
+ */
+
+public enum DelayedEventUpdateAction: Equatable, Hashable {
+    
+    /**
+     * Cancel the delayed event: it will never be sent to the room.
+     */
+    case cancel
+    /**
+     * Restart the delay timeout, keeping the event scheduled.
+     */
+    case restart
+    /**
+     * Send the event to the room right away.
+     */
+    case send
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DelayedEventUpdateAction: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDelayedEventUpdateAction: FfiConverterRustBuffer {
+    typealias SwiftType = DelayedEventUpdateAction
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DelayedEventUpdateAction {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .cancel
+        
+        case 2: return .restart
+        
+        case 3: return .send
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: DelayedEventUpdateAction, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .cancel:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .restart:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .send:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDelayedEventUpdateAction_lift(_ buf: RustBuffer) throws -> DelayedEventUpdateAction {
+    return try FfiConverterTypeDelayedEventUpdateAction.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDelayedEventUpdateAction_lower(_ value: DelayedEventUpdateAction) -> RustBuffer {
+    return FfiConverterTypeDelayedEventUpdateAction.lower(value)
 }
 
 
@@ -37162,6 +37874,166 @@ public func FfiConverterTypeInviteAvatars_lift(_ buf: RustBuffer) throws -> Invi
 #endif
 public func FfiConverterTypeInviteAvatars_lower(_ value: InviteAvatars) -> RustBuffer {
     return FfiConverterTypeInviteAvatars.lower(value)
+}
+
+
+
+/**
+ * The room invite permissions that can be set.
+ */
+
+public enum InvitePermissionAction: Equatable, Hashable {
+    
+    /**
+     * Allow room invitations.
+     */
+    case allow
+    /**
+     * Block all room invitations.
+     */
+    case block
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension InvitePermissionAction: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeInvitePermissionAction: FfiConverterRustBuffer {
+    typealias SwiftType = InvitePermissionAction
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> InvitePermissionAction {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .allow
+        
+        case 2: return .block
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: InvitePermissionAction, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .allow:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .block:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInvitePermissionAction_lift(_ buf: RustBuffer) throws -> InvitePermissionAction {
+    return try FfiConverterTypeInvitePermissionAction.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInvitePermissionAction_lower(_ value: InvitePermissionAction) -> RustBuffer {
+    return FfiConverterTypeInvitePermissionAction.lower(value)
+}
+
+
+
+/**
+ * The current room invite permission state.
+ */
+
+public enum InvitePermissionState: Equatable, Hashable {
+    
+    /**
+     * No default restriction on room invitations.
+     */
+    case unrestricted
+    /**
+     * All room invitations are blocked.
+     */
+    case block
+    /**
+     * An invite permission not supported by the SDK.
+     */
+    case unsupported
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension InvitePermissionState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeInvitePermissionState: FfiConverterRustBuffer {
+    typealias SwiftType = InvitePermissionState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> InvitePermissionState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .unrestricted
+        
+        case 2: return .block
+        
+        case 3: return .unsupported
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: InvitePermissionState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .unrestricted:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .block:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .unsupported:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInvitePermissionState_lift(_ buf: RustBuffer) throws -> InvitePermissionState {
+    return try FfiConverterTypeInvitePermissionState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInvitePermissionState_lower(_ value: InvitePermissionState) -> RustBuffer {
+    return FfiConverterTypeInvitePermissionState.lower(value)
 }
 
 
@@ -44268,11 +45140,20 @@ public enum RtcTransport: Equatable, Hashable {
     
     /**
      * A LiveKit RTC transport.
+     *
+     * This covers both the `m.livekit` transport type and the legacy `livekit`
+     * type used by implementations of earlier versions of MSC4195.
      */
     case liveKit(
         /**
-         * The URL of the LiveKit service.
-         */serviceUrl: String
+         * The WebSocket URL of the LiveKit SFU.
+         */url: String?, 
+        /**
+         * The URL of the LiveKit JWT service.
+         *
+         * Deprecated in favor of `url`. Should only be used when backwards
+         * compatibility with older versions of MSC4195 is required
+         */serviceUrl: String?
     )
     /**
      * A transport type the SDK doesn't know about, up for interpretation by
@@ -44308,7 +45189,7 @@ public struct FfiConverterTypeRtcTransport: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
         
-        case 1: return .liveKit(serviceUrl: try FfiConverterString.read(from: &buf)
+        case 1: return .liveKit(url: try FfiConverterOptionString.read(from: &buf), serviceUrl: try FfiConverterOptionString.read(from: &buf)
         )
         
         case 2: return .custom(transportType: try FfiConverterString.read(from: &buf), data: try FfiConverterString.read(from: &buf)
@@ -44322,9 +45203,10 @@ public struct FfiConverterTypeRtcTransport: FfiConverterRustBuffer {
         switch value {
         
         
-        case let .liveKit(serviceUrl):
+        case let .liveKit(url,serviceUrl):
             writeInt(&buf, Int32(1))
-            FfiConverterString.write(serviceUrl, into: &buf)
+            FfiConverterOptionString.write(url, into: &buf)
+            FfiConverterOptionString.write(serviceUrl, into: &buf)
             
         
         case let .custom(transportType,data):
@@ -49666,6 +50548,141 @@ public func FfiConverterCallbackInterfaceIgnoredUsersListener_lift(_ handle: UIn
 #endif
 public func FfiConverterCallbackInterfaceIgnoredUsersListener_lower(_ v: IgnoredUsersListener) -> UInt64 {
     return FfiConverterCallbackInterfaceIgnoredUsersListener.lower(v)
+}
+
+
+
+
+public protocol InvitePermissionListener: AnyObject, Sendable {
+    
+    func onChange(invitePermission: InvitePermissionState) 
+    
+}
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceInvitePermissionListener {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfaceInvitePermissionListener = UniffiVTableCallbackInterfaceInvitePermissionListener(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterCallbackInterfaceInvitePermissionListener.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface InvitePermissionListener: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterCallbackInterfaceInvitePermissionListener.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface InvitePermissionListener: handle missing in uniffiClone")
+            }
+        },
+        onChange: { (
+            uniffiHandle: UInt64,
+            invitePermission: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceInvitePermissionListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onChange(
+                     invitePermission: try FfiConverterTypeInvitePermissionState_lift(invitePermission)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        }
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfaceInvitePermissionListener> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfaceInvitePermissionListener>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
+}
+
+private func uniffiCallbackInitInvitePermissionListener() {
+    uniffi_matrix_sdk_ffi_fn_init_callback_vtable_invitepermissionlistener(UniffiCallbackInterfaceInvitePermissionListener.vtablePtr)
+}
+
+// FfiConverter protocol for callback interfaces
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterCallbackInterfaceInvitePermissionListener {
+    fileprivate static let handleMap = UniffiHandleMap<InvitePermissionListener>()
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+extension FfiConverterCallbackInterfaceInvitePermissionListener : FfiConverter {
+    typealias SwiftType = InvitePermissionListener
+    typealias FfiType = UInt64
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceInvitePermissionListener_lift(_ handle: UInt64) throws -> InvitePermissionListener {
+    return try FfiConverterCallbackInterfaceInvitePermissionListener.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceInvitePermissionListener_lower(_ v: InvitePermissionListener) -> UInt64 {
+    return FfiConverterCallbackInterfaceInvitePermissionListener.lower(v)
 }
 
 
@@ -56010,6 +57027,30 @@ fileprivate struct FfiConverterOptionTypeRoomPowerLevels: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeSecretStorageKey: FfiConverterRustBuffer {
+    typealias SwiftType = SecretStorageKey?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeSecretStorageKey.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeSecretStorageKey.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeSendHandle: FfiConverterRustBuffer {
     typealias SwiftType = SendHandle?
 
@@ -60223,7 +61264,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_can_deactivate_account() != 46985) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_clear_caches() != 12078) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_clear_caches() != 23784) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_clear_user_status() != 10577) {
@@ -60278,6 +61319,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_invite_avatars_display_policy() != 15140) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_get_invite_permission() != 51899) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_get_max_media_upload_size() != 31461) {
@@ -60343,7 +61387,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_ignored_users() != 60744) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_livekit_rtc_supported() != 21068) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_is_livekit_rtc_supported() != 60417) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_is_login_with_qr_code_supported() != 48668) {
@@ -60487,6 +61531,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_client_set_invite_avatars_display_policy() != 45636) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_set_invite_permission() != 33188) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_set_media_preview_display_policy() != 58885) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -60521,6 +61568,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_ignored_users() != 43126) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_invite_permission() != 16523) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_subscribe_to_media_preview_config() != 2320) {
@@ -60560,6 +61610,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_unignore_user() != 28367) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_client_update_delayed_event() != 23725) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_client_upload_avatar() != 20638) {
@@ -60739,7 +61792,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_backups() != 38908) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 1090) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_encryption_enable_recovery() != 48489) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_encryption_has_devices_to_verify_against() != 40096) {
@@ -60806,6 +61859,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_reset() != 30627) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_secretstoragekey_to_base58() != 26990) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_secretsbundlewithuserid_contains_backup_key() != 13305) {
@@ -61162,6 +62218,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_room_members() != 57063) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_members_fetching_global_profiles() != 13248) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_members_no_sync() != 18379) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -61313,6 +62372,15 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_withdraw_verification_and_resend() != 56581) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_delayed_event() != 7176) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_delayed_state_event() != 26141) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_room_send_sticky_delayed_event() != 20506) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_room_subscribe_to_message_like_events() != 31308) {
@@ -61870,6 +62938,12 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_constructor_contentscanner_new() != 51327) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_secretstoragekey_new() != 59636) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_constructor_secretstoragekey_new_from_passphrase() != 43240) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_constructor_secretsbundlewithuserid_from_database() != 44628) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -61928,6 +63002,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_ignoreduserslistener_call() != 45390) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_invitepermissionlistener_on_change() != 36582) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_mediapreviewconfiglistener_on_change() != 65101) {
@@ -62117,6 +63194,7 @@ private let initializationResult: InitializationResult = {
     uniffiCallbackInitGrantQrLoginProgressListener()
     uniffiCallbackInitIdentityStatusChangeListener()
     uniffiCallbackInitIgnoredUsersListener()
+    uniffiCallbackInitInvitePermissionListener()
     uniffiCallbackInitKnockRequestsListener()
     uniffiCallbackInitLiveLocationsListener()
     uniffiCallbackInitMediaPreviewConfigListener()

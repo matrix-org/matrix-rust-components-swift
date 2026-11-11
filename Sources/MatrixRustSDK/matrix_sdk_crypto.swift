@@ -1851,6 +1851,10 @@ public enum UtdCause: Equatable, Hashable {
      * Expected message to user: "You need to verify this device".
      */
     case historicalMessageAndDeviceIsUnverified
+    /**
+     * This event is malformed in some way.
+     */
+    case malformed
 
 
 
@@ -1889,6 +1893,8 @@ public struct FfiConverterTypeUtdCause: FfiConverterRustBuffer {
         case 8: return .withheldBySender
         
         case 9: return .historicalMessageAndDeviceIsUnverified
+        
+        case 10: return .malformed
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -1932,6 +1938,10 @@ public struct FfiConverterTypeUtdCause: FfiConverterRustBuffer {
         
         case .historicalMessageAndDeviceIsUnverified:
             writeInt(&buf, Int32(9))
+        
+        
+        case .malformed:
+            writeInt(&buf, Int32(10))
         
         }
     }
