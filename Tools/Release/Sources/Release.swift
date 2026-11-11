@@ -17,7 +17,10 @@ struct Release: AsyncParsableCommand {
     @Flag(help: "Prevents the run from pushing anything to GitHub.")
     var localOnly = false
     
-    var apiToken = (try? NetrcParser.parse(file: FileManager.default.homeDirectoryForCurrentUser.appending(component: ".netrc")))!
+    @Flag(help: "Skips building the framework and uses the one already in the build directory.")
+    var skipBuild = false
+    
+    var apiToken = ProcessInfo.processInfo.environment["GITHUB_TOKEN"] ?? (try? NetrcParser.parse(file: FileManager.default.homeDirectoryForCurrentUser.appending(component: ".netrc")))!
         .authorization(for: URL(string: "https://api.github.com")!)!
         .password
     
@@ -54,9 +57,13 @@ struct Release: AsyncParsableCommand {
         
         Log.info("Building \(branch) at \(commitHash)")
         
-        // unset fixes an issue where swift compilation prevents building for targets other than macOS
-        try Zsh.run(command: "unset SDKROOT && cargo xtask swift build-framework --release --macos-deployment-target=12.0",
-                    directory: buildDirectory)
+        if skipBuild {
+            Log.info("Skipping build for --skip-build")
+        } else {
+            // unset fixes an issue where swift compilation prevents building for targets other than macOS
+            try Zsh.run(command: "unset SDKROOT && cargo xtask swift build-framework --release --macos-deployment-target=12.0",
+                        directory: buildDirectory)
+        }
         
         return BuildProduct(sourceRepo: sourceRepo,
                             version: version,
