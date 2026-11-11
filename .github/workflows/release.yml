@@ -1,0 +1,182 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      rust-ref:
+        description: "matrix-rust-sdk branch, tag or commit SHA to release"
+        required: true
+        default: main
+      version:
+        description: "Custom version, defaults to a calendar version such as 26.12.31"
+        required: false
+      dry-run:
+        description: "Build everything but don't push or create the release"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  XCODE_PATH: /Applications/Xcode_27.2.app
+  PROFILE: small-release-stripped
+
+jobs:
+  prepare:
+    name: Compute release parameters
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.params.outputs.sha }}
+      version: ${{ steps.params.outputs.version }}
+    steps:
+      - id: params
+        env:
+          RUST_REF: ${{ inputs.rust-ref }}
+          VERSION: ${{ inputs.version }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          if [[ "$RUST_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            sha="$RUST_REF"
+          else
+            sha=$(git ls-remote https://github.com/matrix-org/matrix-rust-sdk "refs/heads/$RUST_REF" "refs/tags/$RUST_REF" | head -1 | cut -f1)
+          fi
+          if [[ -z "$sha" ]]; then
+            echo "::error::Unknown matrix-rust-sdk ref $RUST_REF"
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+          if [[ -n "$VERSION" ]]; then
+            if git ls-remote --exit-code --tags "$REPO_URL" "refs/tags/$VERSION" > /dev/null; then
+              echo "::error::Version $VERSION is already released"
+              exit 1
+            fi
+            version="$VERSION"
+          else
+            base=$(date -u +%y.%m.%d)
+            version="$base"
+            build=1
+            while git ls-remote --exit-code --tags "$REPO_URL" "refs/tags/$version" > /dev/null; do
+              build=$((build + 1))
+              version="$base-$build"
+            done
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: prepare
+    runs-on: xcode-27
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    strategy:
+      # Leave some of the organisation's macOS runners to the SDK's CI.
+      max-parallel: 3
+      matrix:
+        # Keep in sync with the targets assembled in the release job.
+        target:
+          - aarch64-apple-ios
+          - aarch64-apple-ios-sim
+          - x86_64-apple-ios
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: matrix-org/matrix-rust-sdk
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$XCODE_PATH"
+
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo xtask swift build-framework --profile "$PROFILE" --target "$TARGET" --macos-deployment-target 12.0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lib-${{ matrix.target }}
+          path: target/${{ matrix.target }}/${{ env.PROFILE }}/libmatrix_sdk_ffi.a
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Create GitHub release
+    needs: [prepare, build]
+    runs-on: xcode-27
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      TARGETS: aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
+      VERSION: ${{ needs.prepare.outputs.version }}
+      RUST_REF: ${{ inputs.rust-ref }}
+    steps:
+      # Tools/Release expects the SDK to be checked out next to this repo.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: matrix-rust-components-swift
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: matrix-org/matrix-rust-sdk
+          ref: ${{ needs.prepare.outputs.sha }}
+          path: matrix-rust-sdk
+          persist-credentials: false
+
+      # Name the detached checkout so the release commit mentions the ref.
+      - name: Name the SDK checkout
+        working-directory: matrix-rust-sdk
+        run: git checkout -B "$RUST_REF"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "$XCODE_PATH"
+
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lib-*
+          path: libs
+
+      - name: Assemble the XCFramework
+        working-directory: matrix-rust-sdk
+        run: |
+          args=()
+          for target in $TARGETS; do
+            mkdir -p "target/$target/$PROFILE"
+            mv "../libs/lib-$target/libmatrix_sdk_ffi.a" "target/$target/$PROFILE/"
+            args+=(--target "$target")
+          done
+          cargo xtask swift build-framework --profile "$PROFILE" --prebuilt "${args[@]}"
+
+      - name: Release
+        working-directory: matrix-rust-components-swift
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          args=(--skip-build --custom-version "$VERSION")
+          if [[ "$DRY_RUN" == true ]]; then
+            args+=(--local-only)
+          fi
+          swift run --package-path Tools/Release release "${args[@]}"
