@@ -1,6 +1,10 @@
 name: Release
 
 on:
+  schedule:
+    # Every Monday at 03:00 UTC, but only releasing on even ISO weeks (see the
+    # prepare job), as cron can't express every other week.
+    - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
       rust-ref:
@@ -34,13 +38,21 @@ jobs:
     outputs:
       sha: ${{ steps.params.outputs.sha }}
       version: ${{ steps.params.outputs.version }}
+      skip: ${{ steps.params.outputs.skip }}
     steps:
       - id: params
         env:
-          RUST_REF: ${{ inputs.rust-ref }}
+          RUST_REF: ${{ inputs.rust-ref || 'main' }}
           VERSION: ${{ inputs.version }}
+          EVENT: ${{ github.event_name }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
+          if [[ "$EVENT" == schedule ]] && (( 10#$(date -u +%V) % 2 == 1 )); then
+            echo "Odd week, skipping the scheduled release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "$RUST_REF" =~ ^[0-9a-f]{40}$ ]]; then
             sha="$RUST_REF"
           else
@@ -72,6 +84,7 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
     runs-on: xcode-27
     timeout-minutes: 120
     permissions:
@@ -124,7 +137,7 @@ jobs:
     env:
       TARGETS: aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
       VERSION: ${{ needs.prepare.outputs.version }}
-      RUST_REF: ${{ inputs.rust-ref }}
+      RUST_REF: ${{ inputs.rust-ref || 'main' }}
     steps:
       # Tools/Release expects the SDK to be checked out next to this repo.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
